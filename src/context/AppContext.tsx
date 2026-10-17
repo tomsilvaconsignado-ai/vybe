@@ -132,67 +132,78 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Safe LocalStorage helpers with try/catch to prevent white screen crashes in private browsing or on corrupted state
+function safeStorageGet<T>(key: string, fallback: T): T {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return fallback;
+    const saved = localStorage.getItem(key);
+    if (!saved) return fallback;
+    return JSON.parse(saved);
+  } catch (err) {
+    console.warn(`[VYBE] Safe storage fallback for "${key}":`, err);
+    return fallback;
+  }
+}
+
+function safeStorageSet(key: string, value: any): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch (err) {
+    console.warn(`[VYBE] Safe storage write failed for "${key}":`, err);
+  }
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Check LocalStorage or seed defaults: Start with TOM_ADMIN_USER as the primary administrator
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('vybe_user');
-    return saved ? JSON.parse(saved) : TOM_ADMIN_USER;
-  });
+  // Check LocalStorage or seed defaults safely: Start with TOM_ADMIN_USER as the primary administrator
+  const [currentUser, setCurrentUser] = useState<UserProfile>(() => 
+    safeStorageGet('vybe_user', TOM_ADMIN_USER)
+  );
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    const saved = localStorage.getItem('vybe_is_logged_in');
-    return saved ? JSON.parse(saved) : true;
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => 
+    safeStorageGet('vybe_is_logged_in', true)
+  );
 
-  const [isAgeConfirmed, setIsAgeConfirmed] = useState<boolean>(() => {
-    const saved = localStorage.getItem('vybe_age_confirmed');
-    return saved ? JSON.parse(saved) : true;
-  });
+  const [isAgeConfirmed, setIsAgeConfirmed] = useState<boolean>(() => 
+    safeStorageGet('vybe_age_confirmed', true)
+  );
 
-  const [profiles, setProfiles] = useState<UserProfile[]>(() => {
-    const saved = localStorage.getItem('vybe_profiles');
-    return saved ? JSON.parse(saved) : MOCK_PROFILES;
-  });
+  const [profiles, setProfiles] = useState<UserProfile[]>(() => 
+    safeStorageGet('vybe_profiles', MOCK_PROFILES)
+  );
 
-  const [posts, setPosts] = useState<Post[]>(() => {
-    const saved = localStorage.getItem('vybe_posts');
-    return saved ? JSON.parse(saved) : MOCK_POSTS;
-  });
+  const [posts, setPosts] = useState<Post[]>(() => 
+    safeStorageGet('vybe_posts', MOCK_POSTS)
+  );
 
-  const [communities, setCommunities] = useState<Community[]>(() => {
-    const saved = localStorage.getItem('vybe_communities');
-    return saved ? JSON.parse(saved) : MOCK_COMMUNITIES;
-  });
+  const [communities, setCommunities] = useState<Community[]>(() => 
+    safeStorageGet('vybe_communities', MOCK_COMMUNITIES)
+  );
 
-  const [conversations, setConversations] = useState<Conversation[]>(() => {
-    const saved = localStorage.getItem('vybe_conversations');
-    return saved ? JSON.parse(saved) : MOCK_CONVERSATIONS;
-  });
+  const [conversations, setConversations] = useState<Conversation[]>(() => 
+    safeStorageGet('vybe_conversations', MOCK_CONVERSATIONS)
+  );
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => {
-    const saved = localStorage.getItem('vybe_notifications');
-    return saved ? JSON.parse(saved) : MOCK_NOTIFICATIONS;
-  });
+  const [notifications, setNotifications] = useState<NotificationItem[]>(() => 
+    safeStorageGet('vybe_notifications', MOCK_NOTIFICATIONS)
+  );
 
-  const [reports, setReports] = useState<ModerationReport[]>(() => {
-    const saved = localStorage.getItem('vybe_reports');
-    return saved ? JSON.parse(saved) : MOCK_REPORTS;
-  });
+  const [reports, setReports] = useState<ModerationReport[]>(() => 
+    safeStorageGet('vybe_reports', MOCK_REPORTS)
+  );
 
-  const [adminLogs, setAdminLogs] = useState<AdminAuditLog[]>(() => {
-    const saved = localStorage.getItem('vybe_admin_logs');
-    return saved ? JSON.parse(saved) : MOCK_ADMIN_LOGS;
-  });
+  const [adminLogs, setAdminLogs] = useState<AdminAuditLog[]>(() => 
+    safeStorageGet('vybe_admin_logs', MOCK_ADMIN_LOGS)
+  );
 
-  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>(() => {
-    const saved = localStorage.getItem('vybe_admin_users');
-    return saved ? JSON.parse(saved) : INITIAL_ADMIN_USERS;
-  });
+  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>(() => 
+    safeStorageGet('vybe_admin_users', INITIAL_ADMIN_USERS)
+  );
 
-  const [adminMediaList, setAdminMediaList] = useState<AdminMediaRecord[]>(() => {
-    const saved = localStorage.getItem('vybe_admin_media');
-    return saved ? JSON.parse(saved) : INITIAL_ADMIN_MEDIA;
-  });
+  const [adminMediaList, setAdminMediaList] = useState<AdminMediaRecord[]>(() => 
+    safeStorageGet('vybe_admin_media', INITIAL_ADMIN_MEDIA)
+  );
 
   // UI state
   const [activeTab, setActiveTab] = useState<string>('feed');
@@ -203,7 +214,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [following, setFollowing] = useState<string[]>(['usr_02_casal_sp', 'usr_03_sing_f', 'usr_05_casal_bh']);
 
   // Admin security check: Server-side identity verification
-  const isAuthorizedAdmin = currentUser.email.toLowerCase().trim() === PRIMARY_ADMIN_EMAIL.toLowerCase();
+  const isAuthorizedAdmin = currentUser?.email ? currentUser.email.toLowerCase().trim() === PRIMARY_ADMIN_EMAIL.toLowerCase() : false;
 
   const [isAdminMode, setIsAdminModeInternal] = useState<boolean>(false);
   const [adminRole, setAdminRole] = useState<'superadmin' | 'moderator' | 'support' | 'auditor'>('superadmin');
@@ -213,41 +224,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [reportModalTarget, setReportModalTarget] = useState<{ targetType: 'profile' | 'post' | 'media' | 'message'; targetId: string; reportedUserName: string } | null>(null);
   const [privacyTermsModalOpen, setPrivacyTermsModalOpen] = useState<boolean>(false);
 
-  // Sync to local storage
+  // Sync to local storage safely
   useEffect(() => {
-    localStorage.setItem('vybe_user', JSON.stringify(currentUser));
+    safeStorageSet('vybe_user', currentUser);
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('vybe_is_logged_in', JSON.stringify(isLoggedIn));
+    safeStorageSet('vybe_is_logged_in', isLoggedIn);
   }, [isLoggedIn]);
 
   useEffect(() => {
-    localStorage.setItem('vybe_posts', JSON.stringify(posts));
+    safeStorageSet('vybe_posts', posts);
   }, [posts]);
 
   useEffect(() => {
-    localStorage.setItem('vybe_conversations', JSON.stringify(conversations));
+    safeStorageSet('vybe_conversations', conversations);
   }, [conversations]);
 
   useEffect(() => {
-    localStorage.setItem('vybe_notifications', JSON.stringify(notifications));
+    safeStorageSet('vybe_notifications', notifications);
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem('vybe_reports', JSON.stringify(reports));
+    safeStorageSet('vybe_reports', reports);
   }, [reports]);
 
   useEffect(() => {
-    localStorage.setItem('vybe_admin_logs', JSON.stringify(adminLogs));
+    safeStorageSet('vybe_admin_logs', adminLogs);
   }, [adminLogs]);
 
   useEffect(() => {
-    localStorage.setItem('vybe_admin_users', JSON.stringify(adminUsers));
+    safeStorageSet('vybe_admin_users', adminUsers);
   }, [adminUsers]);
 
   useEffect(() => {
-    localStorage.setItem('vybe_admin_media', JSON.stringify(adminMediaList));
+    safeStorageSet('vybe_admin_media', adminMediaList);
   }, [adminMediaList]);
 
   // Protected Admin Mode Switcher

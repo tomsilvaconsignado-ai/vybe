@@ -175,37 +175,61 @@ No painel do Supabase, acesse **SQL Editor** no menu lateral e execute os 3 scri
 
 ---
 
-## 🚀 Publicação no GitHub
+---
 
-Para subir seu projeto para um novo repositório no GitHub:
+## 🚀 Publicação no GitHub e GitHub Pages (Sem Tela Branca)
 
-1. Crie um novo repositório no [GitHub](https://github.com/new) com o nome `vybe` (selecione **Private** para proteger seu código).
-2. No terminal do seu computador, dentro da pasta do projeto:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: release inicial VYBE plataforma completa com suporte Supabase"
-   git branch -M main
-   git remote add origin https://github.com/SEU-USUARIO/vybe.git
-   git push -u origin main
-   ```
+### ⚠️ Diagnóstico e Solução da "Tela Branca" no GitHub Pages
 
-*Nota: O arquivo `.gitignore` já está configurado para não subir `.env`, `node_modules/` ou chaves privadas.*
+A tela branca ocorria por dois motivos clássicos de publicação de aplicações React/Vite no GitHub:
+
+1. **Caminhos Absolutos de Assets (`base: '/'`):** 
+   Por padrão, o Vite gerava caminhos absolutos como `/assets/index.js`. Quando o site é publicado no GitHub Pages em um subdiretório (ex: `https://seu-usuario.github.io/vybe/`), o navegador tentava carregar os arquivos da raiz do domínio (`https://seu-usuario.github.io/assets/index.js`), resultando em erro **404 Not Found** e deixando a tela em branco.
+   - **Correção aplicada:** Configuramos `base: './'` no `vite.config.ts`, garantindo que todos os assets sejam referenciados de forma relativa e carreguem perfeitamente em qualquer URL, repositório ou subdiretório.
+
+2. **Publicação dos Arquivos Fontes Brutos (.tsx) sem Compilação:** 
+   Se o GitHub Pages for configurado para "Deploy from a branch" apontando para a raiz do repositório, o servidor estático serve o arquivo `index.html` original apontando para `/src/main.tsx`. Navegadores web não executam arquivos TypeScript diretamente sem compilação.
+   - **Correção aplicada:** Criamos o fluxo automatizado do GitHub Actions em `.github/workflows/deploy.yml`, que compila o projeto com `npm run build` e publica a pasta `dist` já transpilada e otimizada.
+   - **Adicionado `public/404.html`:** Redirecionador SPA para garantir que recarregar a página ou navegar por links diretos não cause tela de erro 404.
+   - **Adicionado `ErrorBoundary` e Preloader:** Proteção no `src/main.tsx` e `index.html` que previne falhas silenciosas e exibe interface de recuperação caso ocorra qualquer imprevisto.
 
 ---
 
-## 🌐 Implantação em Produção
+### 📋 Passo a Passo para Ativar o GitHub Pages Corretamente
 
-### Opção A: Vercel (Recomendado para o Frontend)
+1. **Envie as alterações para o seu repositório GitHub:**
+   ```bash
+   git add .
+   git commit -m "fix: correcao tela branca github pages e workflow oficial vite"
+   git push origin main
+   ```
+
+2. **Ative o GitHub Pages com GitHub Actions no Painel do Repositório:**
+   - Acesse o seu repositório no GitHub.
+   - Vá na aba **Settings** (Configurações).
+   - No menu lateral esquerdo, clique em **Pages**.
+   - Na seção **Build and deployment** (Compilação e implantação):
+     - Em **Source** (Origem), altere de *"Deploy from a branch"* para **"GitHub Actions"**.
+   - Pronto! O workflow `.github/workflows/deploy.yml` será acionado automaticamente a cada commit na branch `main`.
+
+3. **Acompanhar a Publicação:**
+   - Acesse a aba **Actions** no topo do seu repositório GitHub.
+   - Você verá o workflow **"Deploy VYBE to GitHub Pages"** sendo executado.
+   - Em cerca de 45 segundos, a publicação será concluída e o link oficial do seu site estará disponível no topo da aba Pages (ex: `https://seu-usuario.github.io/vybe/`).
+
+---
+
+## 🌐 Implantação Alternativa em Produção
+
+### Opção A: Vercel (Recomendado para Frontend Serverless)
 1. Conecte sua conta do GitHub na [Vercel](https://vercel.com).
 2. Importe o repositório `vybe`.
-3. Em **Environment Variables**, adicione:
+3. Em **Environment Variables**, adicione (opcional se for usar Supabase real):
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
-   - `PRIMARY_ADMIN_EMAIL=tomsilvaconsignado@gmail.com`
-4. Clique em **Deploy**. A Vercel executará `npm run build` e publicará seu site em segundos com certificado SSL gratuito.
+4. Clique em **Deploy**. A Vercel executará `npm run build` e publicará o site instantaneamente.
 
-### Opção B: Render / Railway / Fly.io (Para Full-Stack com Express)
+### Opção B: Render / Railway / Fly.io (Para Full-Stack com Express / server.ts)
 1. Crie uma nova aplicação Web Service apontando para o repositório GitHub.
 2. Defina o comando de build: `npm install && npm run build`
 3. Defina o comando de inicialização: `npm start` (executa `tsx server.ts`)
