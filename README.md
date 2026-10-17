@@ -195,27 +195,27 @@ A tela branca ocorria por dois motivos clássicos de publicação de aplicaçõe
 
 ---
 
-### 📋 Passo a Passo para Ativar o GitHub Pages Corretamente
+### 📋 Passo a Passo para Publicar no GitHub Pages (2 Opções Simples)
 
-1. **Envie as alterações para o seu repositório GitHub:**
+#### Opção 1: Instantânea pela Pasta `/docs` (Recomendada se você não usa GitHub Actions)
+1. Baixe o pacote `vybe-project.zip` ou envie todos os arquivos do repositório para o GitHub.
+2. No seu repositório no GitHub, clique na aba **Settings** (Configurações) > **Pages**.
+3. Em **Build and deployment** > **Source**, mantenha **"Deploy from a branch"**.
+4. Em **Branch**, selecione a branch `main` e no campo da pasta ao lado selecione **`/docs`**.
+5. Clique em **Save**.
+6. Pronto! O site entrará no ar em segundos com todos os arquivos já compilados e sem nenhuma tela de erro.
+
+#### Opção 2: Automática com GitHub Actions (Para compilação contínua a cada commit)
+1. Envie as alterações para o seu repositório:
    ```bash
    git add .
-   git commit -m "fix: correcao tela branca github pages e workflow oficial vite"
+   git commit -m "fix: correcao definitiva erro github pages"
    git push origin main
    ```
-
-2. **Ative o GitHub Pages com GitHub Actions no Painel do Repositório:**
-   - Acesse o seu repositório no GitHub.
-   - Vá na aba **Settings** (Configurações).
-   - No menu lateral esquerdo, clique em **Pages**.
-   - Na seção **Build and deployment** (Compilação e implantação):
-     - Em **Source** (Origem), altere de *"Deploy from a branch"* para **"GitHub Actions"**.
-   - Pronto! O workflow `.github/workflows/deploy.yml` será acionado automaticamente a cada commit na branch `main`.
-
-3. **Acompanhar a Publicação:**
-   - Acesse a aba **Actions** no topo do seu repositório GitHub.
-   - Você verá o workflow **"Deploy VYBE to GitHub Pages"** sendo executado.
-   - Em cerca de 45 segundos, a publicação será concluída e o link oficial do seu site estará disponível no topo da aba Pages (ex: `https://seu-usuario.github.io/vybe/`).
+2. No seu repositório no GitHub, vá em **Settings** > **Pages**.
+3. Em **Build and deployment** > **Source**, escolha **"GitHub Actions"**.
+4. O GitHub executará o fluxo `.github/workflows/deploy.yml` automaticamente.
+5. Em aproximadamente 45 segundos, o site estará publicado no link indicado no topo da página.
 
 ---
 

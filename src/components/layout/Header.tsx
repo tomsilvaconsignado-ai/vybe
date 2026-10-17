@@ -30,8 +30,8 @@ export const Header: React.FC = () => {
 
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
 
-  const unreadNotifications = notifications.filter(n => !n.read).length;
-  const unreadMessages = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+  const unreadNotifications = Array.isArray(notifications) ? notifications.filter(n => !n.read).length : 0;
+  const unreadMessages = Array.isArray(conversations) ? conversations.reduce((acc, c) => acc + (c?.unreadCount || 0), 0) : 0;
 
   return (
     <header className="sticky top-0 z-40 bg-[#09070f]/90 backdrop-blur-xl border-b border-purple-900/20 px-4 lg:px-8 py-3 transition-all">
@@ -157,11 +157,11 @@ export const Header: React.FC = () => {
                 >
                   <div className="relative">
                     <img
-                      src={currentUser.avatarUrl}
-                      alt={currentUser.displayName}
+                      src={currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200'}
+                      alt={currentUser?.displayName || 'Usuário'}
                       className="w-7 h-7 rounded-full object-cover border border-purple-500/40"
                     />
-                    {currentUser.isVerified && (
+                    {currentUser?.isVerified && (
                       <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-purple-500 rounded-full flex items-center justify-center text-[9px] text-white">
                         ✓
                       </span>
@@ -169,10 +169,10 @@ export const Header: React.FC = () => {
                   </div>
                   <div className="hidden sm:block text-left">
                     <span className="text-xs font-semibold text-zinc-200 group-hover:text-purple-300 block leading-tight truncate max-w-[120px]">
-                      {currentUser.displayName}
+                      {currentUser?.displayName || 'Usuário'}
                     </span>
                     <span className="text-[10px] text-purple-400">
-                      {isAuthorizedAdmin ? '👑 SuperAdmin' : '@' + currentUser.username}
+                      {isAuthorizedAdmin ? '👑 SuperAdmin' : '@' + (currentUser?.username || 'usuario')}
                     </span>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />

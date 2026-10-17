@@ -38,9 +38,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const [commentInput, setCommentInput] = useState('');
   const [showMenu, setShowMenu] = useState(false);
 
-  const isOwner = post.userId === currentUser.id;
-  const totalPollVotes = post.poll?.options.reduce((acc, opt) => acc + opt.votes, 0) || 0;
-  const userPollVote = post.poll?.voterIds[currentUser.id];
+  const isOwner = currentUser?.id ? post.userId === currentUser.id : false;
+  const totalPollVotes = post.poll?.options?.reduce((acc, opt) => acc + opt.votes, 0) || 0;
+  const userPollVote = (currentUser?.id && post.poll?.voterIds) ? post.poll.voterIds[currentUser.id] : undefined;
 
   const handleSendComment = (e: React.FormEvent) => {
     e.preventDefault();

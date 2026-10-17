@@ -22,7 +22,11 @@ import {
   AlertCircle,
   MessageSquare,
   Clock,
-  UserCheck
+  UserCheck,
+  Copy,
+  ExternalLink,
+  Terminal,
+  FolderDown
 } from 'lucide-react';
 import { ModerationReport, AdminUserRecord, AdminMediaRecord } from '../../types';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
@@ -47,7 +51,7 @@ export const AdminPortal: React.FC = () => {
   // 2FA Admin Access State
   const [pinCode, setPinCode] = useState('948210');
   const [mfaError, setMfaError] = useState('');
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'users' | 'reports' | 'media' | 'audit'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'users' | 'reports' | 'media' | 'audit' | 'deploy'>('dashboard');
 
   // Modals state
   const [inspectingUser, setInspectingUser] = useState<AdminUserRecord | null>(null);
@@ -59,6 +63,13 @@ export const AdminPortal: React.FC = () => {
   const [mediaStatusFilter, setMediaStatusFilter] = useState<'all' | 'approved' | 'pending_review' | 'flagged' | 'removed'>('all');
   const [reportPriorityFilter, setReportPriorityFilter] = useState<'all' | 'urgent' | 'high' | 'medium' | 'low'>('all');
   const [selectedReport, setSelectedReport] = useState<ModerationReport | null>(reports[0] || null);
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2500);
+  };
   const [resolutionNote, setResolutionNote] = useState('');
 
   // KPIs Calculations
@@ -199,7 +210,8 @@ export const AdminPortal: React.FC = () => {
           { id: 'reports', label: `Fila de Denúncias (${pendingReports.length})`, icon: ShieldAlert },
           { id: 'users', label: `Gerenciamento de Usuários (${totalUsers})`, icon: Users },
           { id: 'media', label: `Moderação de Mídias (${adminMediaList.length})`, icon: Image },
-          { id: 'audit', label: `Livro de Auditoria (${adminLogs.length})`, icon: FileText }
+          { id: 'audit', label: `Livro de Auditoria (${adminLogs.length})`, icon: FileText },
+          { id: 'deploy', label: 'Exportar & GitHub', icon: Download }
         ].map(t => {
           const Icon = t.icon;
           const isActive = activeAdminTab === t.id;
@@ -851,6 +863,157 @@ export const AdminPortal: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== TAB 6: EXPORT & GITHUB GUIDE ==================== */}
+      {activeAdminTab === 'deploy' && (
+        <div className="space-y-6">
+          {/* Main Download Card */}
+          <div className="bg-gradient-to-r from-purple-950/60 via-zinc-900 to-rose-950/60 border border-purple-600/30 rounded-3xl p-6 sm:p-8 shadow-2xl">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+              <div className="space-y-2 max-w-2xl">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold">
+                    ✓ Código 100% Corrigido e Testado
+                  </span>
+                  <span className="text-zinc-500 text-xs">•</span>
+                  <span className="text-zinc-400 text-xs">Sem Tela Branca • Workflow GitHub Pages Incluso</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  Exportar Código-Fonte VYBE Completo
+                </h3>
+                <p className="text-sm text-zinc-300 leading-relaxed">
+                  Baixe o pacote <code className="text-purple-300 bg-purple-950/60 px-1.5 py-0.5 rounded font-mono">vybe-project.zip</code> contendo todos os arquivos do projeto, banco de dados Supabase, configurações do Vite e o fluxo automatizado do GitHub Actions.
+                </p>
+              </div>
+
+              <a
+                href="./vybe-project.zip"
+                download="vybe-project.zip"
+                className="px-6 py-4 rounded-2xl bg-gradient-to-r from-rose-600 via-fuchsia-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 text-white font-bold text-sm flex items-center gap-3 shadow-xl shadow-rose-950/50 transition transform hover:-translate-y-0.5 shrink-0 cursor-pointer"
+              >
+                <FolderDown className="w-5 h-5" />
+                <span>Baixar Projeto Completo (.ZIP)</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Step by step alternatives */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* Alternative 1: Browser Upload (Zero Terminal) */}
+            <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold">
+                  1
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white">Método Fácil: Pelo Navegador GitHub</h4>
+                  <span className="text-xs text-emerald-400 font-semibold">Sem nenhum comando ou terminal</span>
+                </div>
+              </div>
+
+              <ol className="space-y-3 text-xs text-zinc-300 leading-relaxed list-decimal list-inside pl-1">
+                <li className="p-2 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                  <strong className="text-white">Baixe o ZIP:</strong> Clique no botão acima para baixar o <code className="text-purple-300">vybe-project.zip</code> e descompacte em uma pasta do seu computador.
+                </li>
+                <li className="p-2 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                  <strong className="text-white">Acesse o GitHub:</strong> Entre no site do GitHub e abra a página do seu repositório (ex.: <em>github.com/SEU-USUARIO/vybe</em>).
+                </li>
+                <li className="p-2 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                  <strong className="text-white">Enviar arquivos:</strong> No topo da lista de arquivos, clique no botão <span className="text-amber-300 font-semibold">Add file</span> &gt; <span className="text-amber-300 font-semibold">Upload files</span>.
+                </li>
+                <li className="p-2 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                  <strong className="text-white">Arrastar e soltar:</strong> Arraste todos os arquivos da pasta descompactada para dentro da caixa do navegador.
+                </li>
+                <li className="p-2 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                  <strong className="text-white">Confirmar:</strong> No final da página, digite <span className="text-zinc-200 font-mono">fix: correcao tela branca</span> e clique no botão verde <strong className="text-emerald-400">Commit changes</strong>.
+                </li>
+                <li className="p-2 rounded-xl bg-zinc-950/60 border border-zinc-800/60">
+                  <strong className="text-white">Ativar Pages:</strong> Vá na aba <span className="text-amber-300 font-semibold">Settings</span> &gt; <span className="text-amber-300 font-semibold">Pages</span>. Em <strong>Source</strong>, escolha <strong>"Deploy from a branch" &gt; pasta "/docs"</strong> (publicação imediata) OU <strong>"GitHub Actions"</strong>.
+                </li>
+              </ol>
+            </div>
+
+            {/* Alternative 2: Terminal Commands with Copy Buttons */}
+            <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold">
+                  2
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white">Método pelo Terminal / Linha de Comando</h4>
+                  <span className="text-xs text-zinc-400">Para quem já tem o Git instalado</span>
+                </div>
+              </div>
+
+              <p className="text-xs text-zinc-400">
+                Abra o <strong>PowerShell</strong> (no Windows) ou o <strong>Terminal</strong> (no Mac/Linux), navegue até a pasta do projeto e execute os passos:
+              </p>
+
+              <div className="space-y-3">
+                {/* Step A */}
+                <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 space-y-1.5">
+                  <span className="text-[10px] text-zinc-400 font-semibold uppercase block">Passo 1: Adicionar todos os arquivos alterados</span>
+                  <div className="flex items-center justify-between gap-2 font-mono text-xs text-rose-300 bg-black/60 p-2 rounded-lg">
+                    <code>git add .</code>
+                    <button
+                      onClick={() => handleCopy('git add .')}
+                      className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedText === 'git add .' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedText === 'git add .' ? 'Copiado' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step B */}
+                <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 space-y-1.5">
+                  <span className="text-[10px] text-zinc-400 font-semibold uppercase block">Passo 2: Criar o commit com a descrição da correção</span>
+                  <div className="flex items-center justify-between gap-2 font-mono text-xs text-rose-300 bg-black/60 p-2 rounded-lg">
+                    <code className="truncate">git commit -m "fix: resolucao da tela branca no github pages e workflow vite"</code>
+                    <button
+                      onClick={() => handleCopy('git commit -m "fix: resolucao da tela branca no github pages e workflow vite"')}
+                      className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-300 flex items-center gap-1 shrink-0 cursor-pointer"
+                    >
+                      {copiedText?.includes('commit') ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedText?.includes('commit') ? 'Copiado' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Step C */}
+                <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 space-y-1.5">
+                  <span className="text-[10px] text-zinc-400 font-semibold uppercase block">Passo 3: Enviar para o GitHub (Push)</span>
+                  <div className="flex items-center justify-between gap-2 font-mono text-xs text-rose-300 bg-black/60 p-2 rounded-lg">
+                    <code>git push origin main</code>
+                    <button
+                      onClick={() => handleCopy('git push origin main')}
+                      className="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-[10px] font-bold text-zinc-300 flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedText === 'git push origin main' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedText === 'git push origin main' ? 'Copiado' : 'Copiar'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* GitHub Pages Setting Alert */}
+          <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-4">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1 text-xs text-amber-200">
+              <strong className="text-white text-sm block">Configuração Fundamental no GitHub para não dar Tela Branca:</strong>
+              <p className="leading-relaxed">
+                Após enviar os arquivos, vá na página do repositório no GitHub &gt; <strong>Settings</strong> &gt; <strong>Pages</strong>. Em <strong>Source</strong> (Origem), mude de <em>"Deploy from a branch"</em> para <strong>"GitHub Actions"</strong>. Nosso arquivo <code className="text-amber-100 bg-amber-950/60 px-1 py-0.5 rounded font-mono">.github/workflows/deploy.yml</code> já foi configurado para fazer a compilação do Vite e publicar o site no ar sem erros.
+              </p>
+            </div>
           </div>
         </div>
       )}

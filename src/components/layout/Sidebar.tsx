@@ -33,8 +33,8 @@ export const Sidebar: React.FC = () => {
     logout 
   } = useApp();
 
-  const unreadNotifs = notifications.filter(n => !n.read).length;
-  const unreadMsgs = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+  const unreadNotifs = Array.isArray(notifications) ? notifications.filter(n => !n.read).length : 0;
+  const unreadMsgs = Array.isArray(conversations) ? conversations.reduce((acc, c) => acc + (c?.unreadCount || 0), 0) : 0;
 
   const navItems = [
     { id: 'feed', label: 'Início', icon: Home, badge: null },

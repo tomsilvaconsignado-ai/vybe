@@ -137,8 +137,18 @@ function safeStorageGet<T>(key: string, fallback: T): T {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return fallback;
     const saved = localStorage.getItem(key);
-    if (!saved) return fallback;
-    return JSON.parse(saved);
+    if (!saved || saved === 'null' || saved === 'undefined') return fallback;
+    const parsed = JSON.parse(saved);
+    if (parsed === null || parsed === undefined) return fallback;
+    if (Array.isArray(fallback)) {
+      return Array.isArray(parsed) && parsed.length > 0 ? (parsed as unknown as T) : fallback;
+    }
+    if (typeof fallback === 'object' && fallback !== null) {
+      if (typeof parsed !== 'object' || parsed === null) return fallback;
+      // Ensure key properties exist if fallback has an id or email
+      if ('id' in (fallback as any) && !(parsed as any).id) return fallback;
+    }
+    return parsed;
   } catch (err) {
     console.warn(`[VYBE] Safe storage fallback for "${key}":`, err);
     return fallback;

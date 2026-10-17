@@ -22,7 +22,7 @@ export const MobileNav: React.FC = () => {
 
   if (!isLoggedIn) return null;
 
-  const unreadMsgs = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
+  const unreadMsgs = Array.isArray(conversations) ? conversations.reduce((acc, c) => acc + (c?.unreadCount || 0), 0) : 0;
 
   const tabs = [
     { id: 'feed', label: 'Início', icon: Home },
