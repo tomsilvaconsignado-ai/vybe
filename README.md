@@ -49,17 +49,15 @@ vybe/
 ├── metadata.json                 # Metadados da aplicação
 ├── package.json                  # Dependências e scripts npm
 ├── README.md                     # Documentação completa do projeto
-├── server.ts                     # Servidor Express Full-Stack com rotas de API
+├── server.ts                     # Servidor Express (dev com Vite / produção estática)
 ├── tsconfig.json                 # Configuração do TypeScript
 ├── vite.config.ts                # Configuração do Vite e Tailwind CSS v4
 │
 ├── public/                       # Arquivos estáticos
-│   └── vybe-project.zip          # Pacote ZIP exportado completo para download
+│   └── 404.html                  # Redirecionamento SPA para o GitHub Pages
 │
 ├── supabase/                     # Scripts de Banco de Dados e Storage
-│   ├── schema.sql                # Tabelas, chaves estrangeiras, enums e índices
-│   ├── rls_policies.sql          # Políticas de Row Level Security (RLS)
-│   └── storage_setup.sql         # Criação de buckets e políticas de armazenamento
+│   └── setup.sql                 # Schema, RLS, gatilhos, storage e realtime (script único)
 │
 └── src/                          # Código-fonte da aplicação
     ├── App.tsx                   # Roteamento e orquestrador principal
@@ -103,10 +101,9 @@ vybe/
 
 1. **Clonar ou extrair o projeto:**
    ```bash
-   git clone https://github.com/SEU-USUARIO/vybe.git
+   git clone https://github.com/tomsilvaconsignado-ai/vybe.git
    cd vybe
    ```
-   *(Ou descompacte o arquivo `vybe-project.zip` em uma pasta)*
 
 2. **Instalar as dependências:**
    ```bash
@@ -167,51 +164,19 @@ O script pode ser executado novamente sem perder dados. Ele cria:
 2. Em **Site URL**, configure a URL da sua aplicação (ex: `https://vybe.app` ou `http://localhost:3000`).
 3. Em **Redirect URLs**, adicione:
    - `http://localhost:3000/**`
-   - `https://seu-dominio.com/**`
+   - `https://tomsilvaconsignado-ai.github.io/vybe/**`
 
 ---
 
----
+## 🚀 Publicação no GitHub Pages
 
-## 🚀 Publicação no GitHub e GitHub Pages (Sem Tela Branca)
+O workflow `.github/workflows/deploy.yml` verifica os tipos, compila o app e publica a pasta `dist` a cada push na branch `vybe.main` (ou manualmente pela aba **Actions** > **Run workflow**).
 
-### ⚠️ Diagnóstico e Solução da "Tela Branca" no GitHub Pages
+Configuração única no repositório:
+1. **Settings** > **Pages** > **Build and deployment** > **Source**: selecione **GitHub Actions**.
+2. No Supabase, em **Authentication** > **URL Configuration** > **Redirect URLs**, adicione `https://tomsilvaconsignado-ai.github.io/vybe/**`.
 
-A tela branca ocorria por dois motivos clássicos de publicação de aplicações React/Vite no GitHub:
-
-1. **Caminhos Absolutos de Assets (`base: '/'`):** 
-   Por padrão, o Vite gerava caminhos absolutos como `/assets/index.js`. Quando o site é publicado no GitHub Pages em um subdiretório (ex: `https://seu-usuario.github.io/vybe/`), o navegador tentava carregar os arquivos da raiz do domínio (`https://seu-usuario.github.io/assets/index.js`), resultando em erro **404 Not Found** e deixando a tela em branco.
-   - **Correção aplicada:** Configuramos `base: './'` no `vite.config.ts`, garantindo que todos os assets sejam referenciados de forma relativa e carreguem perfeitamente em qualquer URL, repositório ou subdiretório.
-
-2. **Publicação dos Arquivos Fontes Brutos (.tsx) sem Compilação:** 
-   Se o GitHub Pages for configurado para "Deploy from a branch" apontando para a raiz do repositório, o servidor estático serve o arquivo `index.html` original apontando para `/src/main.tsx`. Navegadores web não executam arquivos TypeScript diretamente sem compilação.
-   - **Correção aplicada:** Criamos o fluxo automatizado do GitHub Actions em `.github/workflows/deploy.yml`, que compila o projeto com `npm run build` e publica a pasta `dist` já transpilada e otimizada.
-   - **Adicionado `public/404.html`:** Redirecionador SPA para garantir que recarregar a página ou navegar por links diretos não cause tela de erro 404.
-   - **Adicionado `ErrorBoundary` e Preloader:** Proteção no `src/main.tsx` e `index.html` que previne falhas silenciosas e exibe interface de recuperação caso ocorra qualquer imprevisto.
-
----
-
-### 📋 Passo a Passo para Publicar no GitHub Pages (2 Opções Simples)
-
-#### Opção 1: Instantânea pela Pasta `/docs` (Recomendada se você não usa GitHub Actions)
-1. Baixe o pacote `vybe-project.zip` ou envie todos os arquivos do repositório para o GitHub.
-2. No seu repositório no GitHub, clique na aba **Settings** (Configurações) > **Pages**.
-3. Em **Build and deployment** > **Source**, mantenha **"Deploy from a branch"**.
-4. Em **Branch**, selecione a branch `main` e no campo da pasta ao lado selecione **`/docs`**.
-5. Clique em **Save**.
-6. Pronto! O site entrará no ar em segundos com todos os arquivos já compilados e sem nenhuma tela de erro.
-
-#### Opção 2: Automática com GitHub Actions (Para compilação contínua a cada commit)
-1. Envie as alterações para o seu repositório:
-   ```bash
-   git add .
-   git commit -m "fix: correcao definitiva erro github pages"
-   git push origin main
-   ```
-2. No seu repositório no GitHub, vá em **Settings** > **Pages**.
-3. Em **Build and deployment** > **Source**, escolha **"GitHub Actions"**.
-4. O GitHub executará o fluxo `.github/workflows/deploy.yml` automaticamente.
-5. Em aproximadamente 45 segundos, o site estará publicado no link indicado no topo da página.
+O site fica em `https://tomsilvaconsignado-ai.github.io/vybe/`. O `base: './'` do Vite e o `public/404.html` evitam tela branca em subpastas e ao recarregar a página.
 
 ---
 

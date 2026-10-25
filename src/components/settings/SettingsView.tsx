@@ -145,36 +145,6 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Section 4: Export Complete Source Code (GitHub & Supabase Ready) */}
-        <div className="p-6 bg-gradient-to-r from-purple-950/40 via-zinc-900/80 to-purple-950/40 border border-purple-800/40 rounded-3xl shadow-xl space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
-              <Download className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white">Exportação Completa do Projeto (GitHub & Supabase)</h3>
-              <p className="text-xs text-zinc-400">
-                Baixe todos os arquivos-fonte, backend Express, esquemas SQL do Supabase e documentação em um arquivo .ZIP.
-              </p>
-            </div>
-          </div>
-
-          <p className="text-xs text-zinc-300 leading-relaxed">
-            O pacote contém todos os componentes React 19, TypeScript, rotas de API, migrações PostgreSQL, políticas de segurança RLS para o Supabase e o guia passo a passo no README.md.
-          </p>
-
-          <div className="pt-1">
-            <a
-              href="/vybe-project.zip"
-              download="vybe-project.zip"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-xs text-black bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-lg shadow-amber-950/50 cursor-pointer transition-all"
-            >
-              <Download className="w-4 h-4" />
-              <span>Baixar Código-Fonte Completo (vybe-project.zip)</span>
-            </a>
-          </div>
-        </div>
-
         {/* Section 4: Delete Account */}
         <div className="p-6 bg-rose-950/20 border border-rose-900/30 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>

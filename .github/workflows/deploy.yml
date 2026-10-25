@@ -2,7 +2,7 @@ name: Deploy VYBE to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches: ["vybe.main"]
   workflow_dispatch:
 
 permissions:
@@ -24,16 +24,21 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci
 
+      - name: Type check
+        run: npm run lint
+
+      # A URL do projeto e a chave publishable do Supabase são públicas por design (vão para o navegador).
+      # Para trocar de projeto sem editar este arquivo, crie variáveis em Settings > Secrets and variables > Actions > Variables.
       - name: Build Vite application
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://efztrffuovqxmkodpbkx.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_7Iwr2YQtik9YONyAIRmxCA_XyYFXcRA' }}
         run: npm run build
 
       - name: Setup GitHub Pages
