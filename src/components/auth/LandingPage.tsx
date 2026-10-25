@@ -30,7 +30,7 @@ export const LandingPage: React.FC = () => {
       {/* Hero Section */}
       <section className="relative pt-12 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex-1 flex flex-col justify-center">
         {/* Glow ambient background circles */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[550px] h-[550px] bg-purple-700/15 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[550px] max-w-full h-[550px] bg-purple-700/15 rounded-full blur-[140px] pointer-events-none" />
         <div className="absolute top-1/3 right-10 w-[350px] h-[350px] bg-rose-600/10 rounded-full blur-[120px] pointer-events-none" />
 
         <div className="grid lg:grid-cols-12 gap-12 items-center relative z-10">
