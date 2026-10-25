@@ -17,7 +17,8 @@ import {
   LogOut,
   Flame,
   Award,
-  ChevronRight
+  ChevronRight,
+  CalendarHeart
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -43,6 +44,7 @@ export const Sidebar: React.FC = () => {
     { id: 'couples', label: 'Casais Liberais', icon: Users, badge: null },
     { id: 'singles', label: 'Pessoas Solteiras', icon: Flame, badge: null },
     { id: 'compatibility', label: 'Compatibilidade', icon: Sparkles, badge: null },
+    { id: 'events', label: 'Eventos', icon: CalendarHeart, badge: null },
     { id: 'communities', label: 'Comunidades', icon: Hash, badge: null },
     { id: 'connections', label: 'Conexões', icon: HeartHandshake, badge: incomingConnectionRequests.length > 0 ? `${incomingConnectionRequests.length}` : null },
     { id: 'messages', label: 'Mensagens', icon: MessageSquare, badge: unreadMsgs > 0 ? `${unreadMsgs}` : null },

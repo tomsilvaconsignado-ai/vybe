@@ -21,7 +21,9 @@ Rede social moderna e sofisticada voltada exclusivamente para adultos maiores de
 
 - **Identidade Própria & Elegante:** Preto profundo, violeta, magenta neon e detalhes em coral.
 - **Cadastro Inteligente em 6 Etapas:** Maioridade legal, casais com autorização mútua, dados pessoais, preferências de sintonia, fotos e pedido de selo de verificação (aprovado pela moderação).
-- **Feed Social Estilo Instagram:** Publicações com carrossel de fotos, legendas, enquetes interativas, curtidas, comentários e favoritos.
+- **Interação no estilo Instagram:** stories de 24h (com lista de quem viu), carrossel com arrastar, dois toques para curtir, legendas, comentários, enquetes, salvos e perfil em grade.
+- **Agenda Liberal:** eventos enviados pelos membros, publicados após aprovação da moderação, com "Vou" e "Tenho interesse".
+- **Publicidade:** anúncios patrocinados no feed, na coluna lateral e na agenda, com período de veiculação e contagem de visualizações e cliques (gestão pelo superadmin).
 - **Algoritmo de Sintonia Bidirecional:** Cálculo de compatibilidade (0 a 100%) baseado em reciprocidade mútua, objetivos, estilo de vida e limites declarados.
 - **Cofres Íntimos Protegidos:** Armazenamento isolado com *blur* preventivo e controle individual de concessão e revogação de chaves de acesso.
 - **Mensagens Privadas com Portão Protetivo:** Prevenção contra envio de fotos íntimas ou spam sem autorização prévia.

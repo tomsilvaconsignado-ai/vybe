@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminMfaGate } from './AdminMfaGate';
+import { AdminEventsTab } from './AdminEventsTab';
+import { AdminAdsTab } from './AdminAdsTab';
 import { 
   ShieldCheck, 
   Users, 
@@ -27,7 +29,9 @@ import {
   Copy,
   ExternalLink,
   Terminal,
-  FolderDown
+  FolderDown,
+  CalendarHeart,
+  Megaphone
 } from 'lucide-react';
 import { ModerationReport, AdminUserRecord, AdminMediaRecord } from '../../types';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
@@ -48,7 +52,7 @@ export const AdminPortal: React.FC = () => {
     adminMfaVerified
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'users' | 'reports' | 'media' | 'audit'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'users' | 'reports' | 'media' | 'events' | 'ads' | 'audit'>('dashboard');
 
   // Modals state
   const [inspectingUser, setInspectingUser] = useState<AdminUserRecord | null>(null);
@@ -167,6 +171,8 @@ export const AdminPortal: React.FC = () => {
           { id: 'reports', label: `Fila de Denúncias (${pendingReports.length})`, icon: ShieldAlert },
           { id: 'users', label: `Gerenciamento de Usuários (${totalUsers})`, icon: Users },
           { id: 'media', label: `Moderação de Mídias (${adminMediaList.length})`, icon: Image },
+          { id: 'events', label: 'Eventos', icon: CalendarHeart },
+          { id: 'ads', label: 'Publicidade', icon: Megaphone },
           { id: 'audit', label: `Livro de Auditoria (${adminLogs.length})`, icon: FileText },
         ].map(t => {
           const Icon = t.icon;
@@ -766,6 +772,9 @@ export const AdminPortal: React.FC = () => {
       )}
 
       {/* ==================== TAB 5: AUDIT LOGS ==================== */}
+      {activeAdminTab === 'events' && <AdminEventsTab />}
+      {activeAdminTab === 'ads' && <AdminAdsTab />}
+
       {activeAdminTab === 'audit' && (
         <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

@@ -307,3 +307,69 @@ export interface AdminAuditLog {
   ipAddress?: string;
 }
 
+
+export interface Story {
+  id: string;
+  userId: string;
+  mediaUrl: string;
+  mediaType: 'image' | 'video';
+  caption?: string;
+  audience: 'all' | 'connections';
+  createdAt: string;
+  expiresAt: string;
+  viewedByMe: boolean;
+}
+
+// Stories agrupados por pessoa, como na barra do Instagram
+export interface StoryGroup {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+  stories: Story[];
+  hasUnseen: boolean;
+}
+
+export type EventCategory = 'festa' | 'encontro' | 'clube' | 'viagem' | 'workshop' | 'outro';
+
+export interface VybeEvent {
+  id: string;
+  createdBy?: string;
+  title: string;
+  description: string;
+  category: EventCategory;
+  startsAt: string; // ISO
+  endsAt?: string;
+  venueName: string;
+  city: string;
+  state: string;
+  coverUrl: string;
+  priceInfo?: string;
+  ticketUrl?: string;
+  dressCode?: string;
+  audience?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  isFeatured: boolean;
+  reviewNote?: string;
+  goingCount: number;
+  interestedCount: number;
+  myStatus?: 'going' | 'interested';
+}
+
+export type AdPlacement = 'feed' | 'sidebar' | 'events';
+
+export interface Ad {
+  id: string;
+  advertiser: string;
+  title: string;
+  body: string;
+  imageUrl: string;
+  linkUrl?: string;
+  ctaLabel: string;
+  placement: AdPlacement;
+  startsAt: string;
+  endsAt?: string;
+  isActive: boolean;
+  impressions: number;
+  clicks: number;
+}

@@ -365,6 +365,81 @@ CREATE TABLE IF NOT EXISTS public.admin_audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON public.admin_audit_logs(created_at DESC);
 
+-- Stories (somem após 24h)
+CREATE TABLE IF NOT EXISTS public.stories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  media_url TEXT NOT NULL,
+  media_type VARCHAR(20) NOT NULL DEFAULT 'image' CHECK (media_type IN ('image', 'video')),
+  caption VARCHAR(200),
+  audience VARCHAR(20) NOT NULL DEFAULT 'all' CHECK (audience IN ('all', 'connections')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '24 hours')
+);
+CREATE INDEX IF NOT EXISTS idx_stories_user_active ON public.stories(user_id, expires_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.story_views (
+  story_id UUID NOT NULL REFERENCES public.stories(id) ON DELETE CASCADE,
+  viewer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  viewed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (story_id, viewer_id)
+);
+
+-- Eventos liberais (publicados após aprovação da moderação)
+CREATE TABLE IF NOT EXISTS public.events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  title VARCHAR(150) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  category VARCHAR(40) NOT NULL DEFAULT 'festa'
+    CHECK (category IN ('festa', 'encontro', 'clube', 'viagem', 'workshop', 'outro')),
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ,
+  venue_name VARCHAR(150) NOT NULL,
+  city VARCHAR(100) NOT NULL,
+  state VARCHAR(50) NOT NULL DEFAULT '',
+  cover_url TEXT NOT NULL DEFAULT '',
+  price_info VARCHAR(120),
+  ticket_url TEXT,
+  dress_code VARCHAR(120),
+  audience VARCHAR(60),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  is_featured BOOLEAN NOT NULL DEFAULT false,
+  review_note TEXT,
+  going_count INTEGER NOT NULL DEFAULT 0,
+  interested_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (ends_at IS NULL OR ends_at >= starts_at)
+);
+CREATE INDEX IF NOT EXISTS idx_events_upcoming ON public.events(status, starts_at);
+
+CREATE TABLE IF NOT EXISTS public.event_attendees (
+  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  status VARCHAR(20) NOT NULL CHECK (status IN ('going', 'interested')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, user_id)
+);
+
+-- Publicidade (gerida pelo superadmin)
+CREATE TABLE IF NOT EXISTS public.ads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  advertiser VARCHAR(120) NOT NULL,
+  title VARCHAR(120) NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  image_url TEXT NOT NULL DEFAULT '',
+  link_url TEXT,
+  cta_label VARCHAR(40) NOT NULL DEFAULT 'Saiba mais',
+  placement VARCHAR(20) NOT NULL DEFAULT 'feed' CHECK (placement IN ('feed', 'sidebar', 'events')),
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ends_at TIMESTAMPTZ,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  impressions INTEGER NOT NULL DEFAULT 0,
+  clicks INTEGER NOT NULL DEFAULT 0,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ==============================================================================
 -- 3. FUNÇÕES AUXILIARES DE PERMISSÃO
 -- Papéis administrativos exigem sessão com MFA (aal2).
@@ -1052,6 +1127,87 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $fn$
 $fn$;
 
 -- ==============================================================================
+-- 5.3 EVENTOS E PUBLICIDADE
+-- ==============================================================================
+
+-- Contadores de "vou" / "tenho interesse"
+CREATE OR REPLACE FUNCTION public.count_event_attendees()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE ev UUID := coalesce(NEW.event_id, OLD.event_id);
+BEGIN
+  UPDATE public.events SET
+    going_count = (SELECT count(*) FROM public.event_attendees WHERE event_id = ev AND status = 'going'),
+    interested_count = (SELECT count(*) FROM public.event_attendees WHERE event_id = ev AND status = 'interested')
+  WHERE id = ev;
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS count_event_attendees ON public.event_attendees;
+CREATE TRIGGER count_event_attendees AFTER INSERT OR UPDATE OR DELETE ON public.event_attendees
+  FOR EACH ROW EXECUTE FUNCTION public.count_event_attendees();
+
+-- Usuário não altera status, destaque nem contadores do próprio evento
+CREATE OR REPLACE FUNCTION public.protect_event_fields()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF current_user = 'authenticated' AND NOT public.is_moderator() THEN
+    IF TG_OP = 'INSERT' THEN
+      NEW.status := 'pending';
+      NEW.is_featured := false;
+      NEW.review_note := NULL;
+      NEW.going_count := 0;
+      NEW.interested_count := 0;
+    ELSE
+      NEW.created_by := OLD.created_by;
+      NEW.status := 'pending';  -- edição volta para análise
+      NEW.is_featured := OLD.is_featured;
+      NEW.going_count := OLD.going_count;
+      NEW.interested_count := OLD.interested_count;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_event_fields ON public.events;
+CREATE TRIGGER protect_event_fields BEFORE INSERT OR UPDATE ON public.events
+  FOR EACH ROW EXECUTE FUNCTION public.protect_event_fields();
+
+-- Moderação de eventos (auditada; avisa quem enviou)
+CREATE OR REPLACE FUNCTION public.admin_review_event(event UUID, new_status TEXT, featured BOOLEAN, note TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE ev public.events;
+BEGIN
+  PERFORM public.require_moderator(note);
+  IF new_status NOT IN ('approved', 'rejected', 'pending') THEN RAISE EXCEPTION 'Status inválido.'; END IF;
+  UPDATE public.events
+  SET status = new_status, is_featured = (new_status = 'approved' AND featured), review_note = note
+  WHERE id = event
+  RETURNING * INTO ev;
+  IF ev.id IS NULL THEN RAISE EXCEPTION 'Evento não encontrado.'; END IF;
+  PERFORM public.admin_log('EVENT_' || upper(new_status), event::text, 'event', note);
+  IF new_status = 'approved' THEN
+    PERFORM public.notify(ev.created_by, NULL, 'system_safety', 'Evento publicado',
+      'Seu evento "' || ev.title || '" foi aprovado e já aparece na agenda.', event::text);
+  ELSIF new_status = 'rejected' THEN
+    PERFORM public.notify(ev.created_by, NULL, 'system_safety', 'Evento não aprovado',
+      'Seu evento "' || ev.title || '" não foi aprovado: ' || note, event::text);
+  END IF;
+END;
+$$;
+
+-- Contagem de visualizações e cliques de anúncios ativos
+CREATE OR REPLACE FUNCTION public.record_ad_event(ad UUID, kind TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.ads
+  SET impressions = impressions + CASE WHEN kind = 'impression' THEN 1 ELSE 0 END,
+      clicks = clicks + CASE WHEN kind = 'click' THEN 1 ELSE 0 END
+  WHERE id = ad AND is_active AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now())
+    AND kind IN ('impression', 'click') AND auth.uid() IS NOT NULL;
+$$;
+
+-- ==============================================================================
 -- 5.2 COMUNIDADES INICIAIS (contadores começam reais, em zero)
 -- ==============================================================================
 INSERT INTO public.communities (name, slug, description, cover_url, icon_url, category, rules)
@@ -1072,7 +1228,8 @@ BEGIN
     'profiles', 'profile_private', 'joint_partners', 'compatibility_preferences', 'follows', 'connections',
     'communities', 'community_members', 'posts', 'post_polls', 'post_poll_votes', 'post_likes', 'post_saves',
     'post_comments', 'albums', 'album_items', 'album_permissions', 'conversations', 'conversation_participants',
-    'messages', 'notifications', 'moderation_reports', 'admin_users', 'admin_user_notes', 'admin_audit_logs'
+    'messages', 'notifications', 'moderation_reports', 'admin_users', 'admin_user_notes', 'admin_audit_logs',
+    'stories', 'story_views', 'events', 'event_attendees', 'ads'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated', t);
@@ -1098,6 +1255,8 @@ GRANT EXECUTE ON FUNCTION public.admin_moderate_post(UUID, moderation_status_enu
 GRANT EXECUTE ON FUNCTION public.admin_report_evidence(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_set_role(UUID, admin_role_enum, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.album_item_counts(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_review_event(UUID, TEXT, BOOLEAN, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.record_ad_event(UUID, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.delete_own_account() FROM PUBLIC, anon;
 
 -- profiles
@@ -1307,6 +1466,54 @@ CREATE POLICY "admin_notes_insert" ON public.admin_user_notes FOR INSERT TO auth
 CREATE POLICY "audit_select" ON public.admin_audit_logs FOR SELECT TO authenticated USING (public.is_staff());
 CREATE POLICY "audit_insert" ON public.admin_audit_logs FOR INSERT TO authenticated
   WITH CHECK (public.is_staff() AND admin_id = auth.uid() AND admin_role = public.admin_role_of(auth.uid()));
+
+
+-- stories
+CREATE POLICY "stories_select" ON public.stories FOR SELECT TO authenticated
+  USING (
+    user_id = auth.uid()
+    OR public.is_staff()
+    OR (expires_at > now() AND (audience = 'all' OR public.are_connected(user_id, auth.uid())))
+  );
+CREATE POLICY "stories_insert" ON public.stories FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = auth.uid()
+    AND expires_at <= now() + INTERVAL '25 hours'
+    AND coalesce((SELECT (restrictions ->> 'cannotPost')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
+    AND (SELECT status FROM public.profiles WHERE id = auth.uid()) NOT IN ('suspended', 'blocked')
+  );
+CREATE POLICY "stories_delete" ON public.stories FOR DELETE TO authenticated
+  USING (user_id = auth.uid() OR public.is_moderator());
+
+CREATE POLICY "story_views_select" ON public.story_views FOR SELECT TO authenticated
+  USING (viewer_id = auth.uid() OR EXISTS (SELECT 1 FROM public.stories s WHERE s.id = story_id AND s.user_id = auth.uid()));
+CREATE POLICY "story_views_insert" ON public.story_views FOR INSERT TO authenticated
+  WITH CHECK (viewer_id = auth.uid());
+
+-- eventos
+CREATE POLICY "events_select" ON public.events FOR SELECT TO authenticated
+  USING (status = 'approved' OR created_by = auth.uid() OR public.is_staff());
+CREATE POLICY "events_insert" ON public.events FOR INSERT TO authenticated
+  WITH CHECK (
+    created_by = auth.uid()
+    AND (SELECT status FROM public.profiles WHERE id = auth.uid()) NOT IN ('suspended', 'blocked')
+  );
+CREATE POLICY "events_update" ON public.events FOR UPDATE TO authenticated
+  USING (created_by = auth.uid() OR public.is_moderator())
+  WITH CHECK (created_by = auth.uid() OR public.is_moderator());
+CREATE POLICY "events_delete" ON public.events FOR DELETE TO authenticated
+  USING (created_by = auth.uid() OR public.is_moderator());
+
+CREATE POLICY "event_attendees_select" ON public.event_attendees FOR SELECT TO authenticated USING (true);
+CREATE POLICY "event_attendees_write" ON public.event_attendees FOR ALL TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid() AND EXISTS (SELECT 1 FROM public.events e WHERE e.id = event_id AND e.status = 'approved'));
+
+-- publicidade
+CREATE POLICY "ads_select" ON public.ads FOR SELECT TO authenticated
+  USING (public.is_staff() OR (is_active AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now())));
+CREATE POLICY "ads_manage" ON public.ads FOR ALL TO authenticated
+  USING (public.is_superadmin()) WITH CHECK (public.is_superadmin());
 
 -- ==============================================================================
 -- 7. STORAGE

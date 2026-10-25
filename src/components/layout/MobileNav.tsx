@@ -7,7 +7,8 @@ import {
   MessageSquare, 
   UserCheck, 
   Sparkles,
-  ShieldAlert
+  ShieldAlert,
+  CalendarHeart
 } from 'lucide-react';
 
 export const MobileNav: React.FC = () => {
@@ -27,7 +28,7 @@ export const MobileNav: React.FC = () => {
   const tabs = [
     { id: 'feed', label: 'Início', icon: Home },
     { id: 'discover', label: 'Descobrir', icon: Compass },
-    { id: 'compatibility', label: 'Match', icon: Sparkles },
+    { id: 'events', label: 'Eventos', icon: CalendarHeart },
     { id: 'messages', label: 'Chat', icon: MessageSquare, badge: unreadMsgs },
     { id: 'profile', label: 'Perfil', icon: UserCheck },
   ];

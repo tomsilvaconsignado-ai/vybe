@@ -295,3 +295,19 @@ export async function setCommunityMembership(me: string, communityId: string, jo
   if (error?.message.includes('row-level security')) return 'Esta comunidade é privada e exige convite da moderação.';
   return error?.message ?? null;
 }
+
+// Publicações de um perfil (independe do feed, que traz só as mais recentes de todos)
+export async function fetchUserPosts(userId: string, me: string): Promise<Post[]> {
+  const { data, error } = await supabase
+    .from('posts')
+    .select(POST_SELECT)
+    .eq('user_id', userId)
+    .is('community_id', null)
+    .order('created_at', { ascending: false })
+    .limit(60);
+  if (error) {
+    console.error('[VYBE] Falha ao carregar publicações do perfil:', error.message);
+    return [];
+  }
+  return data.map(row => mapPostRow(row, me));
+}

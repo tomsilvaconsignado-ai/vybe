@@ -11,7 +11,10 @@ import {
   AdminMediaRecord,
   UserAccountStatus,
   ChatMessage,
-  PostComment
+  PostComment,
+  StoryGroup,
+  VybeEvent,
+  Ad
 } from '../types';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, authRedirectUrl, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
@@ -53,6 +56,8 @@ import {
 } from '../lib/activity';
 import * as adminApi from '../lib/admin';
 import { requestVaultAccess, grantVaultAccess, removeVaultAccess } from '../lib/albums';
+import { fetchStoryGroups } from '../lib/stories';
+import { fetchEvents, fetchActiveAds, setEventRsvp } from '../lib/events';
 import type { EvidenceMessage } from '../lib/admin';
 
 // Dados enviados ao Supabase Auth no cadastro; o gatilho handle_new_user cria o perfil a partir deles
@@ -124,6 +129,8 @@ interface AppContextType {
   votePoll: (postId: string, optionId: string) => void;
   createPost: (content: string, mediaUrls: string[], tags: string[], pollData?: { question: string; options: string[] }) => Promise<void>;
   deletePost: (postId: string) => void;
+  postCache: Record<string, Post>;
+  cachePosts: (list: Post[]) => void;
 
   // Profile & Social Connections
   connections: string[]; // userIds
@@ -142,6 +149,14 @@ interface AppContextType {
 
   // Community Actions
   toggleJoinCommunity: (communityId: string) => void;
+
+  // Stories, eventos e publicidade
+  storyGroups: StoryGroup[];
+  refreshStories: () => Promise<void>;
+  events: VybeEvent[];
+  refreshEvents: () => Promise<void>;
+  rsvpEvent: (eventId: string, status: 'going' | 'interested' | null) => Promise<void>;
+  ads: Ad[];
 
   // Messaging Actions
   conversationMessages: Record<string, ChatMessage[]>;
@@ -246,8 +261,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Perfis, feed e grafo social vêm do Supabase
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postCache, setPostCache] = useState<Record<string, Post>>({});
 
   const [communities, setCommunities] = useState<Community[]>([]);
+  const [storyGroups, setStoryGroups] = useState<StoryGroup[]>([]);
+  const [events, setEvents] = useState<VybeEvent[]>([]);
+  const [ads, setAds] = useState<Ad[]>([]);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -323,6 +342,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fetchCommunities(userId)
     ]);
     setCommunities(loadedCommunities);
+    // Stories, eventos e anúncios não bloqueiam a abertura do app
+    fetchStoryGroups(userId).then(setStoryGroups);
+    fetchEvents(userId).then(setEvents);
+    fetchActiveAds().then(setAds);
     setProfiles(loadedProfiles);
     applySocialGraph(graph);
     setPosts(feed);
@@ -345,6 +368,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setConversations([]);
       setConversationMessages({});
       setCommunities([]);
+      setStoryGroups([]);
+      setEvents([]);
+      setAds([]);
       setReports([]);
       setAdminLogs([]);
       setAdminUsers([]);
@@ -508,10 +534,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Posts fora do feed (ex.: abertos pelo perfil) ficam neste cache para as ações funcionarem neles também
+  const findPost = (postId: string) => posts.find(p => p.id === postId) ?? postCache[postId];
+
+  const updatePost = (postId: string, change: (p: Post) => Post) => {
+    setPosts(prev => prev.map(p => (p.id === postId ? change(p) : p)));
+    setPostCache(prev => (prev[postId] ? { ...prev, [postId]: change(prev[postId]) } : prev));
+  };
+
+  const cachePosts = (list: Post[]) => {
+    setPostCache(prev => ({ ...prev, ...Object.fromEntries(list.map(p => [p.id, p])) }));
+  };
+
   // Atualiza um post com o estado do banco (contadores, comentários, votos)
   const reloadPost = async (postId: string) => {
     const fresh = await fetchPost(postId, currentUser.id);
-    if (fresh) setPosts(prev => prev.map(p => (p.id === postId ? fresh : p)));
+    if (fresh) updatePost(postId, () => fresh);
   };
 
   const reportFailure = (action: string, error: string) => {
@@ -520,24 +558,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleLikePost = async (postId: string) => {
-    const post = posts.find(p => p.id === postId);
+    const post = findPost(postId);
     if (!post) return;
     const like = !post.likedByCurrentUser;
-    setPosts(prev => prev.map(p => p.id !== postId ? p : {
-      ...p,
-      likedByCurrentUser: like,
-      likesCount: p.likesCount + (like ? 1 : -1)
-    }));
+    updatePost(postId, p => ({ ...p, likedByCurrentUser: like, likesCount: p.likesCount + (like ? 1 : -1) }));
     const error = await setLike(currentUser.id, postId, like);
     if (error) reportFailure('registrar a curtida', error);
     await reloadPost(postId);
   };
 
   const toggleSavePost = async (postId: string) => {
-    const post = posts.find(p => p.id === postId);
+    const post = findPost(postId);
     if (!post) return;
     const save = !post.savedByCurrentUser;
-    setPosts(prev => prev.map(p => p.id !== postId ? p : { ...p, savedByCurrentUser: save }));
+    updatePost(postId, p => ({ ...p, savedByCurrentUser: save }));
     const error = await setSave(currentUser.id, postId, save);
     if (error) {
       reportFailure('salvar a publicação', error);
@@ -553,7 +587,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const votePoll = async (postId: string, optionId: string) => {
-    const post = posts.find(p => p.id === postId);
+    const post = findPost(postId);
     if (!post?.poll || post.poll.voterIds[currentUser.id]) return;
     const error = await insertPollVote(currentUser.id, postId, optionId);
     if (error) reportFailure('registrar o voto', error);
@@ -580,6 +614,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     setPosts(prev => prev.filter(p => p.id !== postId));
+    setPostCache(prev => {
+      const { [postId]: _removed, ...rest } = prev;
+      return rest;
+    });
   };
 
   const toggleFollow = async (userId: string) => {
@@ -638,6 +676,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const error = await removeVaultAccess(albumId, requesterUserId);
     if (error) reportFailure('remover o acesso', error);
     return !error;
+  };
+
+  const refreshStories = async () => {
+    if (currentUser.id) setStoryGroups(await fetchStoryGroups(currentUser.id));
+  };
+
+  const refreshEvents = async () => {
+    if (currentUser.id) setEvents(await fetchEvents(currentUser.id));
+  };
+
+  const rsvpEvent = async (eventId: string, status: 'going' | 'interested' | null) => {
+    const previous = events.find(e => e.id === eventId)?.myStatus ?? null;
+    if (previous === status) return;
+    // Atualização otimista dos contadores
+    setEvents(prev => prev.map(e => {
+      if (e.id !== eventId) return e;
+      const delta = (s: 'going' | 'interested') => (status === s ? 1 : 0) - (previous === s ? 1 : 0);
+      return {
+        ...e,
+        myStatus: status ?? undefined,
+        goingCount: Math.max(0, e.goingCount + delta('going')),
+        interestedCount: Math.max(0, e.interestedCount + delta('interested'))
+      };
+    }));
+    const error = await setEventRsvp(currentUser.id, eventId, status);
+    if (error) {
+      reportFailure('confirmar presença', error);
+      await refreshEvents();
+    }
   };
 
   const toggleJoinCommunity = async (communityId: string) => {
@@ -848,6 +915,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         votePoll,
         createPost,
         deletePost,
+        postCache,
+        cachePosts,
         connections,
         following,
         incomingConnectionRequests,
@@ -860,6 +929,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveAlbumAccess,
         revokeAlbumAccess,
         toggleJoinCommunity,
+        storyGroups,
+        refreshStories,
+        events,
+        refreshEvents,
+        rsvpEvent,
+        ads,
         conversationMessages,
         loadConversationMessages,
         sendMessage,

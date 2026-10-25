@@ -19,16 +19,20 @@ import {
   Calendar,
   Eye,
   Sliders,
-  ChevronLeft
+  ChevronLeft,
+  Grid3x3,
+  Copy,
+  MessageCircle
 } from 'lucide-react';
 import { EditProfileModal } from './EditProfileModal';
 import { AlbumPermissionsModal } from './AlbumPermissionsModal';
 import { AlbumViewerModal } from './AlbumViewerModal';
 import { CreateAlbumModal } from './CreateAlbumModal';
 import { fetchAlbums } from '../../lib/albums';
+import { fetchUserPosts } from '../../lib/social';
 import { PostCard } from '../feed/PostCard';
 import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibility';
-import { MediaAlbum } from '../../types';
+import { MediaAlbum, Post } from '../../types';
 
 export const ProfileView: React.FC = () => {
   const { 
@@ -45,13 +49,15 @@ export const ProfileView: React.FC = () => {
     toggleFollow, 
     startOrOpenConversation, 
     requestAlbumAccess,
+    postCache,
+    cachePosts,
     setReportModalTarget 
   } = useApp();
 
   const isSelf = !selectedProfileId || selectedProfileId === currentUser.id;
   const profile = isSelf ? currentUser : profiles.find(p => p.id === selectedProfileId) || currentUser;
 
-  const [activeTab, setActiveTab] = useState<'vault' | 'public' | 'posts'>('vault');
+  const [activeTab, setActiveTab] = useState<'vault' | 'public' | 'posts'>('posts');
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [managingAlbum, setManagingAlbum] = useState<MediaAlbum | null>(null);
   const [viewingAlbumId, setViewingAlbumId] = useState<string | null>(null);
@@ -76,6 +82,25 @@ export const ProfileView: React.FC = () => {
   }, [profile.id]);
 
   const viewingAlbum = albums.find(a => a.id === viewingAlbumId) ?? null;
+
+  const [profilePostIds, setProfilePostIds] = useState<string[]>([]);
+  const [openPostId, setOpenPostId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!profile.id) return;
+    setProfilePostIds([]);
+    fetchUserPosts(profile.id, currentUser.id).then(list => {
+      cachePosts(list);
+      setProfilePostIds(list.map(p => p.id));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id]);
+  // Versão mais recente de cada post (o feed e o cache recebem as curtidas/comentários)
+  const newInFeed = posts.filter(p => p.userId === profile.id && !profilePostIds.includes(p.id));
+  const profilePosts: Post[] = [
+    ...newInFeed,
+    ...profilePostIds.map(id => posts.find(p => p.id === id) ?? postCache[id]).filter((p): p is Post => Boolean(p))
+  ];
+  const openPost = profilePosts.find(p => p.id === openPostId) ?? null;
 
   const isFollowing = following.includes(profile.id);
   const isConnected = connections.includes(profile.id);
@@ -350,42 +375,28 @@ export const ProfileView: React.FC = () => {
         </div>
       </div>
 
-      {/* Media & Feed Section Tabs */}
-      <div className="flex items-center gap-2 mb-6 border-b border-purple-950/40 pb-3">
-        <button
-          onClick={() => setActiveTab('vault')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'vault'
-              ? 'bg-purple-600 text-white shadow-md shadow-purple-950/50'
-              : 'text-zinc-400 hover:text-white bg-zinc-900/50'
-          }`}
-        >
-          <Lock className="w-3.5 h-3.5" />
-          <span>Cofres Íntimos & Álbuns Privados</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('public')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'public'
-              ? 'bg-purple-600 text-white shadow-md shadow-purple-950/50'
-              : 'text-zinc-400 hover:text-white bg-zinc-900/50'
-          }`}
-        >
-          <Image className="w-3.5 h-3.5" />
-          <span>Fotos Públicas</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('posts')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === 'posts'
-              ? 'bg-purple-600 text-white shadow-md shadow-purple-950/50'
-              : 'text-zinc-400 hover:text-white bg-zinc-900/50'
-          }`}
-        >
-          <span>Publicações no Feed ({userPosts.length})</span>
-        </button>
+      {/* Abas do perfil (estilo Instagram) */}
+      <div className="flex items-center justify-around sm:justify-center sm:gap-10 mb-6 border-t border-purple-950/40" role="tablist">
+        {([
+          { id: 'posts', label: 'Publicações', icon: Grid3x3, count: profilePosts.length },
+          { id: 'vault', label: 'Cofres e álbuns', icon: Lock, count: albums.length },
+          { id: 'public', label: 'Fotos', icon: Image, count: undefined }
+        ] as const).map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`py-3 -mt-px border-t-2 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
+              activeTab === tab.id ? 'border-fuchsia-400 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            <span className="hidden sm:inline">{tab.label}</span>
+            {tab.count !== undefined && <span className="text-zinc-500">{tab.count}</span>}
+          </button>
+        ))}
       </div>
 
       {/* Tab 1: Private Vaults & Albums */}
@@ -553,16 +564,49 @@ export const ProfileView: React.FC = () => {
 
       {/* Tab 3: User Posts */}
       {activeTab === 'posts' && (
-        <div className="space-y-6 max-w-xl mx-auto">
-          {userPosts.map(p => (
-            <PostCard key={p.id} post={p} />
-          ))}
-          {userPosts.length === 0 && (
-            <p className="text-xs text-zinc-400 text-center py-8">
-              Este perfil ainda não publicou nada no feed.
+        <>
+          {profilePosts.length > 0 ? (
+            <div className="grid grid-cols-3 gap-1 sm:gap-2">
+              {profilePosts.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setOpenPostId(p.id)}
+                  className="relative aspect-square bg-zinc-950 overflow-hidden group cursor-pointer sm:rounded-xl"
+                  aria-label="Abrir publicação"
+                >
+                  {p.mediaUrls.length > 0 ? (
+                    <img src={p.mediaUrls[0]} alt="" loading="lazy" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="absolute inset-0 p-3 flex items-center justify-center text-center text-[11px] sm:text-xs text-zinc-200 bg-gradient-to-br from-purple-950 to-rose-950 line-clamp-6">
+                      {p.content}
+                    </span>
+                  )}
+                  {p.mediaUrls.length > 1 && <Copy className="absolute top-2 right-2 w-4 h-4 text-white drop-shadow" />}
+                  <span className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 text-white text-sm font-bold">
+                    <span className="flex items-center gap-1"><Heart className="w-4 h-4 fill-white" /> {p.likesCount}</span>
+                    <span className="flex items-center gap-1"><MessageCircle className="w-4 h-4 fill-white" /> {p.commentsCount}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-400 text-center py-10">
+              {isSelf ? 'Você ainda não publicou nada. Sua primeira publicação aparece aqui.' : 'Este perfil ainda não publicou nada.'}
             </p>
           )}
-        </div>
+
+          {openPost && (
+            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto" onClick={() => setOpenPostId(null)}>
+              <div className="w-full max-w-xl my-auto" onClick={e => e.stopPropagation()}>
+                <button type="button" onClick={() => setOpenPostId(null)} className="mb-2 ml-auto flex items-center gap-1 text-xs text-zinc-300 cursor-pointer">
+                  Fechar ✕
+                </button>
+                <PostCard post={openPost} />
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Edit Profile Modal */}

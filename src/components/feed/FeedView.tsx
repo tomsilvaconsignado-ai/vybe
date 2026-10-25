@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { StoriesBar } from './StoriesBar';
 import { PostCard } from './PostCard';
 import { CreatePostModal } from './CreatePostModal';
+import { AdSlot } from '../ads/AdSlot';
 import { Plus, Sparkles, Filter, ShieldCheck, HeartHandshake } from 'lucide-react';
 
 export const FeedView: React.FC = () => {
@@ -92,8 +93,12 @@ export const FeedView: React.FC = () => {
 
       {/* Posts Stream */}
       <div className="space-y-6">
-        {filteredPosts.map(post => (
-          <PostCard key={post.id} post={post} />
+        {filteredPosts.map((post, index) => (
+          <React.Fragment key={post.id}>
+            <PostCard post={post} />
+            {/* Patrocinado a cada 5 publicações */}
+            {(index + 1) % 5 === 0 && <AdSlot placement="feed" variant="feed" index={Math.floor(index / 5)} />}
+          </React.Fragment>
         ))}
 
         {filteredPosts.length === 0 && (
