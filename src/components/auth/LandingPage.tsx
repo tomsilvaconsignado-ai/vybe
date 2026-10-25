@@ -97,11 +97,15 @@ export const LandingPage: React.FC = () => {
               <div className="relative rounded-2xl overflow-hidden aspect-[4/3] mb-4 group">
                 <img
                   src="https://images.unsplash.com/photo-1522529599102-193c0d76b5b6?w=800&auto=format&fit=crop&q=80"
-                  alt="Casal Liberal"
+                  alt="Exemplo ilustrativo de perfil de casal"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                
+
+                <div className="absolute top-3 left-3 px-2 py-0.5 rounded-md bg-black/60 text-zinc-300 text-[10px] font-semibold">
+                  Exemplo ilustrativo
+                </div>
+
                 <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-semibold flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                   <span>Casal Verificado</span>

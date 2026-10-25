@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { mapProfileRow, avatarOrDefault } from './profiles';
-import { Post, PostComment, UserProfile } from '../types';
+import { Community, Post, PostComment, UserProfile } from '../types';
 
 // ----------------- FORMATAÇÃO ----------------- //
 
@@ -25,7 +25,7 @@ export function formatLocation(city: string, state: string, privacy: UserProfile
 
 // ----------------- PERFIS ----------------- //
 
-const PROFILE_SELECT = '*, joint_partners(*), compatibility_preferences(*)';
+const PROFILE_SELECT = '*, joint_partners(*), compatibility_preferences(*), albums!albums_user_id_fkey(id, visibility)';
 
 export async function fetchProfiles(excludeUserId: string): Promise<UserProfile[]> {
   const { data, error } = await supabase
@@ -48,6 +48,11 @@ export async function fetchProfiles(excludeUserId: string): Promise<UserProfile[
       profile.state = '';
     }
     profile.lastActive = formatRelativeTime(row.last_active_at);
+    // Só o tipo de cada álbum (para o selo de cofre); o conteúdo é carregado no perfil
+    profile.albums = (row.albums ?? []).map((a: { id: string; visibility: UserProfile['albums'][number]['visibility'] }) => ({
+      id: a.id, userId: row.id, title: '', description: '', coverUrl: '', visibility: a.visibility,
+      mediaCount: 0, allowedUserIds: [], pendingRequestUserIds: [], items: [], createdAt: ''
+    }));
     return profile;
   });
 }
@@ -249,5 +254,44 @@ export async function insertPollVote(me: string, postId: string, optionId: strin
   const { data: poll } = await supabase.from('post_polls').select('id').eq('post_id', postId).maybeSingle();
   if (!poll) return 'Enquete não encontrada.';
   const { error } = await supabase.from('post_poll_votes').insert({ poll_id: poll.id, user_id: me, option_id: optionId });
+  return error?.message ?? null;
+}
+
+// ----------------- COMUNIDADES ----------------- //
+
+export async function fetchCommunities(me: string): Promise<Community[]> {
+  const [{ data, error }, { data: memberships }] = await Promise.all([
+    supabase.from('communities').select('*').order('members_count', { ascending: false }),
+    supabase.from('community_members').select('community_id').eq('user_id', me)
+  ]);
+  const joined = new Set((memberships ?? []).map(m => m.community_id));
+
+  if (error) {
+    console.error('[VYBE] Falha ao carregar comunidades:', error.message);
+    return [];
+  }
+
+  return (data as any[]).map(c => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    description: c.description,
+    coverUrl: c.cover_url,
+    iconUrl: c.icon_url,
+    category: c.category,
+    rules: c.rules ?? [],
+    membersCount: c.members_count,
+    isJoined: joined.has(c.id),
+    isPrivate: c.is_private,
+    postsCount: c.posts_count,
+    moderators: []
+  }));
+}
+
+export async function setCommunityMembership(me: string, communityId: string, join: boolean) {
+  const { error } = join
+    ? await supabase.from('community_members').insert({ community_id: communityId, user_id: me })
+    : await supabase.from('community_members').delete().eq('community_id', communityId).eq('user_id', me);
+  if (error?.message.includes('row-level security')) return 'Esta comunidade é privada e exige convite da moderação.';
   return error?.message ?? null;
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   Heart, 
@@ -23,6 +23,9 @@ import {
 } from 'lucide-react';
 import { EditProfileModal } from './EditProfileModal';
 import { AlbumPermissionsModal } from './AlbumPermissionsModal';
+import { AlbumViewerModal } from './AlbumViewerModal';
+import { CreateAlbumModal } from './CreateAlbumModal';
+import { fetchAlbums } from '../../lib/albums';
 import { PostCard } from '../feed/PostCard';
 import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibility';
 import { MediaAlbum } from '../../types';
@@ -51,6 +54,28 @@ export const ProfileView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'vault' | 'public' | 'posts'>('vault');
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [managingAlbum, setManagingAlbum] = useState<MediaAlbum | null>(null);
+  const [viewingAlbumId, setViewingAlbumId] = useState<string | null>(null);
+  const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
+  const [albums, setAlbums] = useState<MediaAlbum[]>([]);
+  const [albumsLoading, setAlbumsLoading] = useState(true);
+
+  const loadAlbums = async () => {
+    if (!profile.id) return;
+    const loaded = await fetchAlbums(profile.id);
+    setAlbums(loaded);
+    setAlbumsLoading(false);
+    // Mantém a janela de permissões com os dados atualizados
+    setManagingAlbum(prev => (prev ? loaded.find(a => a.id === prev.id) ?? null : null));
+  };
+
+  useEffect(() => {
+    setAlbums([]);
+    setAlbumsLoading(true);
+    loadAlbums();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id]);
+
+  const viewingAlbum = albums.find(a => a.id === viewingAlbumId) ?? null;
 
   const isFollowing = following.includes(profile.id);
   const isConnected = connections.includes(profile.id);
@@ -317,7 +342,7 @@ export const ProfileView: React.FC = () => {
               <span className="text-[11px] text-zinc-400">Conexões Mútuas</span>
             </div>
             <div>
-              <span className="text-base font-extrabold text-purple-400 block">{profile.albums.length}</span>
+              <span className="text-base font-extrabold text-purple-400 block">{albums.length}</span>
               <span className="text-[11px] text-zinc-400">Álbuns & Cofres</span>
             </div>
           </div>
@@ -374,16 +399,32 @@ export const ProfileView: React.FC = () => {
               </span>
             </div>
             {isSelf && (
-              <span className="text-[11px] font-bold text-fuchsia-400 shrink-0">
-                Você é o proprietário
-              </span>
+              <button
+                type="button"
+                onClick={() => setIsCreatingAlbum(true)}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo álbum
+              </button>
             )}
           </div>
 
+          {albumsLoading && <p className="text-xs text-zinc-400 text-center py-6">Carregando álbuns...</p>}
+          {!albumsLoading && albums.length === 0 && (
+            <div className="p-8 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
+              <Lock className="w-10 h-10 text-purple-400 mx-auto mb-2 opacity-60" />
+              <p className="text-xs text-zinc-400">
+                {isSelf ? 'Você ainda não tem álbuns. Crie um cofre privado e escolha quem pode ver.' : 'Este perfil ainda não tem álbuns visíveis para você.'}
+              </p>
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-6">
-            {profile.albums.map(alb => {
+            {albums.map(alb => {
               const isVault = alb.visibility === 'private_vault';
-              const hasAccess = isSelf || alb.allowedUserIds.includes(currentUser.id);
+              // Álbuns públicos/conexões só chegam aqui se o usuário pode vê-los (RLS)
+              const hasAccess = isSelf || !isVault || alb.allowedUserIds.includes(currentUser.id);
               const hasRequested = alb.pendingRequestUserIds.includes(currentUser.id);
 
               return (
@@ -437,19 +478,30 @@ export const ProfileView: React.FC = () => {
                       <p className="text-xs text-zinc-400 mt-0.5">{alb.description}</p>
                     </div>
 
-                    <div className="pt-2 border-t border-purple-900/30 flex items-center justify-between">
-                      <span className="text-[11px] text-zinc-400">{alb.mediaCount} fotos</span>
+                    <div className="pt-2 border-t border-purple-900/30 flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-zinc-400">{alb.mediaCount} {alb.mediaCount === 1 ? 'mídia' : 'mídias'}</span>
+                        {hasAccess && (
+                          <button
+                            type="button"
+                            onClick={() => setViewingAlbumId(alb.id)}
+                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-purple-200 bg-purple-950/60 hover:bg-purple-900/60 cursor-pointer"
+                          >
+                            {isSelf ? 'Abrir e enviar fotos' : 'Ver fotos'}
+                          </button>
+                        )}
+                      </div>
 
                       {/* Controls */}
-                      {isSelf ? (
+                      {isSelf ? (isVault && (
                         <button
                           onClick={() => setManagingAlbum(alb)}
                           className="px-3 py-1.5 rounded-xl bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-800 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                         >
                           <Key className="w-3.5 h-3.5" />
-                          <span>Gerenciar Chaves ({alb.allowedUserIds.length})</span>
+                          <span>Chaves ({alb.allowedUserIds.length}{alb.pendingRequestUserIds.length > 0 ? ` • ${alb.pendingRequestUserIds.length} pedido${alb.pendingRequestUserIds.length > 1 ? 's' : ''}` : ''})</span>
                         </button>
-                      ) : isVault ? (
+                      )) : isVault ? (
                         hasAccess ? (
                           <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
                             ✓ Acesso Liberado
@@ -460,14 +512,14 @@ export const ProfileView: React.FC = () => {
                           </span>
                         ) : (
                           <button
-                            onClick={() => requestAlbumAccess(alb.id, profile.id)}
+                            onClick={async () => { if (await requestAlbumAccess(alb.id, profile.id)) loadAlbums(); }}
                             className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white text-xs font-bold shadow-md cursor-pointer transition-all"
                           >
                             Solicitar Chave do Cofre
                           </button>
                         )
                       ) : (
-                        <span className="text-xs text-zinc-400">Livre para visualização</span>
+                        <span className="text-xs text-zinc-400">{alb.visibility === 'public' ? 'Público' : 'Para conexões'}</span>
                       )}
                     </div>
 
@@ -483,9 +535,9 @@ export const ProfileView: React.FC = () => {
       {/* Tab 2: Public Photos */}
       {activeTab === 'public' && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {profile.albums
+          {albums
+            .filter(a => a.visibility === 'public')
             .flatMap(a => a.items)
-            .filter(item => item.visibility === 'public')
             .map((item, idx) => (
               <div key={idx} className="relative aspect-square rounded-2xl overflow-hidden bg-zinc-950 group">
                 <img src={item.url} alt="Foto pública" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
@@ -522,7 +574,21 @@ export const ProfileView: React.FC = () => {
           album={managingAlbum}
           isOpen={!!managingAlbum}
           onClose={() => setManagingAlbum(null)}
+          onChanged={loadAlbums}
         />
+      )}
+
+      {viewingAlbum && (
+        <AlbumViewerModal
+          album={viewingAlbum}
+          isOwner={isSelf}
+          onClose={() => setViewingAlbumId(null)}
+          onChanged={loadAlbums}
+        />
+      )}
+
+      {isCreatingAlbum && (
+        <CreateAlbumModal onClose={() => setIsCreatingAlbum(false)} onCreated={loadAlbums} />
       )}
 
     </div>

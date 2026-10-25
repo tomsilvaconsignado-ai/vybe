@@ -7,12 +7,17 @@ interface AlbumPermissionsModalProps {
   album: MediaAlbum;
   isOpen: boolean;
   onClose: () => void;
+  onChanged: () => Promise<void>;
 }
 
-export const AlbumPermissionsModal: React.FC<AlbumPermissionsModalProps> = ({ album, isOpen, onClose }) => {
+export const AlbumPermissionsModal: React.FC<AlbumPermissionsModalProps> = ({ album, isOpen, onClose, onChanged }) => {
   const { profiles, approveAlbumAccess, revokeAlbumAccess } = useApp();
 
   if (!isOpen) return null;
+
+  const run = async (action: Promise<boolean>) => {
+    if (await action) await onChanged();
+  };
 
   const allowedUsers = profiles.filter(p => album.allowedUserIds.includes(p.id));
   const pendingUsers = profiles.filter(p => album.pendingRequestUserIds.includes(p.id));
@@ -57,12 +62,20 @@ export const AlbumPermissionsModal: React.FC<AlbumPermissionsModalProps> = ({ al
                       <div className="text-[10px] text-zinc-400">@{u.username}</div>
                     </div>
                   </div>
+                  <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => approveAlbumAccess(album.id, u.id)}
+                    onClick={() => run(revokeAlbumAccess(album.id, u.id))}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white hover:bg-zinc-800 cursor-pointer"
+                  >
+                    Recusar
+                  </button>
+                  <button
+                    onClick={() => run(approveAlbumAccess(album.id, u.id))}
                     className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-purple-600 hover:from-emerald-500 hover:to-purple-500 text-white text-xs font-bold cursor-pointer transition-all"
                   >
-                    Aprovar Acesso
+                    Aprovar
                   </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -94,7 +107,7 @@ export const AlbumPermissionsModal: React.FC<AlbumPermissionsModalProps> = ({ al
                     </div>
                   </div>
                   <button
-                    onClick={() => revokeAlbumAccess(album.id, u.id)}
+                    onClick={() => run(revokeAlbumAccess(album.id, u.id))}
                     className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
                     title="Revogar Acesso Imediatamente"
                   >

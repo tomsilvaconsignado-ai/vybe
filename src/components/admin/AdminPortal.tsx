@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminMfaGate } from './AdminMfaGate';
 import { 
@@ -41,7 +41,7 @@ export const AdminPortal: React.FC = () => {
     reports, 
     adminLogs, 
     adminRole, 
-    setAdminRole, 
+    refreshAdminData,
     setIsAdminMode, 
     adminResolveReport, 
     adminModerateMedia,
@@ -59,7 +59,10 @@ export const AdminPortal: React.FC = () => {
   const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'warned' | 'restricted' | 'suspended'>('all');
   const [mediaStatusFilter, setMediaStatusFilter] = useState<'all' | 'approved' | 'pending_review' | 'flagged' | 'removed'>('all');
   const [reportPriorityFilter, setReportPriorityFilter] = useState<'all' | 'urgent' | 'high' | 'medium' | 'low'>('all');
-  const [selectedReport, setSelectedReport] = useState<ModerationReport | null>(reports[0] || null);
+  const [selectedReport, setSelectedReport] = useState<ModerationReport | null>(null);
+  useEffect(() => {
+    setSelectedReport(prev => (prev ? reports.find(r => r.id === prev.id) ?? null : reports.find(r => r.status === 'pending') ?? null));
+  }, [reports]);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const handleCopy = (text: string) => {
@@ -137,16 +140,15 @@ export const AdminPortal: React.FC = () => {
 
         {/* Role Switcher & Back to Portal button */}
         <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
-          <select
-            value={adminRole}
-            onChange={e => setAdminRole(e.target.value as any)}
-            className="px-3 py-2 bg-zinc-950 border border-amber-600/40 rounded-xl text-xs text-amber-300 font-semibold focus:outline-none cursor-pointer"
+          <span className="px-3 py-2 bg-zinc-950 border border-amber-600/40 rounded-xl text-xs text-amber-300 font-semibold">
+            {{ superadmin: 'Superadministrador', moderator: 'Moderador', support: 'Suporte (leitura)', auditor: 'Auditor (leitura)' }[adminRole]}
+          </span>
+          <button
+            onClick={() => refreshAdminData()}
+            className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 cursor-pointer"
           >
-            <option value="superadmin">Perfil: Superadministrador (Global)</option>
-            <option value="moderator">Perfil: Moderador de Conteúdo</option>
-            <option value="support">Perfil: Suporte ao Usuário</option>
-            <option value="auditor">Perfil: Auditor Independente (Somente Leitura)</option>
-          </select>
+            Atualizar dados
+          </button>
 
           <button
             onClick={() => setIsAdminMode(false)}
@@ -495,7 +497,7 @@ export const AdminPortal: React.FC = () => {
                 </div>
 
                 {/* Resolution Form */}
-                {selectedReport.status === 'pending' ? (
+                {selectedReport.status === 'pending' || selectedReport.status === 'under_review' ? (
                   <div className="pt-3 border-t border-purple-900/30 space-y-3">
                     <label className="block text-xs font-semibold text-zinc-300">
                       Justificativa Técnica da Decisão (Obrigatório para Auditoria):
@@ -511,12 +513,11 @@ export const AdminPortal: React.FC = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => {
-                          if (!resolutionNote.trim()) {
-                            alert('Informe a justificativa.');
+                          if (resolutionNote.trim().length < 5) {
+                            alert('Informe a justificativa (mínimo 5 caracteres).');
                             return;
                           }
-                          adminResolveReport(selectedReport.id, 'resolved', resolutionNote, 'APPLY_SANCTION_AND_RESOLVE');
-                          setResolutionNote('');
+                          adminResolveReport(selectedReport.id, 'resolved', resolutionNote.trim()).then(ok => ok && setResolutionNote(''));
                         }}
                         className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 text-white text-xs font-bold cursor-pointer transition-all shadow"
                       >
@@ -525,8 +526,7 @@ export const AdminPortal: React.FC = () => {
 
                       <button
                         onClick={() => {
-                          adminResolveReport(selectedReport.id, 'dismissed', resolutionNote || 'Denúncia improcedente após verificação técnica.');
-                          setResolutionNote('');
+                          adminResolveReport(selectedReport.id, 'dismissed', resolutionNote.trim() || 'Denúncia improcedente após verificação técnica.').then(ok => ok && setResolutionNote(''));
                         }}
                         className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold cursor-pointer"
                       >
@@ -536,7 +536,7 @@ export const AdminPortal: React.FC = () => {
                   </div>
                 ) : (
                   <div className="p-3 bg-emerald-950/30 border border-emerald-800/40 rounded-2xl text-xs text-emerald-300">
-                    ✓ Denúncia resolvida por {selectedReport.reviewedBy}: "{selectedReport.resolutionNote}"
+                    ✓ Denúncia {selectedReport.status === 'dismissed' ? 'arquivada' : 'resolvida'} por {selectedReport.reviewedBy ?? 'equipe'}: "{selectedReport.resolutionNote}"
                   </div>
                 )}
               </>
@@ -801,7 +801,6 @@ export const AdminPortal: React.FC = () => {
                   <th className="p-3">Ação</th>
                   <th className="p-3">Alvo</th>
                   <th className="p-3">Motivo / Fundamentação</th>
-                  <th className="p-3">IP / Conexão</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
@@ -812,7 +811,6 @@ export const AdminPortal: React.FC = () => {
                     <td className="p-3 font-mono text-amber-400 font-bold">{l.action}</td>
                     <td className="p-3 font-mono text-zinc-300">{l.targetType}:{l.targetId}</td>
                     <td className="p-3 text-zinc-200">{l.reason}</td>
-                    <td className="p-3 text-[10px] text-zinc-500 font-mono">{l.ipAddress || '177.18.29.100'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -824,7 +822,7 @@ export const AdminPortal: React.FC = () => {
       {/* User Detail Modal */}
       {inspectingUser && (
         <AdminUserDetailModal
-          user={inspectingUser}
+          user={adminUsers.find(u => u.id === inspectingUser.id) ?? inspectingUser}
           onClose={() => setInspectingUser(null)}
         />
       )}

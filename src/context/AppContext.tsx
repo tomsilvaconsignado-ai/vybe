@@ -13,13 +13,6 @@ import {
   ChatMessage,
   PostComment
 } from '../types';
-import {
-  MOCK_COMMUNITIES,
-  MOCK_REPORTS,
-  MOCK_ADMIN_LOGS,
-  INITIAL_ADMIN_USERS,
-  INITIAL_ADMIN_MEDIA
-} from '../data/mockData';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, authRedirectUrl, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
 import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile } from '../lib/profiles';
@@ -37,7 +30,9 @@ import {
   insertPollVote,
   setFollow,
   sendConnectionRequest,
-  acceptConnectionRequest
+  acceptConnectionRequest,
+  fetchCommunities,
+  setCommunityMembership
 } from '../lib/social';
 import {
   fetchConversations,
@@ -56,6 +51,9 @@ import {
   deleteOwnAccount,
   touchLastActive
 } from '../lib/activity';
+import * as adminApi from '../lib/admin';
+import { requestVaultAccess, grantVaultAccess, removeVaultAccess } from '../lib/albums';
+import type { EvidenceMessage } from '../lib/admin';
 
 // Dados enviados ao Supabase Auth no cadastro; o gatilho handle_new_user cria o perfil a partir deles
 export interface SignUpMetadata {
@@ -102,6 +100,8 @@ interface AppContextType {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   selectedProfileId: string | null;
+  discoverSearch: string;
+  setDiscoverSearch: (query: string) => void;
   setSelectedProfileId: (id: string | null) => void;
   selectedConversationId: string | null;
   setSelectedConversationId: (id: string | null) => void;
@@ -136,9 +136,9 @@ interface AppContextType {
   acceptConnection: (userId: string) => void;
 
   // Private Album Vault Permissions
-  requestAlbumAccess: (albumId: string, ownerUserId: string) => void;
-  approveAlbumAccess: (albumId: string, requesterUserId: string) => void;
-  revokeAlbumAccess: (albumId: string, requesterUserId: string) => void;
+  requestAlbumAccess: (albumId: string, ownerUserId: string) => Promise<boolean>;
+  approveAlbumAccess: (albumId: string, requesterUserId: string) => Promise<boolean>;
+  revokeAlbumAccess: (albumId: string, requesterUserId: string) => Promise<boolean>;
 
   // Community Actions
   toggleJoinCommunity: (communityId: string) => void;
@@ -177,13 +177,15 @@ interface AppContextType {
   refreshAdminMfa: () => Promise<void>;
 
   // Advanced Admin Management Actions
-  adminResolveReport: (reportId: string, resolution: 'resolved' | 'dismissed', note: string, actionTaken?: string) => void;
-  adminUpdateUserStatus: (userId: string, status: UserAccountStatus, reason: string) => void;
-  adminAddUserNote: (userId: string, note: string) => void;
-  adminSetRestrictions: (userId: string, restrictions: AdminUserRecord['restrictions'], reason: string) => void;
-  adminModerateMedia: (mediaId: string, status: 'approved' | 'pending_review' | 'flagged' | 'removed', reason: string) => void;
-  adminVerifyUserAge: (userId: string) => void;
-  adminInvestigateMessage: (reportId: string, justification: string) => Promise<any>;
+  adminResolveReport: (reportId: string, resolution: 'resolved' | 'dismissed', note: string, actionTaken?: string) => Promise<boolean>;
+  adminUpdateUserStatus: (userId: string, status: UserAccountStatus, reason: string) => Promise<boolean>;
+  adminAddUserNote: (userId: string, note: string) => Promise<boolean>;
+  adminSetRestrictions: (userId: string, restrictions: AdminUserRecord['restrictions'], reason: string) => Promise<boolean>;
+  adminModerateMedia: (mediaId: string, status: 'approved' | 'pending_review' | 'flagged' | 'removed', reason: string) => Promise<boolean>;
+  adminVerifyUserAge: (userId: string, reason?: string) => Promise<boolean>;
+  adminSetUserRole: (userId: string, role: AdminRole | null, reason: string) => Promise<boolean>;
+  adminInvestigateMessage: (reportId: string, justification: string) => Promise<{ messages: EvidenceMessage[]; error: string | null }>;
+  refreshAdminData: () => Promise<void>;
 
   // Modals
   authModalType: 'login' | 'register' | null;
@@ -245,9 +247,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
 
-  const [communities, setCommunities] = useState<Community[]>(() =>
-    safeStorageGet('vybe_communities', MOCK_COMMUNITIES)
-  );
+  const [communities, setCommunities] = useState<Community[]>([]);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const conversationsRef = useRef<Conversation[]>([]);
@@ -256,21 +256,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [profileMissing, setProfileMissing] = useState<boolean>(false);
 
-  const [reports, setReports] = useState<ModerationReport[]>(() =>
-    safeStorageGet('vybe_reports', MOCK_REPORTS)
-  );
-
-  const [adminLogs, setAdminLogs] = useState<AdminAuditLog[]>(() =>
-    safeStorageGet('vybe_admin_logs', MOCK_ADMIN_LOGS)
-  );
-
-  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>(() =>
-    safeStorageGet('vybe_admin_users', INITIAL_ADMIN_USERS)
-  );
-
-  const [adminMediaList, setAdminMediaList] = useState<AdminMediaRecord[]>(() =>
-    safeStorageGet('vybe_admin_media', INITIAL_ADMIN_MEDIA)
-  );
+  // Dados do painel: carregados apenas para a equipe com MFA
+  const [reports, setReports] = useState<ModerationReport[]>([]);
+  const [adminLogs, setAdminLogs] = useState<AdminAuditLog[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
+  const [adminMediaList, setAdminMediaList] = useState<AdminMediaRecord[]>([]);
 
   // UI state
   const [activeTab, setActiveTabState] = useState<string>('feed');
@@ -292,6 +282,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [discoverSearch, setDiscoverSearch] = useState<string>('');
 
   const [connections, setConnections] = useState<string[]>([]);
   const [following, setFollowing] = useState<string[]>([]);
@@ -323,13 +314,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loadSocialData = async (userId: string) => {
-    const [loadedProfiles, graph, feed, loadedConversations, loadedNotifications] = await Promise.all([
+    const [loadedProfiles, graph, feed, loadedConversations, loadedNotifications, loadedCommunities] = await Promise.all([
       fetchProfiles(userId),
       fetchSocialGraph(userId),
       fetchFeed(userId),
       fetchConversations(userId),
-      fetchNotifications(userId)
+      fetchNotifications(userId),
+      fetchCommunities(userId)
     ]);
+    setCommunities(loadedCommunities);
     setProfiles(loadedProfiles);
     applySocialGraph(graph);
     setPosts(feed);
@@ -351,6 +344,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPosts([]);
       setConversations([]);
       setConversationMessages({});
+      setCommunities([]);
+      setReports([]);
+      setAdminLogs([]);
+      setAdminUsers([]);
+      setAdminMediaList([]);
       setNotifications([]);
       setProfileMissing(false);
       setSelectedConversationId(null);
@@ -399,6 +397,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // Ao voltar para o app (aba ou celular), atualiza feed, perfis e comunidades — no máximo 1x por minuto
+  useEffect(() => {
+    const me = currentUser.id;
+    if (!me) return;
+    let lastRefresh = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastRefresh < 60_000) return;
+      lastRefresh = Date.now();
+      loadSocialData(me);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser.id]);
+
   // Tempo real: novas mensagens, conversas aceitas e notificações
   useEffect(() => {
     const me = currentUser.id;
@@ -426,22 +439,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       supabase.removeChannel(channel);
     };
   }, [currentUser.id]);
-
-  useEffect(() => {
-    safeStorageSet('vybe_reports', reports);
-  }, [reports]);
-
-  useEffect(() => {
-    safeStorageSet('vybe_admin_logs', adminLogs);
-  }, [adminLogs]);
-
-  useEffect(() => {
-    safeStorageSet('vybe_admin_users', adminUsers);
-  }, [adminUsers]);
-
-  useEffect(() => {
-    safeStorageSet('vybe_admin_media', adminMediaList);
-  }, [adminMediaList]);
 
   // Protected Admin Mode Switcher
   const setIsAdminMode = (active: boolean) => {
@@ -620,84 +617,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     applySocialGraph(await fetchSocialGraph(currentUser.id));
   };
 
-  const requestAlbumAccess = (albumId: string, ownerUserId: string) => {
-    setProfiles(prev => prev.map(prof => {
-      if (prof.id !== ownerUserId) return prof;
-      return {
-        ...prof,
-        albums: prof.albums.map(alb => {
-          if (alb.id !== albumId) return alb;
-          if (alb.pendingRequestUserIds.includes(currentUser.id)) return alb;
-          return {
-            ...alb,
-            pendingRequestUserIds: [...alb.pendingRequestUserIds, currentUser.id]
-          };
-        })
-      };
-    }));
-
-    alert('Pedido de acesso ao cofre privado enviado com sucesso! O proprietário será notificado e analisará a liberação.');
-  };
-
-  const approveAlbumAccess = (albumId: string, requesterUserId: string) => {
-    setCurrentUser(prev => ({
-      ...prev,
-      albums: prev.albums.map(alb => {
-        if (alb.id !== albumId) return alb;
-        return {
-          ...alb,
-          pendingRequestUserIds: alb.pendingRequestUserIds.filter(id => id !== requesterUserId),
-          allowedUserIds: [...alb.allowedUserIds, requesterUserId]
-        };
-      })
-    }));
-
-    const requester = profiles.find(p => p.id === requesterUserId);
-    if (requester) {
-      setNotifications(prev => [
-        {
-          id: `notif_${Date.now()}`,
-          userId: currentUser.id,
-          actor: {
-            id: requester.id,
-            displayName: requester.displayName,
-            username: requester.username,
-            avatarUrl: requester.avatarUrl
-          },
-          type: 'vault_access_granted',
-          title: 'Acesso Liberado',
-          message: `Você concedeu acesso ao seu cofre privado para ${requester.displayName}.`,
-          createdAt: 'Agora mesmo',
-          read: true
-        },
-        ...prev
-      ]);
+  // Cofres: o banco notifica o dono (pedido) e quem pediu (aprovação)
+  const requestAlbumAccess = async (albumId: string, _ownerUserId: string) => {
+    const error = await requestVaultAccess(currentUser.id, albumId);
+    if (error) {
+      alert(error);
+      return false;
     }
+    alert('Pedido de acesso enviado. O dono do cofre será notificado e decidirá se libera.');
+    return true;
   };
 
-  const revokeAlbumAccess = (albumId: string, requesterUserId: string) => {
-    setCurrentUser(prev => ({
-      ...prev,
-      albums: prev.albums.map(alb => {
-        if (alb.id !== albumId) return alb;
-        return {
-          ...alb,
-          allowedUserIds: alb.allowedUserIds.filter(id => id !== requesterUserId)
-        };
-      })
-    }));
+  const approveAlbumAccess = async (albumId: string, requesterUserId: string) => {
+    const error = await grantVaultAccess(albumId, requesterUserId);
+    if (error) reportFailure('liberar o acesso', error);
+    return !error;
   };
 
-  const toggleJoinCommunity = (communityId: string) => {
-    setCommunities(prev => prev.map(comm => {
-      if (comm.id !== communityId) return comm;
-      const joined = !comm.isJoined;
-      return {
-        ...comm,
-        isJoined: joined,
-        membersCount: joined ? comm.membersCount + 1 : comm.membersCount - 1
-      };
+  const revokeAlbumAccess = async (albumId: string, requesterUserId: string) => {
+    const error = await removeVaultAccess(albumId, requesterUserId);
+    if (error) reportFailure('remover o acesso', error);
+    return !error;
+  };
+
+  const toggleJoinCommunity = async (communityId: string) => {
+    const community = communities.find(c => c.id === communityId);
+    if (!community) return;
+    const join = !community.isJoined;
+    setCommunities(prev => prev.map(c => c.id !== communityId ? c : {
+      ...c,
+      isJoined: join,
+      membersCount: Math.max(0, c.membersCount + (join ? 1 : -1))
     }));
+    const error = await setCommunityMembership(currentUser.id, communityId, join);
+    if (error) {
+      alert(error);
+      setCommunities(await fetchCommunities(currentUser.id));
+    }
   };
 
   const refreshConversations = async () => {
@@ -797,180 +753,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return null;
   };
 
-  // ----------------- ADMIN ACTIONS WITH IMMUTABLE AUDIT LOG ----------------- //
+  // ----------------- ADMIN (Supabase; cada ação é validada e auditada no banco) ----------------- //
 
-  const adminResolveReport = (reportId: string, resolution: 'resolved' | 'dismissed', note: string, actionTaken?: string) => {
-    setReports(prev => prev.map(r => {
-      if (r.id !== reportId) return r;
-      return {
-        ...r,
-        status: resolution,
-        reviewedBy: `${currentUser.displayName} (${adminRole})`,
-        resolutionNote: note
-      };
-    }));
-
-    const newLog: AdminAuditLog = {
-      id: `log_${Date.now()}`,
-      adminId: currentUser.id,
-      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
-      adminRole,
-      action: actionTaken || (resolution === 'resolved' ? 'RESOLVE_REPORT' : 'DISMISS_REPORT'),
-      targetId: reportId,
-      targetType: 'ModerationReport',
-      reason: note,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      ipAddress: '177.18.29.100 (Sessão Segura Criptografada)'
-    };
-    setAdminLogs(prev => [newLog, ...prev]);
+  const refreshAdminData = async () => {
+    const [users, loadedReports, logs, media] = await Promise.all([
+      adminApi.fetchAdminUsers(),
+      adminApi.fetchAdminReports(),
+      adminApi.fetchAdminLogs(),
+      adminApi.fetchAdminMedia()
+    ]);
+    setAdminUsers(users);
+    setReports(loadedReports);
+    setAdminLogs(logs);
+    setAdminMediaList(media);
   };
 
-  const adminUpdateUserStatus = (userId: string, status: UserAccountStatus, reason: string) => {
-    setAdminUsers(prev => prev.map(u => {
-      if (u.id !== userId) return u;
-      return { ...u, status };
-    }));
+  useEffect(() => {
+    if (isAuthorizedAdmin && adminMfaVerified) refreshAdminData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthorizedAdmin, adminMfaVerified]);
 
-    const newLog: AdminAuditLog = {
-      id: `log_${Date.now()}`,
-      adminId: currentUser.id,
-      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
-      adminRole,
-      action: `SET_USER_STATUS_${status.toUpperCase()}`,
-      targetId: userId,
-      targetType: 'AdminUserRecord',
-      reason,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      ipAddress: '177.18.29.100 (Sessão Segura Criptografada)'
-    };
-    setAdminLogs(prev => [newLog, ...prev]);
+  const runAdminAction = async (action: () => Promise<string | null>): Promise<boolean> => {
+    const error = await action();
+    if (error) {
+      alert(`Ação não realizada: ${error}`);
+      return false;
+    }
+    await refreshAdminData();
+    return true;
   };
 
-  const adminAddUserNote = (userId: string, note: string) => {
-    const newNote = {
-      id: `note_${Date.now()}`,
-      adminId: currentUser.id,
-      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
-      note,
-      createdAt: new Date().toISOString().substring(0, 16)
-    };
+  const adminResolveReport = (reportId: string, resolution: 'resolved' | 'dismissed', note: string) =>
+    runAdminAction(() => adminApi.adminResolveReport(reportId, resolution, note));
 
-    setAdminUsers(prev => prev.map(u => {
-      if (u.id !== userId) return u;
-      return {
-        ...u,
-        moderationNotes: [newNote, ...u.moderationNotes]
-      };
-    }));
+  const adminUpdateUserStatus = (userId: string, status: UserAccountStatus, reason: string) =>
+    runAdminAction(() => adminApi.adminSetUserStatus(userId, status, reason));
 
-    const newLog: AdminAuditLog = {
-      id: `log_${Date.now()}`,
-      adminId: currentUser.id,
-      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
-      adminRole,
-      action: 'ADD_CONFIDENTIAL_MODERATION_NOTE',
-      targetId: userId,
-      targetType: 'AdminUserRecord',
-      reason: 'Registro interno de acompanhamento e auditoria de conduta.',
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      ipAddress: '177.18.29.100 (Sessão Segura Criptografada)'
-    };
-    setAdminLogs(prev => [newLog, ...prev]);
-  };
+  const adminAddUserNote = (userId: string, note: string) =>
+    runAdminAction(() => adminApi.adminAddNote(userId, note));
 
-  const adminSetRestrictions = (userId: string, restrictions: AdminUserRecord['restrictions'], reason: string) => {
-    setAdminUsers(prev => prev.map(u => {
-      if (u.id !== userId) return u;
-      return {
-        ...u,
-        status: 'restricted',
-        restrictions
-      };
-    }));
+  const adminSetRestrictions = (userId: string, restrictions: AdminUserRecord['restrictions'], reason: string) =>
+    runAdminAction(() => adminApi.adminSetRestrictions(userId, restrictions, reason));
 
-    const newLog: AdminAuditLog = {
-      id: `log_${Date.now()}`,
-      adminId: currentUser.id,
-      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
-      adminRole,
-      action: 'APPLY_FEATURE_RESTRICTIONS',
-      targetId: userId,
-      targetType: 'AdminUserRecord',
-      reason,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      ipAddress: '177.18.29.100 (Sessão Segura Criptografada)'
-    };
-    setAdminLogs(prev => [newLog, ...prev]);
-  };
+  const adminModerateMedia = (mediaId: string, status: 'approved' | 'pending_review' | 'flagged' | 'removed', reason: string) =>
+    runAdminAction(() => adminApi.adminModeratePost(mediaId, status, reason));
 
-  const adminModerateMedia = (mediaId: string, status: 'approved' | 'pending_review' | 'flagged' | 'removed', reason: string) => {
-    setAdminMediaList(prev => prev.map(m => {
-      if (m.id !== mediaId) return m;
-      return { ...m, status };
-    }));
+  const adminVerifyUserAge = (userId: string, reason = 'Identidade e maioridade conferidas pela moderação.') =>
+    runAdminAction(() => adminApi.adminSetVerified(userId, true, reason));
 
-    const newLog: AdminAuditLog = {
-      id: `log_${Date.now()}`,
-      adminId: currentUser.id,
-      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
-      adminRole,
-      action: `MODERATE_MEDIA_${status.toUpperCase()}`,
-      targetId: mediaId,
-      targetType: 'AdminMediaRecord',
-      reason,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      ipAddress: '177.18.29.100 (Sessão Segura Criptografada)'
-    };
-    setAdminLogs(prev => [newLog, ...prev]);
-  };
-
-  const adminVerifyUserAge = (userId: string) => {
-    setProfiles(prev => prev.map(p => {
-      if (p.id !== userId) return p;
-      return { ...p, isVerified: true, verifiedBadgeType: 'identity' };
-    }));
-    setAdminUsers(prev => prev.map(u => {
-      if (u.id !== userId) return u;
-      return { ...u, isVerified: true, verifiedBadgeType: 'identity' };
-    }));
-
-    const newLog: AdminAuditLog = {
-      id: `log_${Date.now()}`,
-      adminId: currentUser.id,
-      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
-      adminRole,
-      action: 'APPROVE_VERIFIED_BADGE',
-      targetId: userId,
-      targetType: 'UserProfile',
-      reason: 'Conformidade de maioridade civil (+18) e autenticidade validada.',
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      ipAddress: '177.18.29.100 (Sessão Segura Criptografada)'
-    };
-    setAdminLogs(prev => [newLog, ...prev]);
-  };
+  const adminSetUserRole = (userId: string, role: AdminRole | null, reason: string) =>
+    runAdminAction(() => adminApi.adminSetRole(userId, role, reason));
 
   const adminInvestigateMessage = async (reportId: string, justification: string) => {
-    // Record strict justification audit trail
-    const newLog: AdminAuditLog = {
-      id: `log_${Date.now()}`,
-      adminId: currentUser.id,
-      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
-      adminRole,
-      action: 'INSPECT_REPORT_SPECIFIC_CHAT_EVIDENCE',
-      targetId: reportId,
-      targetType: 'ChatMessage',
-      reason: `Investigação estrita autorizada vinculada à denúncia ${reportId}: ${justification}`,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      ipAddress: '177.18.29.100 (Sessão Segura Criptografada)'
-    };
-    setAdminLogs(prev => [newLog, ...prev]);
-
-    return {
-      success: true,
-      reportId,
-      justification,
-      timestamp: new Date().toISOString()
-    };
+    const result = await adminApi.adminReportEvidence(reportId, justification);
+    if (!result.error) refreshAdminData();
+    return result;
   };
 
   return (
@@ -991,6 +828,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeTab,
         setActiveTab,
         selectedProfileId,
+        discoverSearch,
+        setDiscoverSearch,
         setSelectedProfileId,
         selectedConversationId,
         setSelectedConversationId,
@@ -1046,6 +885,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminModerateMedia,
         adminVerifyUserAge,
         adminInvestigateMessage,
+        adminSetUserRole,
+        refreshAdminData,
         authModalType,
         setAuthModalType,
         reportModalTarget,

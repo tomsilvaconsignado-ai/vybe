@@ -249,6 +249,9 @@ export interface AdminUserRecord {
     cannotRequestVault?: boolean;
     until?: string;
   };
+  adminRole?: 'superadmin' | 'moderator' | 'support' | 'auditor';
+  verificationRequested?: boolean;
+  birthdate?: string;
   // Safe administrative metadata (excluding tokens/passwords)
   birthdateVerified: boolean;
   consentConfirmed: boolean;

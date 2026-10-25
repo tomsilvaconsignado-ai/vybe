@@ -31,6 +31,8 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
     adminAddUserNote, 
     adminSetRestrictions, 
     adminVerifyUserAge,
+    adminSetUserRole,
+    adminRole,
     posts,
     setSelectedProfileId,
     setIsAdminMode,
@@ -47,37 +49,59 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
   const [restrictMessage, setRestrictMessage] = useState(user?.restrictions?.cannotMessage || false);
   const [restrictVault, setRestrictVault] = useState(user?.restrictions?.cannotRequestVault || false);
 
+  const [roleReason, setRoleReason] = useState('');
+  const [selectedRole, setSelectedRole] = useState<string>(user?.adminRole ?? '');
+
   if (!user) return null;
 
   const userPosts = posts.filter(p => p.userId === user.id);
 
-  const handleUpdateStatus = () => {
-    if (!statusReason.trim()) {
-      alert('Por favor, informe a justificativa técnica para o registro no livro de auditoria.');
+  const statusLabels: Record<UserAccountStatus, string> = {
+    active: 'Ativo', warned: 'Advertido', restricted: 'Restrito', suspended: 'Suspenso', blocked: 'Bloqueado'
+  };
+
+  const handleUpdateStatus = async () => {
+    if (statusReason.trim().length < 5) {
+      alert('Informe a justificativa (mínimo 5 caracteres). Ela fica registrada no livro de auditoria.');
       return;
     }
-    adminUpdateUserStatus(user.id, selectedStatus, statusReason.trim());
-    setStatusReason('');
-    alert(`Status da conta ${user.username} alterado para ${selectedStatus.toUpperCase()}.`);
+    if (await adminUpdateUserStatus(user.id, selectedStatus, statusReason.trim())) {
+      setStatusReason('');
+      alert(`Situação de @${user.username} alterada para "${statusLabels[selectedStatus]}". O usuário foi notificado.`);
+    }
   };
 
-  const handleAddNote = (e: React.FormEvent) => {
+  const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNote.trim()) return;
-    adminAddUserNote(user.id, newNote.trim());
-    setNewNote('');
+    if (newNote.trim().length < 5) return;
+    if (await adminAddUserNote(user.id, newNote.trim())) setNewNote('');
   };
 
-  const handleApplyRestrictions = () => {
-    const reason = prompt('Informe a justificativa para aplicação destas restrições:');
-    if (!reason) return;
-    adminSetRestrictions(user.id, {
+  const handleApplyRestrictions = async () => {
+    const reason = prompt('Informe a justificativa para estas restrições (mínimo 5 caracteres):');
+    if (!reason || reason.trim().length < 5) return;
+    const ok = await adminSetRestrictions(user.id, {
       cannotPost: restrictPost,
       cannotMessage: restrictMessage,
-      cannotRequestVault: restrictVault,
-      until: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10)
-    }, reason);
-    alert('Restrições de funcionalidade aplicadas e registradas em auditoria.');
+      cannotRequestVault: restrictVault
+    }, reason.trim());
+    if (ok) alert('Restrições atualizadas e registradas na auditoria.');
+  };
+
+  const handleVerify = async () => {
+    if (await adminVerifyUserAge(user.id)) alert('Selo de verificação concedido. O usuário foi notificado.');
+  };
+
+  const handleSetRole = async () => {
+    if (roleReason.trim().length < 5) {
+      alert('Informe a justificativa (mínimo 5 caracteres).');
+      return;
+    }
+    const role = selectedRole ? (selectedRole as 'superadmin' | 'moderator' | 'support' | 'auditor') : null;
+    if (await adminSetUserRole(user.id, role, roleReason.trim())) {
+      setRoleReason('');
+      alert(role ? 'Papel na equipe atualizado.' : 'Acesso administrativo removido.');
+    }
   };
 
   return (
@@ -175,14 +199,26 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                   <span className="text-zinc-200 capitalize">{user.profileType}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Maioridade Validada</span>
-                  <span className="text-emerald-400 font-bold">✓ +18 Confirmada</span>
+                  <span className="text-[11px] text-zinc-500 font-semibold block">Nascimento (declarado)</span>
+                  <span className="text-zinc-200">{user.birthdate ? new Date(user.birthdate + 'T12:00:00').toLocaleDateString('pt-BR') : 'Não informado'}</span>
                 </div>
                 <div>
                   <span className="text-[11px] text-zinc-500 font-semibold block">Denúncias Recebidas</span>
                   <span className={`font-bold ${user.reportsReceivedCount > 0 ? 'text-rose-400' : 'text-zinc-400'}`}>
                     {user.reportsReceivedCount} ocorrências
                   </span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-zinc-500 font-semibold block">Papel na Equipe</span>
+                  <span className="text-amber-300 font-semibold">{user.adminRole ?? 'Nenhum'}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-zinc-500 font-semibold block">Última Atividade</span>
+                  <span className="text-zinc-200">{user.lastActive}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] text-zinc-500 font-semibold block">Publicações</span>
+                  <span className="text-zinc-200">{user.postsCount}</span>
                 </div>
               </div>
 
@@ -254,12 +290,13 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
               {/* Account Status Switcher */}
               <div className="p-4 bg-zinc-950/70 border border-purple-900/30 rounded-2xl space-y-3">
                 <label className="block text-xs font-bold text-white">Alterar Situação da Conta:</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {[
                     { id: 'active', label: 'Ativo' },
                     { id: 'warned', label: 'Advertido' },
                     { id: 'restricted', label: 'Restrito' },
-                    { id: 'suspended', label: 'Suspenso' }
+                    { id: 'suspended', label: 'Suspenso' },
+                    { id: 'blocked', label: 'Bloqueado' }
                   ].map(s => (
                     <button
                       key={s.id}
@@ -350,17 +387,50 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                 <div className="p-4 bg-emerald-950/20 border border-emerald-900/40 rounded-2xl flex items-center justify-between">
                   <div>
                     <h5 className="font-bold text-emerald-300 text-xs">Selo de Verificação +18</h5>
-                    <p className="text-[11px] text-zinc-400">Usuário aguardando validação de identidade.</p>
+                    <p className="text-[11px] text-zinc-400">
+                      {user.verificationRequested ? 'O usuário pediu a verificação no cadastro.' : 'O usuário não pediu verificação.'}
+                    </p>
                   </div>
                   <button
-                    onClick={() => {
-                      adminVerifyUserAge(user.id);
-                      alert('Selo verificado concedido e registrado no log de auditoria.');
-                    }}
+                    onClick={handleVerify}
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl cursor-pointer"
                   >
                     Aprovar Selo
                   </button>
+                </div>
+              )}
+
+              {/* Equipe administrativa (somente superadmin) */}
+              {adminRole === 'superadmin' && (
+                <div className="p-4 bg-amber-950/20 border border-amber-900/40 rounded-2xl space-y-3">
+                  <span className="text-xs font-bold text-amber-300 block">Papel na Equipe Administrativa</span>
+                  <p className="text-[11px] text-zinc-400">Moderadores precisam ativar o MFA no primeiro acesso ao painel.</p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      value={selectedRole}
+                      onChange={e => setSelectedRole(e.target.value)}
+                      className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white"
+                    >
+                      <option value="">Sem acesso administrativo</option>
+                      <option value="moderator">Moderador</option>
+                      <option value="support">Suporte (somente leitura)</option>
+                      <option value="auditor">Auditor (somente leitura)</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="Justificativa"
+                      value={roleReason}
+                      onChange={e => setRoleReason(e.target.value)}
+                      className="flex-1 min-w-0 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSetRole}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl cursor-pointer"
+                    >
+                      Salvar papel
+                    </button>
+                  </div>
                 </div>
               )}
 

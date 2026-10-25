@@ -837,6 +837,232 @@ END;
 $$;
 
 -- ==============================================================================
+-- 5.1 PAINEL ADMINISTRATIVO
+-- Toda ação valida o papel (com MFA) e grava no livro de auditoria na mesma transação.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.admin_log(p_action TEXT, p_target_id TEXT, p_target_type TEXT, p_reason TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.admin_audit_logs (admin_id, admin_role, action, target_id, target_type, reason)
+  VALUES (auth.uid(), public.admin_role_of(auth.uid()), p_action, p_target_id, p_target_type, p_reason);
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_log(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.require_moderator(p_reason TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_moderator() THEN
+    RAISE EXCEPTION 'Acesso negado: requer papel de moderação com MFA ativo.';
+  END IF;
+  IF p_reason IS NULL OR length(trim(p_reason)) < 5 THEN
+    RAISE EXCEPTION 'Informe uma justificativa (mínimo 5 caracteres).';
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.require_moderator(TEXT) FROM PUBLIC, anon, authenticated;
+
+-- Lista de usuários com dados privados (somente equipe administrativa)
+CREATE OR REPLACE FUNCTION public.admin_list_users()
+RETURNS TABLE (
+  id UUID, username TEXT, display_name TEXT, email TEXT, birthdate DATE,
+  profile_type profile_type_enum, city TEXT, state TEXT, age INTEGER,
+  status user_status_enum, is_verified BOOLEAN, verified_badge_type TEXT,
+  verification_requested BOOLEAN, restrictions JSONB, avatar_url TEXT, cover_url TEXT,
+  created_at TIMESTAMPTZ, last_active_at TIMESTAMPTZ, posts_count INTEGER,
+  albums_count BIGINT, reports_received BIGINT, admin_role admin_role_enum
+)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT p.id, p.username::text, p.display_name::text, pp.email::text, pp.birthdate,
+         p.profile_type, p.city::text, p.state::text, p.age,
+         p.status, p.is_verified, p.verified_badge_type::text,
+         p.verification_requested, p.restrictions, p.avatar_url, p.cover_url,
+         p.created_at, p.last_active_at, p.posts_count,
+         (SELECT count(*) FROM public.albums a WHERE a.user_id = p.id),
+         (SELECT count(*) FROM public.moderation_reports r WHERE r.reported_user_id = p.id),
+         au.role
+  FROM public.profiles p
+  LEFT JOIN public.profile_private pp ON pp.user_id = p.id
+  LEFT JOIN public.admin_users au ON au.user_id = p.id
+  WHERE public.is_staff()
+  ORDER BY p.created_at DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_set_user_status(target UUID, new_status user_status_enum, reason TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.require_moderator(reason);
+  IF public.admin_role_of(target) IS NOT NULL AND NOT public.is_superadmin() THEN
+    RAISE EXCEPTION 'Somente o superadministrador altera contas da equipe.';
+  END IF;
+  IF target = auth.uid() THEN RAISE EXCEPTION 'Você não pode alterar o status da própria conta.'; END IF;
+  UPDATE public.profiles SET status = new_status WHERE id = target;
+  PERFORM public.admin_log('SET_USER_STATUS_' || upper(new_status::text), target::text, 'profile', reason);
+  PERFORM public.notify(target, NULL, 'system_safety', 'Atualização da sua conta',
+    CASE new_status
+      WHEN 'active' THEN 'Sua conta está ativa e sem restrições.'
+      WHEN 'warned' THEN 'Sua conta recebeu uma advertência da moderação. Revise as diretrizes da comunidade.'
+      WHEN 'restricted' THEN 'Algumas funções da sua conta foram restringidas pela moderação.'
+      WHEN 'suspended' THEN 'Sua conta foi suspensa pela moderação.'
+      ELSE 'Sua conta foi bloqueada pela moderação.'
+    END, NULL);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_set_restrictions(target UUID, new_restrictions JSONB, reason TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE any_active BOOLEAN;
+BEGIN
+  PERFORM public.require_moderator(reason);
+  IF target = auth.uid() THEN RAISE EXCEPTION 'Você não pode restringir a própria conta.'; END IF;
+  any_active := coalesce((new_restrictions ->> 'cannotPost')::boolean, false)
+             OR coalesce((new_restrictions ->> 'cannotMessage')::boolean, false)
+             OR coalesce((new_restrictions ->> 'cannotRequestVault')::boolean, false);
+  UPDATE public.profiles
+  SET restrictions = new_restrictions,
+      status = CASE
+        WHEN any_active AND status IN ('active', 'warned') THEN 'restricted'::user_status_enum
+        WHEN NOT any_active AND status = 'restricted' THEN 'active'::user_status_enum
+        ELSE status END
+  WHERE id = target;
+  PERFORM public.admin_log(CASE WHEN any_active THEN 'APPLY_RESTRICTIONS' ELSE 'CLEAR_RESTRICTIONS' END,
+    target::text, 'profile', reason || ' | ' || new_restrictions::text);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_set_verified(target UUID, verified BOOLEAN, badge TEXT, reason TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.require_moderator(reason);
+  UPDATE public.profiles
+  SET is_verified = verified,
+      verified_badge_type = CASE WHEN verified THEN coalesce(badge, 'identity') ELSE NULL END,
+      verification_requested = false
+  WHERE id = target;
+  PERFORM public.admin_log(CASE WHEN verified THEN 'APPROVE_VERIFIED_BADGE' ELSE 'REVOKE_VERIFIED_BADGE' END,
+    target::text, 'profile', reason);
+  IF verified THEN
+    PERFORM public.notify(target, NULL, 'system_safety', 'Perfil verificado',
+      'Seu perfil recebeu o selo de verificação do VYBE.', NULL);
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_add_note(target UUID, note TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.require_moderator(note);
+  INSERT INTO public.admin_user_notes (user_id, admin_id, note) VALUES (target, auth.uid(), note);
+  PERFORM public.admin_log('ADD_MODERATION_NOTE', target::text, 'profile', 'Nota interna registrada.');
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_resolve_report(report UUID, resolution TEXT, note TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.require_moderator(note);
+  IF resolution NOT IN ('under_review', 'resolved', 'dismissed') THEN
+    RAISE EXCEPTION 'Resolução inválida.';
+  END IF;
+  UPDATE public.moderation_reports
+  SET status = resolution, reviewed_by = auth.uid(), resolution_note = note,
+      resolved_at = CASE WHEN resolution = 'under_review' THEN NULL ELSE now() END
+  WHERE id = report;
+  PERFORM public.admin_log('REPORT_' || upper(resolution), report::text, 'moderation_report', note);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_moderate_post(post UUID, new_status moderation_status_enum, reason TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE owner UUID;
+BEGIN
+  PERFORM public.require_moderator(reason);
+  UPDATE public.posts SET moderation_status = new_status WHERE id = post RETURNING user_id INTO owner;
+  PERFORM public.admin_log('MODERATE_POST_' || upper(new_status::text), post::text, 'post', reason);
+  IF new_status = 'removed' THEN
+    PERFORM public.notify(owner, NULL, 'system_safety', 'Publicação removida',
+      'Uma publicação sua foi removida por violar as diretrizes da comunidade.', post::text);
+  END IF;
+END;
+$$;
+
+-- Acesso a evidências: somente mensagens da conversa denunciada, com justificativa auditada
+CREATE OR REPLACE FUNCTION public.admin_report_evidence(report UUID, justification TEXT)
+RETURNS TABLE (message_id UUID, sender_id UUID, sender_name TEXT, content TEXT, media_url TEXT, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+#variable_conflict use_column
+DECLARE r public.moderation_reports;
+BEGIN
+  IF NOT public.is_moderator() THEN
+    RAISE EXCEPTION 'Acesso negado: requer papel de moderação com MFA ativo.';
+  END IF;
+  IF justification IS NULL OR length(trim(justification)) < 10 THEN
+    RAISE EXCEPTION 'A justificativa deve ter no mínimo 10 caracteres.';
+  END IF;
+  SELECT * INTO r FROM public.moderation_reports mr WHERE mr.id = report;
+  IF r.id IS NULL OR r.target_type <> 'message' THEN
+    RAISE EXCEPTION 'Denúncia não encontrada ou não se refere a mensagens.';
+  END IF;
+  -- O denunciante precisa ser participante da conversa denunciada
+  IF NOT public.is_conversation_participant(r.target_id::uuid, r.reporter_user_id) THEN
+    RAISE EXCEPTION 'A conversa denunciada não pertence ao denunciante.';
+  END IF;
+
+  PERFORM public.admin_log('INSPECT_REPORTED_CONVERSATION', report::text, 'moderation_report', justification);
+  UPDATE public.moderation_reports SET status = 'under_review', reviewed_by = auth.uid()
+  WHERE id = report AND status = 'pending';
+
+  RETURN QUERY
+  SELECT m.id, m.sender_id, p.display_name::text, m.content, m.media_url, m.created_at
+  FROM public.messages m
+  JOIN public.profiles p ON p.id = m.sender_id
+  WHERE m.conversation_id = r.target_id::uuid
+  ORDER BY m.created_at DESC
+  LIMIT 200;
+END;
+$$;
+
+-- Equipe: superadmin concede ou remove papéis
+CREATE OR REPLACE FUNCTION public.admin_set_role(target UUID, new_role admin_role_enum, reason TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE target_email TEXT;
+BEGIN
+  IF NOT public.is_superadmin() THEN RAISE EXCEPTION 'Somente o superadministrador gerencia a equipe.'; END IF;
+  IF target = auth.uid() THEN RAISE EXCEPTION 'Você não pode alterar o próprio papel.'; END IF;
+  IF reason IS NULL OR length(trim(reason)) < 5 THEN RAISE EXCEPTION 'Informe uma justificativa.'; END IF;
+  IF new_role IS NULL THEN
+    DELETE FROM public.admin_users WHERE user_id = target;
+    PERFORM public.admin_log('REVOKE_ADMIN_ROLE', target::text, 'profile', reason);
+  ELSE
+    SELECT email INTO target_email FROM public.profile_private WHERE user_id = target;
+    INSERT INTO public.admin_users (user_id, email, role) VALUES (target, lower(target_email), new_role)
+    ON CONFLICT (user_id) DO UPDATE SET role = new_role;
+    PERFORM public.admin_log('GRANT_ADMIN_ROLE_' || upper(new_role::text), target::text, 'profile', reason);
+  END IF;
+END;
+$$;
+
+-- Quantidade de mídias por álbum (sem expor o conteúdo de cofres trancados)
+CREATE OR REPLACE FUNCTION public.album_item_counts(owner UUID)
+RETURNS TABLE (album_id UUID, item_count BIGINT)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $fn$
+  SELECT a.id, count(i.id)
+  FROM public.albums a
+  LEFT JOIN public.album_items i ON i.album_id = a.id AND i.moderation_status IN ('approved', 'pending_review')
+  WHERE a.user_id = owner AND auth.uid() IS NOT NULL
+  GROUP BY a.id;
+$fn$;
+
+-- ==============================================================================
+-- 5.2 COMUNIDADES INICIAIS (contadores começam reais, em zero)
+-- ==============================================================================
+INSERT INTO public.communities (name, slug, description, cover_url, icon_url, category, rules)
+VALUES
+  ('Casais Liberais de São Paulo', 'casais-sp', 'Espaço exclusivo para casais da grande SP trocarem experiências, dicas de rooftops, lounges discretos e encontros sociais.', 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=800&auto=format&fit=crop&q=80', '🍷', 'regional', ARRAY['Respeito absoluto à privacidade e identidade dos membros.', 'Proibido postar conteúdo explícito no feed geral da comunidade.', 'Consentimento mútuo obrigatório em qualquer interação.', 'Não é permitida abordagem comercial ou spam.']::text[]),
+  ('Iniciantes no Meio Liberal: Dúvidas & Diálogo', 'iniciantes-liberal', 'Para casais e pessoas solteiras que estão dando os primeiros passos no universo não-monogâmico com segurança emocional e respeito.', 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80', '🌱', 'beginners', ARRAY['Zero julgamento: todas as dúvidas sinceras são bem-vindas.', 'Sem mensagens privadas invasivas sem consentimento explícito.', 'Foco em comunicação não violenta e acordos de casal.']::text[]),
+  ('Conexões a Três & Poliamor Ético', 'poliamor-etico', 'Debates sobre unicorn-hunting responsável, relações a três sem hierarquias tóxicas e desconstrução da posse.', 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&auto=format&fit=crop&q=80', '✨', 'lifestyle', ARRAY['Respeito prioritário à autonomia e bem-estar de pessoas solteiras.', 'Sem objetificação ou promessas irreais.', 'Comunicação clara de limites e expectativas.']::text[]),
+  ('Festas & Noites Liberais Sofisticadas', 'festas-sofisticadas', 'Guia de eventos fechados, festas de máscaras, hotéis boutique liberais e encontros para quem valoriza discrição e elegância.', 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80', '🎭', 'events', ARRAY['Proibido divulgar endereços exatos abertamente.', 'Dress code e etiqueta do meio devem ser observados.', 'O "Não" é definitivo em qualquer ambiente.']::text[])
+ON CONFLICT (slug) DO NOTHING;
+
+-- ==============================================================================
 -- 6. ROW LEVEL SECURITY
 -- ==============================================================================
 DO $$
@@ -862,6 +1088,16 @@ GRANT EXECUTE ON FUNCTION public.start_conversation(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_message_request(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_conversation_read(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_set_user_status(UUID, user_status_enum, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_set_restrictions(UUID, JSONB, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_set_verified(UUID, BOOLEAN, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_add_note(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_resolve_report(UUID, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_moderate_post(UUID, moderation_status_enum, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_report_evidence(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_set_role(UUID, admin_role_enum, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.album_item_counts(UUID) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.delete_own_account() FROM PUBLIC, anon;
 
 -- profiles

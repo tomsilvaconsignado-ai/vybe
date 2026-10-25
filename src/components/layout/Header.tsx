@@ -19,8 +19,10 @@ export const Header: React.FC = () => {
     logout, 
     notifications, 
     conversations, 
-    setActiveTab, 
-    activeTab, 
+    setActiveTab,
+    discoverSearch,
+    setDiscoverSearch,
+    activeTab,
     isAdminMode, 
     setIsAdminMode,
     isAuthorizedAdmin,
@@ -75,8 +77,13 @@ export const Header: React.FC = () => {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Buscar casais, solteiras, cidades (#Jardins, SP)..."
-                onFocus={() => setActiveTab('discover')}
+                placeholder="Buscar por nome, cidade ou interesse..."
+                aria-label="Buscar pessoas"
+                value={discoverSearch}
+                onChange={e => {
+                  setDiscoverSearch(e.target.value);
+                  if (!['discover', 'couples', 'singles'].includes(activeTab)) setActiveTab('discover');
+                }}
                 className="w-full pl-10 pr-4 py-2 bg-zinc-900/80 border border-purple-900/30 rounded-full text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 transition-all"
               />
             </div>

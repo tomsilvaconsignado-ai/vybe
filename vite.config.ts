@@ -9,7 +9,20 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src'),
+        '@': path.resolve(import.meta.dirname, './src'),
+      },
+    },
+    build: {
+      rolldownOptions: {
+        output: {
+          // Bibliotecas em arquivos próprios: o navegador as mantém em cache entre atualizações do app
+          codeSplitting: {
+            groups: [
+              { name: 'vendor-supabase', test: /node_modules[\\/]@supabase[\\/]/ },
+              { name: 'vendor-react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            ],
+          },
+        },
       },
     },
     server: {

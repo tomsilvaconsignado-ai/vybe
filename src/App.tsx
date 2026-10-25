@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
@@ -13,20 +13,30 @@ import { ReportModal } from './components/modals/ReportModal';
 import { TermsPrivacyModal } from './components/modals/TermsPrivacyModal';
 import { LandingPage } from './components/auth/LandingPage';
 import { LoginModal } from './components/auth/LoginModal';
-import { RegisterWizard } from './components/auth/RegisterWizard';
 import { ResetPasswordModal } from './components/auth/ResetPasswordModal';
 
-// Main Views
+// Tela inicial carrega junto; as demais são baixadas sob demanda (pacote inicial menor)
 import { FeedView } from './components/feed/FeedView';
-import { DiscoverView } from './components/discover/DiscoverView';
-import { CompatibilityView } from './components/compatibility/CompatibilityView';
-import { CommunitiesView } from './components/communities/CommunitiesView';
-import { ConnectionsView } from './components/connections/ConnectionsView';
-import { MessagesView } from './components/messages/MessagesView';
-import { NotificationsView } from './components/notifications/NotificationsView';
-import { ProfileView } from './components/profile/ProfileView';
-import { SettingsView } from './components/settings/SettingsView';
-import { AdminPortal } from './components/admin/AdminPortal';
+
+const named = <K extends string>(loader: () => Promise<Record<K, React.ComponentType<any>>>, name: K) =>
+  lazy(() => loader().then(m => ({ default: m[name] })));
+
+const RegisterWizard = named(() => import('./components/auth/RegisterWizard'), 'RegisterWizard');
+const DiscoverView = named(() => import('./components/discover/DiscoverView'), 'DiscoverView');
+const CompatibilityView = named(() => import('./components/compatibility/CompatibilityView'), 'CompatibilityView');
+const CommunitiesView = named(() => import('./components/communities/CommunitiesView'), 'CommunitiesView');
+const ConnectionsView = named(() => import('./components/connections/ConnectionsView'), 'ConnectionsView');
+const MessagesView = named(() => import('./components/messages/MessagesView'), 'MessagesView');
+const NotificationsView = named(() => import('./components/notifications/NotificationsView'), 'NotificationsView');
+const ProfileView = named(() => import('./components/profile/ProfileView'), 'ProfileView');
+const SettingsView = named(() => import('./components/settings/SettingsView'), 'SettingsView');
+const AdminPortal = named(() => import('./components/admin/AdminPortal'), 'AdminPortal');
+
+const ViewLoading: React.FC = () => (
+  <div className="py-24 flex items-center justify-center">
+    <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+  </div>
+);
 
 const AppContent: React.FC = () => {
   const {
@@ -86,7 +96,7 @@ const AppContent: React.FC = () => {
           <LandingPage />
         </main>
         {authModalType === 'login' && <LoginModal />}
-        {authModalType === 'register' && <RegisterWizard />}
+        {authModalType === 'register' && <Suspense fallback={null}><RegisterWizard /></Suspense>}
         <AgeGateModal />
         <TermsPrivacyModal />
       </div>
@@ -99,7 +109,7 @@ const AppContent: React.FC = () => {
       <div className="min-h-screen bg-[#08060c] text-zinc-100 flex flex-col font-sans">
         <Header />
         <main className="flex-1 pb-16">
-          <AdminPortal />
+          <Suspense fallback={<ViewLoading />}><AdminPortal /></Suspense>
         </main>
         <ReportModal />
         <TermsPrivacyModal />
@@ -114,11 +124,11 @@ const AppContent: React.FC = () => {
       case 'feed':
         return <FeedView />;
       case 'discover':
-        return <DiscoverView initialFilter="all" />;
+        return <DiscoverView key="all" initialFilter="all" />;
       case 'couples':
-        return <DiscoverView initialFilter="couples" />;
+        return <DiscoverView key="couples" initialFilter="couples" />;
       case 'singles':
-        return <DiscoverView initialFilter="singles" />;
+        return <DiscoverView key="singles" initialFilter="singles" />;
       case 'compatibility':
         return <CompatibilityView />;
       case 'communities':
@@ -145,7 +155,7 @@ const AppContent: React.FC = () => {
       <div className="flex-1 max-w-7xl w-full mx-auto flex">
         <Sidebar />
         <main className="flex-1 pb-20 lg:pb-10 min-w-0">
-          {renderMainView()}
+          <Suspense fallback={<ViewLoading />}>{renderMainView()}</Suspense>
         </main>
       </div>
 
@@ -156,7 +166,7 @@ const AppContent: React.FC = () => {
       <TermsPrivacyModal />
       <AgeGateModal />
       {authModalType === 'login' && <LoginModal />}
-      {authModalType === 'register' && <RegisterWizard />}
+      {authModalType === 'register' && <Suspense fallback={null}><RegisterWizard /></Suspense>}
     </div>
   );
 };

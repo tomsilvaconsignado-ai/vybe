@@ -20,22 +20,22 @@ Rede social moderna e sofisticada voltada exclusivamente para adultos maiores de
 ## 🌟 Visão Geral & Recursos
 
 - **Identidade Própria & Elegante:** Preto profundo, violeta, magenta neon e detalhes em coral.
-- **Cadastro Inteligente em 6 Etapas:** Maioridade legal, casais com autorização mútua, dados pessoais, preferências de sintonia, galeria e verificação com selfie.
+- **Cadastro Inteligente em 6 Etapas:** Maioridade legal, casais com autorização mútua, dados pessoais, preferências de sintonia, fotos e pedido de selo de verificação (aprovado pela moderação).
 - **Feed Social Estilo Instagram:** Publicações com carrossel de fotos, legendas, enquetes interativas, curtidas, comentários e favoritos.
 - **Algoritmo de Sintonia Bidirecional:** Cálculo de compatibilidade (0 a 100%) baseado em reciprocidade mútua, objetivos, estilo de vida e limites declarados.
 - **Cofres Íntimos Protegidos:** Armazenamento isolado com *blur* preventivo e controle individual de concessão e revogação de chaves de acesso.
 - **Mensagens Privadas com Portão Protetivo:** Prevenção contra envio de fotos íntimas ou spam sem autorização prévia.
 - **Comunidades & Fóruns:** Espaços para troca de vivências e encontros sociais organizados por cidades e temas.
-- **Painel Administrativo Completo:** Dashboard com 11 KPIs, gestão de contas, moderação de mídias, investigação de mensagens denunciadas com justificativa obrigatória e livro de auditoria imutável (*Audit Trail*).
+- **Painel Administrativo Completo:** indicadores, gestão de contas e da equipe, moderação de mídias, investigação de mensagens denunciadas com justificativa obrigatória e livro de auditoria imutável (*Audit Trail*).
 
 ---
 
 ## 🛠 Stack Tecnológica
 
 - **Frontend:** React 19, TypeScript, Vite 8, Tailwind CSS v4, Motion, Lucide React
-- **Backend / API:** Node.js com Express e middlewares Vite (Full-Stack)
+- **Backend:** Supabase (Postgres com RLS, Auth, Storage, Realtime). O `server.ts` (Express) apenas serve o app.
 - **Banco de Dados & Auth:** PostgreSQL + Supabase Auth + Supabase Storage (com Row Level Security)
-- **Segurança:** Criptografia de ponta a ponta para cofres, autenticação multifator (MFA) e conformidade estrita com a LGPD.
+- **Segurança:** Row Level Security em todas as tabelas, cofres em bucket privado com links temporários, arquivos criptografados em repouso pelo Supabase, MFA obrigatório para a equipe administrativa e exclusão de conta conforme a LGPD.
 
 ---
 

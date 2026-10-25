@@ -22,9 +22,7 @@ interface DiscoverViewProps {
 }
 
 export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all' }) => {
-  const { profiles, currentUser } = useApp();
-
-  const [searchQuery, setSearchQuery] = useState('');
+  const { profiles, currentUser, discoverSearch: searchQuery, setDiscoverSearch: setSearchQuery } = useApp();
   const [selectedType, setSelectedType] = useState<string>(
     initialFilter === 'couples' ? 'couple' : initialFilter === 'singles' ? 'singles' : 'all'
   );
@@ -194,7 +192,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                 onChange={e => setSortBy(e.target.value as any)}
                 className="w-full p-2 bg-zinc-900 border border-purple-900/40 rounded-xl text-xs text-zinc-200 focus:outline-none"
               >
-                <option value="compatibility">Maior Sintonia (Algoritmo IA)</option>
+                <option value="compatibility">Maior sintonia</option>
                 <option value="distance">Menor Distância Geográfica</option>
                 <option value="recent">Atividade Mais Recente</option>
               </select>
