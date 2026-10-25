@@ -218,7 +218,7 @@ export const RegisterWizard: React.FC = () => {
 
         {/* Progress Bar & Steps Indicator */}
         <div className="mb-6">
-          <div className="flex items-center justify-between text-xs font-bold text-zinc-400 mb-2">
+          <div className="flex items-center justify-between gap-3 text-xs font-bold text-zinc-400 mb-2 pr-8">
             <span className="text-purple-400">Etapa {step} de 6</span>
             <span className="text-zinc-300">
               {step === 1 && 'Conta & Maioridade'}
