@@ -13,10 +13,8 @@ import {
   ChatMessage,
   PostComment
 } from '../types';
-import { 
-  CURRENT_USER, 
-  TOM_ADMIN_USER,
-  MOCK_PROFILES, 
+import {
+  MOCK_PROFILES,
   MOCK_POSTS, 
   MOCK_COMMUNITIES, 
   MOCK_CONVERSATIONS, 
@@ -26,20 +24,43 @@ import {
   INITIAL_ADMIN_USERS,
   INITIAL_ADMIN_MEDIA
 } from '../data/mockData';
+import type { Session } from '@supabase/supabase-js';
+import { supabase, authRedirectUrl, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
+import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile } from '../lib/profiles';
 
-const PRIMARY_ADMIN_EMAIL = 'tomsilvaconsignado@gmail.com';
+// Dados enviados ao Supabase Auth no cadastro; o gatilho handle_new_user cria o perfil a partir deles
+export interface SignUpMetadata {
+  username: string;
+  display_name: string;
+  birthdate: string;
+  profile_type: UserProfile['profileType'];
+  age?: number;
+  city: string;
+  state: string;
+  location_privacy: UserProfile['locationPrivacy'];
+  bio: string;
+  avatar_url: string;
+  cover_url: string;
+  interests: string[];
+  verification_requested: boolean;
+  partners?: { name: string; age: number; gender: string; consentConfirmed: boolean }[];
+  prefs: Partial<UserProfile['compatibilityPrefs']>;
+}
 
 interface AppContextType {
   // Auth & Session
   currentUser: UserProfile;
   isLoggedIn: boolean;
+  authLoading: boolean;
   isAgeConfirmed: boolean;
   confirmAge: () => void;
-  login: (email: string) => void;
-  logout: () => void;
-  registerUser: (newUser: UserProfile) => void;
+  login: (email: string, password: string) => Promise<string | null>;
+  register: (email: string, password: string, metadata: SignUpMetadata) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
+  requestPasswordReset: (email: string) => Promise<string | null>;
+  passwordRecoveryMode: boolean;
+  updatePassword: (newPassword: string) => Promise<string | null>;
+  logout: () => Promise<void>;
   updateCurrentUser: (updated: Partial<UserProfile>) => void;
-  switchUserAccount: (accountType: 'admin' | 'regular') => void;
 
   // Navigation
   activeTab: string;
@@ -107,10 +128,10 @@ interface AppContextType {
   isAuthorizedAdmin: boolean;
   isAdminMode: boolean;
   setIsAdminMode: (active: boolean) => void;
-  adminRole: 'superadmin' | 'moderator' | 'support' | 'auditor';
-  setAdminRole: (role: 'superadmin' | 'moderator' | 'support' | 'auditor') => void;
+  adminRole: AdminRole;
+  setAdminRole: (role: AdminRole) => void;
   adminMfaVerified: boolean;
-  verifyAdminMfa: (code: string) => boolean;
+  refreshAdminMfa: () => Promise<void>;
   
   // Advanced Admin Management Actions
   adminResolveReport: (reportId: string, resolution: 'resolved' | 'dismissed', note: string, actionTaken?: string) => void;
@@ -166,17 +187,15 @@ function safeStorageSet(key: string, value: any): void {
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Check LocalStorage or seed defaults safely: Start with TOM_ADMIN_USER as the primary administrator
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => 
-    safeStorageGet('vybe_user', TOM_ADMIN_USER)
-  );
+  // Sessão vem do Supabase Auth; o perfil vem da tabela profiles
+  const [session, setSession] = useState<Session | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(GUEST_USER);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [passwordRecoveryMode, setPasswordRecoveryMode] = useState<boolean>(false);
+  const isLoggedIn = Boolean(session && currentUser.id);
 
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => 
-    safeStorageGet('vybe_is_logged_in', true)
-  );
-
-  const [isAgeConfirmed, setIsAgeConfirmed] = useState<boolean>(() => 
-    safeStorageGet('vybe_age_confirmed', true)
+  const [isAgeConfirmed, setIsAgeConfirmed] = useState<boolean>(() =>
+    safeStorageGet('vybe_age_confirmed', false)
   );
 
   const [profiles, setProfiles] = useState<UserProfile[]>(() => 
@@ -223,25 +242,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [connections, setConnections] = useState<string[]>(['usr_02_casal_sp', 'usr_03_sing_f']);
   const [following, setFollowing] = useState<string[]>(['usr_02_casal_sp', 'usr_03_sing_f', 'usr_05_casal_bh']);
 
-  // Admin security check: Server-side identity verification
-  const isAuthorizedAdmin = currentUser?.email ? currentUser.email.toLowerCase().trim() === PRIMARY_ADMIN_EMAIL.toLowerCase() : false;
+  // Papel administrativo vem da tabela admin_users; os poderes no banco exigem sessão MFA (aal2)
+  const [dbAdminRole, setDbAdminRole] = useState<AdminRole | null>(null);
+  const isAuthorizedAdmin = dbAdminRole !== null;
 
   const [isAdminMode, setIsAdminModeInternal] = useState<boolean>(false);
-  const [adminRole, setAdminRole] = useState<'superadmin' | 'moderator' | 'support' | 'auditor'>('superadmin');
-  const [adminMfaVerified, setAdminMfaVerified] = useState<boolean>(true); // Pre-verified session for Tom
+  const [adminRole, setAdminRole] = useState<AdminRole>('moderator');
+  const [adminMfaVerified, setAdminMfaVerified] = useState<boolean>(false);
 
   const [authModalType, setAuthModalType] = useState<'login' | 'register' | null>(null);
   const [reportModalTarget, setReportModalTarget] = useState<{ targetType: 'profile' | 'post' | 'media' | 'message'; targetId: string; reportedUserName: string } | null>(null);
   const [privacyTermsModalOpen, setPrivacyTermsModalOpen] = useState<boolean>(false);
 
-  // Sync to local storage safely
-  useEffect(() => {
-    safeStorageSet('vybe_user', currentUser);
-  }, [currentUser]);
+  const refreshAdminMfa = async () => {
+    const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    setAdminMfaVerified(data?.currentLevel === 'aal2');
+  };
+
+  const loadSession = async (nextSession: Session | null) => {
+    setSession(nextSession);
+
+    if (!nextSession) {
+      setCurrentUser(GUEST_USER);
+      setDbAdminRole(null);
+      setAdminMfaVerified(false);
+      setIsAdminModeInternal(false);
+      setAuthLoading(false);
+      return;
+    }
+
+    const userId = nextSession.user.id;
+    const [profile, role] = await Promise.all([fetchOwnProfile(userId), fetchAdminRole(userId)]);
+
+    if (profile) {
+      setCurrentUser({ ...profile, email: profile.email || nextSession.user.email || '' });
+    } else {
+      console.error('[VYBE] Sessão sem perfil correspondente. O script supabase/setup.sql foi executado?');
+      setCurrentUser(GUEST_USER);
+    }
+
+    setDbAdminRole(role);
+    if (role) setAdminRole(role);
+    await refreshAdminMfa();
+    setAuthLoading(false);
+  };
 
   useEffect(() => {
-    safeStorageSet('vybe_is_logged_in', isLoggedIn);
-  }, [isLoggedIn]);
+    if (!isSupabaseConfigured()) {
+      setAuthLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => loadSession(data.session));
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecoveryMode(true);
+      // Chamadas ao Supabase dentro do callback podem travar o cliente; adia para o próximo ciclo
+      setTimeout(() => loadSession(nextSession), 0);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     safeStorageSet('vybe_posts', posts);
@@ -274,7 +335,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Protected Admin Mode Switcher
   const setIsAdminMode = (active: boolean) => {
     if (active && !isAuthorizedAdmin) {
-      alert('Acesso Negado (HTTP 403 Forbidden): Apenas a conta administrativa autorizada no servidor (tomsilvaconsignado@gmail.com) possui permissão para acessar o Painel de Moderação.');
+      alert('Acesso negado: sua conta não possui papel administrativo.');
       return;
     }
     setIsAdminModeInternal(active);
@@ -285,51 +346,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('vybe_age_confirmed', 'true');
   };
 
-  const login = (email: string) => {
-    if (email.toLowerCase().trim() === PRIMARY_ADMIN_EMAIL.toLowerCase()) {
-      setCurrentUser(TOM_ADMIN_USER);
-    } else {
-      setCurrentUser(CURRENT_USER);
-    }
-    setIsLoggedIn(true);
+  const login = async (email: string, password: string): Promise<string | null> => {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) return translateAuthError(error.message);
     setAuthModalType(null);
-  };
-
-  const switchUserAccount = (accountType: 'admin' | 'regular') => {
-    if (accountType === 'admin') {
-      setCurrentUser(TOM_ADMIN_USER);
-      setAdminRole('superadmin');
-      setAdminMfaVerified(true);
-    } else {
-      setCurrentUser(CURRENT_USER);
-      setIsAdminModeInternal(false);
-    }
     setActiveTab('feed');
+    return null;
   };
 
-  const logout = () => {
-    setIsLoggedIn(false);
+  const register = async (email: string, password: string, metadata: SignUpMetadata) => {
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: metadata, emailRedirectTo: authRedirectUrl() }
+    });
+    if (error) return { error: translateAuthError(error.message), needsEmailConfirmation: false };
+
+    // Com confirmação de e-mail ativa, o Supabase não devolve sessão até o usuário clicar no link
+    const needsEmailConfirmation = !data.session;
+    if (!needsEmailConfirmation) {
+      setAuthModalType(null);
+      setActiveTab('feed');
+    }
+    return { error: null, needsEmailConfirmation };
+  };
+
+  const requestPasswordReset = async (email: string): Promise<string | null> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: authRedirectUrl() });
+    return error ? translateAuthError(error.message) : null;
+  };
+
+  const updatePassword = async (newPassword: string): Promise<string | null> => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return translateAuthError(error.message);
+    setPasswordRecoveryMode(false);
+    return null;
+  };
+
+  const logout = async () => {
+    await supabase.auth.signOut();
     setIsAdminModeInternal(false);
-    setActiveTab('feed');
-  };
-
-  const registerUser = (newUser: UserProfile) => {
-    setCurrentUser(newUser);
-    setIsLoggedIn(true);
-    setAuthModalType(null);
     setActiveTab('feed');
   };
 
   const updateCurrentUser = (updated: Partial<UserProfile>) => {
     setCurrentUser(prev => ({ ...prev, ...updated }));
-  };
-
-  const verifyAdminMfa = (code: string): boolean => {
-    if (code === '948210' || code === '778899') {
-      setAdminMfaVerified(true);
-      return true;
-    }
-    return false;
+    if (!currentUser.id) return;
+    saveOwnProfile(currentUser.id, updated).then(error => {
+      if (error) {
+        console.error('[VYBE] Falha ao salvar perfil:', error);
+        alert('Não foi possível salvar as alterações do perfil. Tente novamente.');
+      }
+    });
   };
 
   const toggleLikePost = (postId: string) => {
@@ -685,7 +753,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         ...r,
         status: resolution,
-        reviewedBy: `Tom Silva (${adminRole})`,
+        reviewedBy: `${currentUser.displayName} (${adminRole})`,
         resolutionNote: note
       };
     }));
@@ -693,7 +761,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newLog: AdminAuditLog = {
       id: `log_${Date.now()}`,
       adminId: currentUser.id,
-      adminName: `Tom Silva (${adminRole.toUpperCase()})`,
+      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
       adminRole,
       action: actionTaken || (resolution === 'resolved' ? 'RESOLVE_REPORT' : 'DISMISS_REPORT'),
       targetId: reportId,
@@ -714,7 +782,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newLog: AdminAuditLog = {
       id: `log_${Date.now()}`,
       adminId: currentUser.id,
-      adminName: `Tom Silva (${adminRole.toUpperCase()})`,
+      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
       adminRole,
       action: `SET_USER_STATUS_${status.toUpperCase()}`,
       targetId: userId,
@@ -730,7 +798,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newNote = {
       id: `note_${Date.now()}`,
       adminId: currentUser.id,
-      adminName: 'Tom Silva (SuperAdmin)',
+      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
       note,
       createdAt: new Date().toISOString().substring(0, 16)
     };
@@ -746,7 +814,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newLog: AdminAuditLog = {
       id: `log_${Date.now()}`,
       adminId: currentUser.id,
-      adminName: `Tom Silva (${adminRole.toUpperCase()})`,
+      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
       adminRole,
       action: 'ADD_CONFIDENTIAL_MODERATION_NOTE',
       targetId: userId,
@@ -771,7 +839,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newLog: AdminAuditLog = {
       id: `log_${Date.now()}`,
       adminId: currentUser.id,
-      adminName: `Tom Silva (${adminRole.toUpperCase()})`,
+      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
       adminRole,
       action: 'APPLY_FEATURE_RESTRICTIONS',
       targetId: userId,
@@ -792,7 +860,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newLog: AdminAuditLog = {
       id: `log_${Date.now()}`,
       adminId: currentUser.id,
-      adminName: `Tom Silva (${adminRole.toUpperCase()})`,
+      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
       adminRole,
       action: `MODERATE_MEDIA_${status.toUpperCase()}`,
       targetId: mediaId,
@@ -817,7 +885,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newLog: AdminAuditLog = {
       id: `log_${Date.now()}`,
       adminId: currentUser.id,
-      adminName: `Tom Silva (${adminRole.toUpperCase()})`,
+      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
       adminRole,
       action: 'APPROVE_VERIFIED_BADGE',
       targetId: userId,
@@ -834,7 +902,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const newLog: AdminAuditLog = {
       id: `log_${Date.now()}`,
       adminId: currentUser.id,
-      adminName: `Tom Silva (${adminRole.toUpperCase()})`,
+      adminName: `${currentUser.displayName} (${adminRole.toUpperCase()})`,
       adminRole,
       action: 'INSPECT_REPORT_SPECIFIC_CHAT_EVIDENCE',
       targetId: reportId,
@@ -858,13 +926,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         isLoggedIn,
+        authLoading,
         isAgeConfirmed,
         confirmAge,
         login,
+        register,
+        requestPasswordReset,
+        passwordRecoveryMode,
+        updatePassword,
         logout,
-        registerUser,
         updateCurrentUser,
-        switchUserAccount,
         activeTab,
         setActiveTab,
         selectedProfileId,
@@ -908,7 +979,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminRole,
         setAdminRole,
         adminMfaVerified,
-        verifyAdminMfa,
+        refreshAdminMfa,
         adminResolveReport,
         adminUpdateUserStatus,
         adminAddUserNote,

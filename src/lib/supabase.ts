@@ -5,71 +5,47 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = (): boolean => {
   return Boolean(
-    supabaseUrl && 
-    supabaseAnonKey && 
+    supabaseUrl &&
+    supabaseAnonKey &&
     supabaseUrl !== 'https://your-project-id.supabase.co' &&
-    supabaseAnonKey !== 'your-anon-key'
+    supabaseAnonKey !== 'your-anon-public-key'
   );
 };
 
-// Client instance: initialized with env vars or dummy fallback for graceful offline development
+if (!isSupabaseConfigured()) {
+  console.error('[VYBE] Supabase não configurado: defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env');
+}
+
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-anon-key'
 );
 
-// ----------------- AUTH HELPERS ----------------- //
+// URL para onde os links de e-mail (confirmação / redefinição de senha) retornam.
+// Usa o caminho atual para funcionar também em subpastas (ex.: GitHub Pages).
+export const authRedirectUrl = (): string => `${window.location.origin}${window.location.pathname}`;
 
-export async function signUpWithEmail(email: string, password: string, userData: Record<string, any>) {
-  if (!isSupabaseConfigured()) {
-    console.warn('[VYBE Supabase] Supabase não configurado. Utilizando autenticação simulada local.');
-    return { data: { user: { id: `usr_${Date.now()}`, email } }, error: null };
-  }
-
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: userData,
-      emailRedirectTo: `${window.location.origin}/auth/callback`
-    }
-  });
-
-  return { data, error };
-}
-
-export async function signInWithEmail(email: string, password: string) {
-  if (!isSupabaseConfigured()) {
-    return { data: { user: { id: `usr_${Date.now()}`, email } }, error: null };
-  }
-
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
-
-  return { data, error };
-}
-
-export async function signOut() {
-  if (!isSupabaseConfigured()) return { error: null };
-  return await supabase.auth.signOut();
-}
-
-export async function sendPasswordResetEmail(email: string) {
-  if (!isSupabaseConfigured()) return { error: null };
-  return await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/reset-password`
-  });
+// Traduz as mensagens de erro mais comuns do Supabase Auth
+export function translateAuthError(message: string | undefined | null): string {
+  if (!message) return 'Ocorreu um erro inesperado. Tente novamente.';
+  const m = message.toLowerCase();
+  if (m.includes('invalid login credentials')) return 'E-mail ou senha incorretos.';
+  if (m.includes('email not confirmed')) return 'Confirme seu e-mail pelo link que enviamos antes de entrar.';
+  if (m.includes('user already registered')) return 'Já existe uma conta com este e-mail.';
+  if (m.includes('password should be at least')) return 'A senha deve ter pelo menos 8 caracteres.';
+  if (m.includes('weak') && m.includes('password')) return 'Senha fraca. Use letras, números e símbolos.';
+  if (m.includes('rate limit') || m.includes('too many')) return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
+  if (m.includes('maiores de 18')) return 'Cadastro permitido apenas para maiores de 18 anos.';
+  if (m.includes('database error saving new user')) return 'Não foi possível criar o perfil. Verifique os dados (idade mínima 18 anos) e tente novamente.';
+  if (m.includes('invalid totp') || m.includes('invalid code')) return 'Código inválido ou expirado.';
+  if (m.includes('failed to fetch') || m.includes('network')) return 'Sem conexão com o servidor. Verifique sua internet.';
+  return message;
 }
 
 // ----------------- STORAGE HELPERS ----------------- //
 
+// Caminho deve começar com o UID do usuário: "<uid>/arquivo.jpg"
 export async function uploadPublicMedia(file: File, path: string) {
-  if (!isSupabaseConfigured()) {
-    return { publicUrl: URL.createObjectURL(file), error: null };
-  }
-
   const { error } = await supabase.storage.from('public-media').upload(path, file, {
     cacheControl: '3600',
     upsert: true
@@ -81,11 +57,8 @@ export async function uploadPublicMedia(file: File, path: string) {
   return { publicUrl: data.publicUrl, error: null };
 }
 
+// Caminho deve seguir "<uid>/<album_id>/arquivo.jpg"
 export async function uploadPrivateVaultMedia(file: File, path: string) {
-  if (!isSupabaseConfigured()) {
-    return { path, error: null };
-  }
-
   const { data, error } = await supabase.storage.from('private-vaults').upload(path, file, {
     cacheControl: '3600',
     upsert: true
@@ -95,10 +68,6 @@ export async function uploadPrivateVaultMedia(file: File, path: string) {
 }
 
 export async function getPrivateVaultSignedUrl(path: string, expiresInSeconds: number = 300) {
-  if (!isSupabaseConfigured()) {
-    return { signedUrl: 'https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=900', error: null };
-  }
-
   const { data, error } = await supabase.storage
     .from('private-vaults')
     .createSignedUrl(path, expiresInSeconds);

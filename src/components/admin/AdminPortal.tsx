@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { AdminMfaGate } from './AdminMfaGate';
 import { 
   ShieldCheck, 
   Users, 
@@ -44,13 +45,9 @@ export const AdminPortal: React.FC = () => {
     setIsAdminMode, 
     adminResolveReport, 
     adminModerateMedia,
-    verifyAdminMfa,
     adminMfaVerified
   } = useApp();
 
-  // 2FA Admin Access State
-  const [pinCode, setPinCode] = useState('948210');
-  const [mfaError, setMfaError] = useState('');
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'users' | 'reports' | 'media' | 'audit' | 'deploy'>('dashboard');
 
   // Modals state
@@ -85,50 +82,8 @@ export const AdminPortal: React.FC = () => {
   const messageReports = reports.filter(r => r.targetType === 'message');
   const flaggedMediaCount = adminMediaList.filter(m => m.status === 'flagged').length;
 
-  const handleMfaSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (verifyAdminMfa(pinCode.trim())) {
-      setMfaError('');
-    } else {
-      setMfaError('Código MFA inválido. Use o token de segurança 948210 para autenticação.');
-    }
-  };
-
   if (!adminMfaVerified) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-[#110a1c] border border-amber-600/40 rounded-3xl p-8 shadow-2xl text-center space-y-4">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
-            <KeyRound className="w-8 h-8" />
-          </div>
-          <h2 className="text-xl font-bold text-white">Autenticação Multifator (MFA)</h2>
-          <p className="text-xs text-zinc-400">
-            Sessão administrativa protegida para <strong className="text-amber-300">{currentUser.email}</strong>.
-            Informe o código do seu aplicativo autenticador ou token de segurança.
-          </p>
-
-          <form onSubmit={handleMfaSubmit} className="space-y-3">
-            <input
-              type="text"
-              value={pinCode}
-              onChange={e => setPinCode(e.target.value)}
-              placeholder="Código de 6 dígitos"
-              className="w-full text-center tracking-widest text-xl font-mono font-bold px-4 py-2.5 bg-zinc-900 border border-amber-500/40 rounded-xl text-white focus:outline-none focus:border-amber-400"
-            />
-            {mfaError && <p className="text-xs text-rose-400">{mfaError}</p>}
-            
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl font-bold text-xs text-black bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all cursor-pointer shadow-lg shadow-amber-950/50"
-            >
-              Validar Credencial Administrativa
-            </button>
-          </form>
-
-          <span className="text-[10px] text-zinc-500 block">Token de teste pré-preenchido: 948210</span>
-        </div>
-      </div>
-    );
+    return <AdminMfaGate />;
   }
 
   // Filtered Users
@@ -175,7 +130,7 @@ export const AdminPortal: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-zinc-400">
-              Administrador Principal: <strong className="text-amber-200">tomsilvaconsignado@gmail.com</strong> (Sessão Criptografada)
+              Sessão administrativa: <strong className="text-amber-200">{currentUser.email}</strong> ({adminRole})
             </p>
           </div>
         </div>

@@ -17,11 +17,13 @@ import {
   Eye,
   Key
 } from 'lucide-react';
-import { ProfileType, LocationPrivacy, UserProfile } from '../../types';
+import { ProfileType, LocationPrivacy } from '../../types';
 
 export const RegisterWizard: React.FC = () => {
-  const { setAuthModalType, registerUser, setPrivacyTermsModalOpen } = useApp();
+  const { setAuthModalType, register, setPrivacyTermsModalOpen } = useApp();
   const [step, setStep] = useState(1);
+  const [submitError, setSubmitError] = useState('');
+  const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
 
   // Form State
   // Step 1: Account
@@ -63,7 +65,6 @@ export const RegisterWizard: React.FC = () => {
   const [coverUrl, setCoverUrl] = useState('https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1200&auto=format&fit=crop&q=80');
 
   // Step 6: Verification
-  const [verificationCode, setVerificationCode] = useState('482910');
   const [isVerifying, setIsVerifying] = useState(false);
   const [wantsSelfieVerification, setWantsSelfieVerification] = useState(true);
 
@@ -105,6 +106,10 @@ export const RegisterWizard: React.FC = () => {
         alert('Por favor, preencha todos os campos obrigatórios da conta.');
         return;
       }
+      if (password.length < 8) {
+        alert('A senha deve ter pelo menos 8 caracteres.');
+        return;
+      }
       if (calculateAge(birthdate) < 18) {
         alert('O acesso ao VYBE é estritamente restrito a maiores de 18 anos civis.');
         return;
@@ -128,88 +133,74 @@ export const RegisterWizard: React.FC = () => {
     setStep(prev => Math.min(prev + 1, 6));
   };
 
-  const handleFinishRegistration = () => {
+  const handleFinishRegistration = async () => {
     setIsVerifying(true);
-    setTimeout(() => {
-      const newUser: UserProfile = {
-        id: `usr_${Date.now()}`,
-        username: username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
-        displayName: displayName || (profileType === 'couple' ? `${partner1Name} & ${partner2Name}` : username),
-        email,
-        profileType,
-        partners: profileType === 'couple' ? [
-          {
-            id: 'p1',
-            name: partner1Name || 'Parceiro 1',
-            age: partner1Age,
-            gender: partner1Gender,
-            consentConfirmed: true
-          },
-          {
-            id: 'p2',
-            name: partner2Name || 'Parceiro 2',
-            age: partner2Age,
-            gender: partner2Gender,
-            consentConfirmed: true
-          }
-        ] : undefined,
-        city,
-        state,
-        locationPrivacy,
-        approximateDistanceKm: 0,
-        age: profileType === 'couple' ? Math.round((partner1Age + partner2Age) / 2) : calculateAge(birthdate) || 28,
-        bio: bio || 'Explorando novas conexões com respeito, discrição e cumplicidade.',
-        avatarUrl,
-        coverUrl,
-        isVerified: wantsSelfieVerification,
-        verifiedBadgeType: wantsSelfieVerification ? 'selfie_age' : undefined,
-        followersCount: 0,
-        followingCount: 1,
-        connectionsCount: 0,
-        compatibilityPrefs: {
-          objectives: selectedObjectives,
-          interestedIn,
-          ageRange: [24, 45],
-          maxDistanceKm: 50,
-          meetingPreference,
-          pacePreference,
-          discretionLevel,
-          groupReadiness: 'curious',
-          personalLimits: [limitsText, 'Uso de preservativo', 'Sem fotos não consentidas'],
-          lifestyleTags: selectedInterests.slice(0, 4)
-        },
-        interests: selectedInterests,
-        albums: [
-          {
-            id: `alb_pub_${Date.now()}`,
-            userId: `usr_${Date.now()}`,
-            title: 'Galeria Pública',
-            description: 'Nossa vibe social e momentos descontraídos.',
-            coverUrl: avatarUrl,
-            visibility: 'public',
-            mediaCount: 1,
-            allowedUserIds: [],
-            pendingRequestUserIds: [],
-            createdAt: 'Hoje',
-            items: [
-              {
-                id: `med_${Date.now()}`,
-                url: avatarUrl,
-                type: 'image',
-                visibility: 'public',
-                caption: 'Olá, VYBE!',
-                createdAt: 'Hoje'
-              }
-            ]
-          }
-        ],
-        lastActive: 'Agora mesmo'
-      };
+    setSubmitError('');
 
-      registerUser(newUser);
-      setIsVerifying(false);
-    }, 700);
+    const isCouple = profileType === 'couple';
+    const { error, needsEmailConfirmation } = await register(email, password, {
+      username: username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+      display_name: displayName || (isCouple ? `${partner1Name} & ${partner2Name}` : username),
+      birthdate,
+      profile_type: profileType,
+      age: isCouple ? Math.round((partner1Age + partner2Age) / 2) : calculateAge(birthdate),
+      city,
+      state,
+      location_privacy: locationPrivacy,
+      bio: bio || 'Explorando novas conexões com respeito, discrição e cumplicidade.',
+      avatar_url: avatarUrl,
+      cover_url: coverUrl,
+      interests: selectedInterests,
+      verification_requested: wantsSelfieVerification,
+      partners: isCouple ? [
+        { name: partner1Name || 'Parceiro 1', age: partner1Age, gender: partner1Gender, consentConfirmed: true },
+        { name: partner2Name || 'Parceiro 2', age: partner2Age, gender: partner2Gender, consentConfirmed: true }
+      ] : undefined,
+      prefs: {
+        objectives: selectedObjectives,
+        interestedIn,
+        ageRange: [24, 45],
+        maxDistanceKm: 50,
+        meetingPreference,
+        pacePreference,
+        discretionLevel,
+        groupReadiness: 'curious',
+        personalLimits: [limitsText, 'Uso de preservativo', 'Sem fotos não consentidas'],
+        lifestyleTags: selectedInterests.slice(0, 4)
+      }
+    });
+
+    setIsVerifying(false);
+    if (error) {
+      setSubmitError(error);
+      return;
+    }
+    if (needsEmailConfirmation) setConfirmationSentTo(email);
   };
+
+  if (confirmationSentTo) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+        <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-8 shadow-2xl text-center space-y-4 my-auto">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+            <ShieldCheck className="w-7 h-7 text-emerald-400" />
+          </div>
+          <h3 className="text-xl font-bold text-white">Confirme seu e-mail</h3>
+          <p className="text-xs text-zinc-400">
+            Enviamos um link de confirmação para <strong className="text-purple-300">{confirmationSentTo}</strong>.
+            Clique nele para ativar sua conta e depois entre com seu e-mail e senha.
+          </p>
+          <button
+            type="button"
+            onClick={() => setAuthModalType('login')}
+            className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:opacity-90 cursor-pointer"
+          >
+            Ir para o login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
@@ -687,19 +678,8 @@ export const RegisterWizard: React.FC = () => {
             <div>
               <h3 className="text-xl font-bold text-white mb-1">Quase Tudo Pronto!</h3>
               <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-                Código de validação enviado para <strong className="text-purple-300">{email || 'seu e-mail'}</strong>.
+                Ao concluir, enviaremos um link de confirmação para <strong className="text-purple-300">{email || 'seu e-mail'}</strong>.
               </p>
-            </div>
-
-            <div className="max-w-xs mx-auto">
-              <label className="block text-xs font-semibold text-zinc-300 mb-1 text-left">Código de 6 dígitos:</label>
-              <input
-                type="text"
-                value={verificationCode}
-                onChange={e => setVerificationCode(e.target.value)}
-                className="w-full text-center tracking-widest text-lg font-mono font-bold px-4 py-2 bg-zinc-900 border border-purple-500 rounded-xl text-white focus:outline-none"
-              />
-              <span className="text-[10px] text-emerald-400 mt-1 block">Código de teste pré-preenchido</span>
             </div>
 
             <div className="p-3.5 bg-zinc-900/60 border border-zinc-800 rounded-2xl text-left">
@@ -711,10 +691,12 @@ export const RegisterWizard: React.FC = () => {
                   className="mt-0.5 accent-purple-600 rounded cursor-pointer"
                 />
                 <span className="text-xs text-zinc-300 leading-tight">
-                  <strong className="text-white">Solicitar Selo de Verificação (+18):</strong> Confirmo biometria facial e conformidade para receber o selo verificado de confiança na plataforma.
+                  <strong className="text-white">Solicitar Selo de Verificação (+18):</strong> Quero passar pela verificação de identidade da moderação para receber o selo verificado.
                 </span>
               </label>
             </div>
+
+            {submitError && <p className="text-xs text-rose-400">{submitError}</p>}
           </div>
         )}
 

@@ -14,6 +14,7 @@ import { TermsPrivacyModal } from './components/modals/TermsPrivacyModal';
 import { LandingPage } from './components/auth/LandingPage';
 import { LoginModal } from './components/auth/LoginModal';
 import { RegisterWizard } from './components/auth/RegisterWizard';
+import { ResetPasswordModal } from './components/auth/ResetPasswordModal';
 
 // Main Views
 import { FeedView } from './components/feed/FeedView';
@@ -28,12 +29,30 @@ import { SettingsView } from './components/settings/SettingsView';
 import { AdminPortal } from './components/admin/AdminPortal';
 
 const AppContent: React.FC = () => {
-  const { 
-    isLoggedIn, 
-    activeTab, 
-    isAdminMode, 
-    authModalType 
+  const {
+    isLoggedIn,
+    authLoading,
+    passwordRecoveryMode,
+    activeTab,
+    isAdminMode,
+    authModalType
   } = useApp();
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#08060c] flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (passwordRecoveryMode) {
+    return (
+      <div className="min-h-screen bg-[#08060c]">
+        <ResetPasswordModal />
+      </div>
+    );
+  }
 
   // If not authenticated, show modern landing page
   if (!isLoggedIn) {

@@ -142,29 +142,25 @@ Para conectar o VYBE ao Supabase em produção:
 2. Clique em **New Project**, defina o nome (ex: `vybe-production`) e crie uma senha segura para o banco.
 3. Escolha uma região próxima (ex: `South America (São Paulo)`).
 
-### 2. Executar os Scripts SQL no Supabase
-No painel do Supabase, acesse **SQL Editor** no menu lateral e execute os 3 scripts contidos na pasta `supabase/` nesta ordem:
+### 2. Executar o Script SQL no Supabase
+No painel do Supabase, acesse **SQL Editor**, cole todo o conteúdo de **`supabase/setup.sql`** e clique em **Run**.
+O script pode ser executado novamente sem perder dados. Ele cria:
 
-1. **`supabase/schema.sql`:**
-   Cria todos os tipos ENUM, tabelas relacionais, chaves estrangeiras, índices e provisiona a conta do superadministrador `tomsilvaconsignado@gmail.com`.
-2. **`supabase/rls_policies.sql`:**
-   Habilita a proteção de nível de linha (RLS) em todas as tabelas, garantindo que usuários comuns só leiam conteúdos autorizados e isolando conversas e relatórios de moderação.
-3. **`supabase/storage_setup.sql`:**
-   Cria os buckets de armazenamento no Supabase Storage:
-   - `public-media`: para fotos de perfil, capas e mídias de postagens.
-   - `private-vaults`: para ensaios privativos com *signed URLs* temporárias.
+- Tabelas, índices e tipos (perfis, posts, conexões, comunidades, cofres, mensagens, denúncias, auditoria).
+- Gatilho que cria o perfil automaticamente no cadastro (bloqueando menores de 18 anos).
+- Regras de segurança (RLS) em todas as tabelas. Dados sensíveis (e-mail, nascimento) ficam em `profile_private`, visível só para o dono e a moderação.
+- Papel de superadministrador para o e-mail definido em `primary_admin_email()`, concedido **somente após a confirmação do e-mail**. Permissões administrativas no banco exigem sessão com MFA (aal2).
+- Buckets `public-media` (público) e `private-vaults` (cofres, acesso via *signed URL* só para dono e pessoas aprovadas).
+- Realtime para mensagens e notificações.
 
 ### 3. Obter as Chaves de API
-1. Acesse **Project Settings** -> **API**.
-2. Copie a **Project URL** e coloque no seu `.env`:
+1. Acesse **Project Settings** -> **API Keys**.
+2. Copie a **Project URL** e a chave **publishable** (ou a antiga **anon**) para o `.env`:
    ```env
    VITE_SUPABASE_URL="https://seu-id.supabase.co"
+   VITE_SUPABASE_ANON_KEY="sb_publishable_..."
    ```
-3. Copie a **anon public key** e coloque no seu `.env`:
-   ```env
-   VITE_SUPABASE_ANON_KEY="sua-chave-anon"
-   ```
-4. Se for utilizar rotas de backend avançadas em servidor próprio, copie a chave **service_role** apenas para o ambiente de servidor (nunca exponha no frontend).
+3. A chave **secret / service_role** ignora todas as regras de segurança: use apenas em servidor, nunca no frontend.
 
 ### 4. Configurar Redirecionamentos de Autenticação
 1. No painel do Supabase, acesse **Authentication** -> **URL Configuration**.
@@ -239,10 +235,11 @@ A tela branca ocorria por dois motivos clássicos de publicação de aplicaçõe
 
 ## 👑 Conta do Administrador Principal
 
-- **E-mail:** `tomsilvaconsignado@gmail.com`
-- **Nome:** Tom Silva ✨ (SuperAdmin)
-- **Privilégios:** Acesso irrestrito ao Painel Administrativo, gestão de usuários, moderação de conteúdos, análise de denúncias e consulta ao livro de auditoria imutável.
-- **Autenticação Reforçada:** O acesso às ferramentas de moderação requer confirmação em dois fatores (MFA). O código padrão de verificação configurado no servidor é `948210`.
+- **E-mail:** definido na função `primary_admin_email()` em `supabase/setup.sql`.
+- **Como ativar:** cadastre-se normalmente no app com esse e-mail e confirme pelo link recebido. O papel `superadmin` é concedido automaticamente na confirmação.
+- **Privilégios:** Painel Administrativo, gestão de usuários, moderação de conteúdos, análise de denúncias e livro de auditoria imutável.
+- **MFA obrigatório:** no primeiro acesso ao painel, vincule um aplicativo autenticador (Google Authenticator, Authy etc.) pelo QR code exibido. Sem a sessão MFA, o banco não concede nenhuma permissão administrativa.
+- **Outros administradores:** o superadmin pode inserir linhas em `admin_users` (papéis `moderator`, `support`, `auditor`).
 
 ---
 

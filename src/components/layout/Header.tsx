@@ -24,7 +24,6 @@ export const Header: React.FC = () => {
     isAdminMode, 
     setIsAdminMode,
     isAuthorizedAdmin,
-    switchUserAccount,
     setAuthModalType
   } = useApp();
 
@@ -87,7 +86,7 @@ export const Header: React.FC = () => {
         {/* Right Action Icons & User Status */}
         <div className="flex items-center gap-2 sm:gap-3">
           
-          {/* EXCLUSIVE ADMIN PANEL BUTTON - ONLY DISPLAYED FOR AUTHORIZED ADMIN (tomsilvaconsignado@gmail.com) */}
+          {/* EXCLUSIVE ADMIN PANEL BUTTON - ONLY DISPLAYED FOR ACCOUNTS IN admin_users */}
           {isLoggedIn && isAuthorizedAdmin && (
             <button
               onClick={() => setIsAdminMode(!isAdminMode)}
@@ -172,7 +171,7 @@ export const Header: React.FC = () => {
                       {currentUser?.displayName || 'Usuário'}
                     </span>
                     <span className="text-[10px] text-purple-400">
-                      {isAuthorizedAdmin ? '👑 SuperAdmin' : '@' + (currentUser?.username || 'usuario')}
+                      {isAuthorizedAdmin ? '👑 Administração' : '@' + (currentUser?.username || 'usuario')}
                     </span>
                   </div>
                   <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
@@ -231,43 +230,6 @@ export const Header: React.FC = () => {
                         <Lock className="w-4 h-4 text-purple-400" />
                         <span>Configurações & Privacidade</span>
                       </button>
-
-                      {/* Quick Demonstration Account Switcher */}
-                      <div className="pt-1.5 border-t border-purple-900/30 mt-1">
-                        <span className="text-[10px] uppercase font-bold text-zinc-400 px-3 block mb-1">
-                          Testar Papéis (Alternar Conta):
-                        </span>
-
-                        <button
-                          onClick={() => {
-                            switchUserAccount('admin');
-                            setShowAccountDropdown(false);
-                          }}
-                          className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-between cursor-pointer ${
-                            isAuthorizedAdmin
-                              ? 'bg-amber-950/50 text-amber-300 font-bold'
-                              : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-                          }`}
-                        >
-                          <span>Tom Silva (SuperAdmin)</span>
-                          {isAuthorizedAdmin && <span className="text-[9px]">Ativo</span>}
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            switchUserAccount('regular');
-                            setShowAccountDropdown(false);
-                          }}
-                          className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center justify-between cursor-pointer ${
-                            !isAuthorizedAdmin
-                              ? 'bg-purple-950/50 text-purple-300 font-bold'
-                              : 'text-zinc-400 hover:bg-zinc-900 hover:text-white'
-                          }`}
-                        >
-                          <span>Leo & Luana (Usuário Comum)</span>
-                          {!isAuthorizedAdmin && <span className="text-[9px]">Ativo</span>}
-                        </button>
-                      </div>
 
                       <div className="pt-1 border-t border-purple-900/30">
                         <button

@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
-  const { setAuthModalType, setPrivacyTermsModalOpen, login } = useApp();
+  const { setAuthModalType, setPrivacyTermsModalOpen } = useApp();
 
   return (
     <div className="min-h-screen bg-[#08060c] text-zinc-100 flex flex-col selection:bg-purple-600 selection:text-white">
@@ -68,14 +68,6 @@ export const LandingPage: React.FC = () => {
                 className="w-full sm:w-auto px-8 py-4 rounded-2xl font-bold text-zinc-200 bg-zinc-900/90 border border-purple-900/40 hover:border-purple-600/60 hover:text-white transition-all flex items-center justify-center gap-2 cursor-pointer text-base"
               >
                 <span>Já possuo conta</span>
-              </button>
-
-              <button
-                onClick={() => login('tomsilvaconsignado@gmail.com')}
-                className="w-full sm:w-auto px-6 py-4 rounded-2xl font-bold text-xs text-amber-300 hover:text-amber-200 bg-amber-950/40 border border-amber-500/40 hover:bg-amber-900/40 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg"
-                title="Acessar como Administrador Principal (tomsilvaconsignado@gmail.com)"
-              >
-                <span>👑 Entrar como Tom Silva (SuperAdmin)</span>
               </button>
             </div>
 

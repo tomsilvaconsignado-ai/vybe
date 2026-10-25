@@ -3,18 +3,33 @@ import { useApp } from '../../context/AppContext';
 import { X, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export const LoginModal: React.FC = () => {
-  const { setAuthModalType, login } = useApp();
-  const [email, setEmail] = useState('leo.luana@vybe.app');
-  const [password, setPassword] = useState('••••••••••');
+  const { setAuthModalType, login, requestPasswordReset } = useApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
-      login(email);
-      setIsLoading(false);
-    }, 400);
+    setError('');
+    setInfo('');
+    const loginError = await login(email, password);
+    if (loginError) setError(loginError);
+    setIsLoading(false);
+  };
+
+  const handleForgotPassword = async () => {
+    setError('');
+    setInfo('');
+    if (!email.trim()) {
+      setError('Informe seu e-mail no campo acima para receber o link de redefinição.');
+      return;
+    }
+    const resetError = await requestPasswordReset(email);
+    if (resetError) setError(resetError);
+    else setInfo('Se houver uma conta com este e-mail, enviamos um link para redefinir a senha.');
   };
 
   return (
@@ -39,11 +54,12 @@ export const LoginModal: React.FC = () => {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1">E-mail ou Usuário</label>
+            <label className="block text-xs font-semibold text-zinc-300 mb-1">E-mail</label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
-                type="text"
+                type="email"
+                autoComplete="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="seuemail@exemplo.com"
@@ -58,7 +74,7 @@ export const LoginModal: React.FC = () => {
               <label className="text-xs font-semibold text-zinc-300">Senha</label>
               <button
                 type="button"
-                onClick={() => alert('Link de recuperação criptografado enviado ao seu e-mail cadastrado.')}
+                onClick={handleForgotPassword}
                 className="text-[11px] text-purple-400 hover:text-purple-300"
               >
                 Esqueci a senha
@@ -68,6 +84,7 @@ export const LoginModal: React.FC = () => {
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
                 type="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
@@ -75,6 +92,9 @@ export const LoginModal: React.FC = () => {
               />
             </div>
           </div>
+
+          {error && <p className="text-xs text-rose-400">{error}</p>}
+          {info && <p className="text-xs text-emerald-400">{info}</p>}
 
           <button
             type="submit"
@@ -86,37 +106,7 @@ export const LoginModal: React.FC = () => {
           </button>
         </form>
 
-        <div className="pt-4 border-t border-purple-950/40 space-y-2">
-          <span className="text-[10px] uppercase font-bold text-zinc-400 block text-center">
-            Acessos Rápidos para Demonstração:
-          </span>
-
-          <button
-            type="button"
-            onClick={() => {
-              setEmail('tomsilvaconsignado@gmail.com');
-              setPassword('SuperAdmin@2026!');
-            }}
-            className="w-full p-2 rounded-xl bg-amber-950/30 border border-amber-500/40 hover:bg-amber-950/60 text-left text-xs text-amber-300 flex items-center justify-between cursor-pointer transition-colors"
-          >
-            <span>👑 Tom Silva (SuperAdmin)</span>
-            <span className="text-[10px] text-amber-400">tomsilvaconsignado@gmail.com</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setEmail('leo.luana@vybe.app');
-              setPassword('SenhaSegura123!');
-            }}
-            className="w-full p-2 rounded-xl bg-purple-950/30 border border-purple-800/40 hover:bg-purple-950/60 text-left text-xs text-purple-300 flex items-center justify-between cursor-pointer transition-colors"
-          >
-            <span>👥 Leo & Luana (Usuário Comum)</span>
-            <span className="text-[10px] text-purple-400">leo.luana@vybe.app</span>
-          </button>
-        </div>
-
-        <div className="pt-4 text-center">
+        <div className="pt-4 mt-4 border-t border-purple-950/40 text-center">
           <p className="text-xs text-zinc-400">
             Ainda não tem conta no VYBE?{' '}
             <button
