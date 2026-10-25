@@ -14,8 +14,6 @@ import {
   PostComment
 } from '../types';
 import {
-  MOCK_PROFILES,
-  MOCK_POSTS, 
   MOCK_COMMUNITIES, 
   MOCK_CONVERSATIONS, 
   MOCK_NOTIFICATIONS, 
@@ -27,6 +25,22 @@ import {
 import type { Session } from '@supabase/supabase-js';
 import { supabase, authRedirectUrl, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
 import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile } from '../lib/profiles';
+import {
+  SocialGraph,
+  fetchProfiles,
+  fetchSocialGraph,
+  fetchFeed,
+  fetchPost,
+  insertPost,
+  removePost,
+  setLike,
+  setSave,
+  insertComment,
+  insertPollVote,
+  setFollow,
+  sendConnectionRequest,
+  acceptConnectionRequest
+} from '../lib/social';
 
 // Dados enviados ao Supabase Auth no cadastro; o gatilho handle_new_user cria o perfil a partir deles
 export interface SignUpMetadata {
@@ -86,12 +100,15 @@ interface AppContextType {
   toggleSavePost: (postId: string) => void;
   addComment: (postId: string, text: string) => void;
   votePoll: (postId: string, optionId: string) => void;
-  createPost: (content: string, mediaUrls: string[], tags: string[], pollData?: { question: string; options: string[] }) => void;
+  createPost: (content: string, mediaUrls: string[], tags: string[], pollData?: { question: string; options: string[] }) => Promise<void>;
   deletePost: (postId: string) => void;
 
   // Profile & Social Connections
   connections: string[]; // userIds
   following: string[];   // userIds
+  incomingConnectionRequests: string[]; // quem pediu conexão comigo
+  outgoingConnectionRequests: string[]; // a quem eu pedi conexão
+  refreshSocialData: () => Promise<void>;
   toggleFollow: (userId: string) => void;
   requestConnection: (userId: string) => void;
   acceptConnection: (userId: string) => void;
@@ -198,13 +215,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     safeStorageGet('vybe_age_confirmed', false)
   );
 
-  const [profiles, setProfiles] = useState<UserProfile[]>(() => 
-    safeStorageGet('vybe_profiles', MOCK_PROFILES)
-  );
-
-  const [posts, setPosts] = useState<Post[]>(() => 
-    safeStorageGet('vybe_posts', MOCK_POSTS)
-  );
+  // Perfis, feed e grafo social vêm do Supabase
+  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
 
   const [communities, setCommunities] = useState<Community[]>(() => 
     safeStorageGet('vybe_communities', MOCK_COMMUNITIES)
@@ -239,8 +252,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
-  const [connections, setConnections] = useState<string[]>(['usr_02_casal_sp', 'usr_03_sing_f']);
-  const [following, setFollowing] = useState<string[]>(['usr_02_casal_sp', 'usr_03_sing_f', 'usr_05_casal_bh']);
+  const [connections, setConnections] = useState<string[]>([]);
+  const [following, setFollowing] = useState<string[]>([]);
+  const [incomingConnectionRequests, setIncomingConnectionRequests] = useState<string[]>([]);
+  const [outgoingConnectionRequests, setOutgoingConnectionRequests] = useState<string[]>([]);
 
   // Papel administrativo vem da tabela admin_users; os poderes no banco exigem sessão MFA (aal2)
   const [dbAdminRole, setDbAdminRole] = useState<AdminRole | null>(null);
@@ -259,11 +274,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAdminMfaVerified(data?.currentLevel === 'aal2');
   };
 
+  const applySocialGraph = (graph: SocialGraph) => {
+    setFollowing(graph.following);
+    setConnections(graph.connections);
+    setIncomingConnectionRequests(graph.incomingRequests);
+    setOutgoingConnectionRequests(graph.outgoingRequests);
+  };
+
+  const loadSocialData = async (userId: string) => {
+    const [loadedProfiles, graph, feed] = await Promise.all([
+      fetchProfiles(userId),
+      fetchSocialGraph(userId),
+      fetchFeed(userId)
+    ]);
+    setProfiles(loadedProfiles);
+    applySocialGraph(graph);
+    setPosts(feed);
+  };
+
+  const refreshSocialData = async () => {
+    if (currentUser.id) await loadSocialData(currentUser.id);
+  };
+
   const loadSession = async (nextSession: Session | null) => {
     setSession(nextSession);
 
     if (!nextSession) {
       setCurrentUser(GUEST_USER);
+      setProfiles([]);
+      setPosts([]);
+      applySocialGraph({ following: [], connections: [], incomingRequests: [], outgoingRequests: [] });
       setDbAdminRole(null);
       setAdminMfaVerified(false);
       setIsAdminModeInternal(false);
@@ -283,7 +323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setDbAdminRole(role);
     if (role) setAdminRole(role);
-    await refreshAdminMfa();
+    await Promise.all([refreshAdminMfa(), profile ? loadSocialData(userId) : Promise.resolve()]);
     setAuthLoading(false);
   };
 
@@ -293,20 +333,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    supabase.auth.getSession().then(({ data }) => loadSession(data.session));
-
+    // onAuthStateChange também emite INITIAL_SESSION ao assinar, cobrindo o carregamento inicial
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') setPasswordRecoveryMode(true);
+      if (event === 'TOKEN_REFRESHED') {
+        setSession(nextSession);
+        return;
+      }
       // Chamadas ao Supabase dentro do callback podem travar o cliente; adia para o próximo ciclo
       setTimeout(() => loadSession(nextSession), 0);
     });
 
     return () => listener.subscription.unsubscribe();
   }, []);
-
-  useEffect(() => {
-    safeStorageSet('vybe_posts', posts);
-  }, [posts]);
 
   useEffect(() => {
     safeStorageSet('vybe_conversations', conversations);
@@ -400,154 +439,113 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const toggleLikePost = (postId: string) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id !== postId) return p;
-      const isLiked = p.likedByCurrentUser;
-      return {
-        ...p,
-        likedByCurrentUser: !isLiked,
-        likesCount: isLiked ? p.likesCount - 1 : p.likesCount + 1
-      };
-    }));
+  // Atualiza um post com o estado do banco (contadores, comentários, votos)
+  const reloadPost = async (postId: string) => {
+    const fresh = await fetchPost(postId, currentUser.id);
+    if (fresh) setPosts(prev => prev.map(p => (p.id === postId ? fresh : p)));
   };
 
-  const toggleSavePost = (postId: string) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id !== postId) return p;
-      return {
-        ...p,
-        savedByCurrentUser: !p.savedByCurrentUser
-      };
-    }));
+  const reportFailure = (action: string, error: string) => {
+    console.error(`[VYBE] Falha ao ${action}:`, error);
+    alert(`Não foi possível ${action}. Tente novamente.`);
   };
 
-  const addComment = (postId: string, text: string) => {
-    if (!text.trim()) return;
-    const newComment: PostComment = {
-      id: `c_${Date.now()}`,
-      postId,
-      userId: currentUser.id,
-      username: currentUser.username,
-      userDisplayName: currentUser.displayName,
-      userAvatar: currentUser.avatarUrl,
-      isVerified: currentUser.isVerified,
-      content: text.trim(),
-      createdAt: 'Agora mesmo',
-      likesCount: 0
-    };
-
-    setPosts(prev => prev.map(p => {
-      if (p.id !== postId) return p;
-      return {
-        ...p,
-        commentsCount: p.commentsCount + 1,
-        comments: [...p.comments, newComment]
-      };
+  const toggleLikePost = async (postId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+    const like = !post.likedByCurrentUser;
+    setPosts(prev => prev.map(p => p.id !== postId ? p : {
+      ...p,
+      likedByCurrentUser: like,
+      likesCount: p.likesCount + (like ? 1 : -1)
     }));
+    const error = await setLike(currentUser.id, postId, like);
+    if (error) reportFailure('registrar a curtida', error);
+    await reloadPost(postId);
   };
 
-  const votePoll = (postId: string, optionId: string) => {
-    setPosts(prev => prev.map(p => {
-      if (p.id !== postId || !p.poll) return p;
-      const existingVote = p.poll.voterIds[currentUser.id];
-      if (existingVote) return p;
-
-      const updatedOptions = p.poll.options.map(opt => {
-        if (opt.id === optionId) {
-          return { ...opt, votes: opt.votes + 1 };
-        }
-        return opt;
-      });
-
-      return {
-        ...p,
-        poll: {
-          ...p.poll,
-          options: updatedOptions,
-          voterIds: {
-            ...p.poll.voterIds,
-            [currentUser.id]: optionId
-          }
-        }
-      };
-    }));
-  };
-
-  const createPost = (
-    content: string, 
-    mediaUrls: string[], 
-    tags: string[], 
-    pollData?: { question: string; options: string[] }
-  ) => {
-    const newPost: Post = {
-      id: `post_${Date.now()}`,
-      userId: currentUser.id,
-      user: {
-        id: currentUser.id,
-        username: currentUser.username,
-        displayName: currentUser.displayName,
-        avatarUrl: currentUser.avatarUrl,
-        profileType: currentUser.profileType,
-        isVerified: currentUser.isVerified,
-        city: `${currentUser.city}, ${currentUser.state}`
-      },
-      content,
-      mediaUrls,
-      tags,
-      likesCount: 0,
-      likedByCurrentUser: false,
-      commentsCount: 0,
-      savedByCurrentUser: false,
-      comments: [],
-      createdAt: 'Agora mesmo',
-      visibility: 'public',
-      poll: pollData && pollData.question ? {
-        question: pollData.question,
-        options: pollData.options.map((opt, i) => ({ id: `opt_${i}`, text: opt, votes: 0 })),
-        voterIds: {}
-      } : undefined
-    };
-
-    setPosts(prev => [newPost, ...prev]);
-
-    // Also register in admin media list if images were attached
-    if (mediaUrls.length > 0) {
-      const newMedia: AdminMediaRecord = {
-        id: `med_${Date.now()}`,
-        userId: currentUser.id,
-        userName: currentUser.username,
-        userAvatar: currentUser.avatarUrl,
-        url: mediaUrls[0],
-        type: 'image',
-        visibility: 'public',
-        caption: content.substring(0, 60),
-        status: 'approved',
-        createdAt: new Date().toISOString().substring(0, 10)
-      };
-      setAdminMediaList(prev => [newMedia, ...prev]);
+  const toggleSavePost = async (postId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post) return;
+    const save = !post.savedByCurrentUser;
+    setPosts(prev => prev.map(p => p.id !== postId ? p : { ...p, savedByCurrentUser: save }));
+    const error = await setSave(currentUser.id, postId, save);
+    if (error) {
+      reportFailure('salvar a publicação', error);
+      await reloadPost(postId);
     }
   };
 
-  const deletePost = (postId: string) => {
+  const addComment = async (postId: string, text: string) => {
+    if (!text.trim()) return;
+    const error = await insertComment(currentUser.id, postId, text.trim());
+    if (error) reportFailure('publicar o comentário', error);
+    await reloadPost(postId);
+  };
+
+  const votePoll = async (postId: string, optionId: string) => {
+    const post = posts.find(p => p.id === postId);
+    if (!post?.poll || post.poll.voterIds[currentUser.id]) return;
+    const error = await insertPollVote(currentUser.id, postId, optionId);
+    if (error) reportFailure('registrar o voto', error);
+    await reloadPost(postId);
+  };
+
+  const createPost = async (
+    content: string,
+    mediaUrls: string[],
+    tags: string[],
+    pollData?: { question: string; options: string[] }
+  ) => {
+    const { postId, error } = await insertPost(currentUser.id, content, mediaUrls, tags, pollData);
+    if (error) reportFailure('publicar', error);
+    if (!postId) return;
+    const fresh = await fetchPost(postId, currentUser.id);
+    if (fresh) setPosts(prev => [fresh, ...prev]);
+  };
+
+  const deletePost = async (postId: string) => {
+    const error = await removePost(postId);
+    if (error) {
+      reportFailure('excluir a publicação', error);
+      return;
+    }
     setPosts(prev => prev.filter(p => p.id !== postId));
   };
 
-  const toggleFollow = (userId: string) => {
-    setFollowing(prev => 
-      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
-    );
+  const toggleFollow = async (userId: string) => {
+    const follow = !following.includes(userId);
+    setFollowing(prev => follow ? [...prev, userId] : prev.filter(id => id !== userId));
+    const error = await setFollow(currentUser.id, userId, follow);
+    if (error) {
+      reportFailure(follow ? 'seguir o perfil' : 'deixar de seguir', error);
+      applySocialGraph(await fetchSocialGraph(currentUser.id));
+    }
   };
 
-  const requestConnection = (userId: string) => {
+  const requestConnection = async (userId: string) => {
     if (connections.includes(userId)) return;
+    if (incomingConnectionRequests.includes(userId)) {
+      await acceptConnection(userId);
+      return;
+    }
+    if (outgoingConnectionRequests.includes(userId)) {
+      alert('Sua solicitação de conexão já foi enviada e aguarda resposta.');
+      return;
+    }
+    const error = await sendConnectionRequest(currentUser.id, userId);
+    if (error) {
+      alert(error);
+      return;
+    }
+    setOutgoingConnectionRequests(prev => [...prev, userId]);
     alert('Solicitação de conexão enviada com respeito mútuo!');
   };
 
-  const acceptConnection = (userId: string) => {
-    if (!connections.includes(userId)) {
-      setConnections(prev => [...prev, userId]);
-    }
+  const acceptConnection = async (userId: string) => {
+    const error = await acceptConnectionRequest(currentUser.id, userId);
+    if (error) reportFailure('aceitar a conexão', error);
+    applySocialGraph(await fetchSocialGraph(currentUser.id));
   };
 
   const requestAlbumAccess = (albumId: string, ownerUserId: string) => {
@@ -959,6 +957,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deletePost,
         connections,
         following,
+        incomingConnectionRequests,
+        outgoingConnectionRequests,
+        refreshSocialData,
         toggleFollow,
         requestConnection,
         acceptConnection,

@@ -34,8 +34,10 @@ export const ProfileView: React.FC = () => {
     setSelectedProfileId, 
     profiles, 
     posts, 
-    connections, 
-    requestConnection, 
+    connections,
+    incomingConnectionRequests,
+    outgoingConnectionRequests,
+    requestConnection,
     following, 
     toggleFollow, 
     startOrOpenConversation, 
@@ -170,7 +172,13 @@ export const ProfileView: React.FC = () => {
                     onClick={() => requestConnection(profile.id)}
                     className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800 hover:text-white cursor-pointer"
                   >
-                    {isConnected ? 'Conectado(a)' : 'Conectar'}
+                    {isConnected
+                      ? 'Conectado(a)'
+                      : incomingConnectionRequests.includes(profile.id)
+                        ? 'Aceitar conexão'
+                        : outgoingConnectionRequests.includes(profile.id)
+                          ? 'Pedido enviado'
+                          : 'Conectar'}
                   </button>
                 </>
               )}

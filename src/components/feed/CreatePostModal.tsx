@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { uploadPublicMedia } from '../../lib/supabase';
 import { X, Image, Sparkles, Send, Plus, BarChart2 } from 'lucide-react';
 
 interface CreatePostModalProps {
@@ -14,6 +15,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(['VYBE', 'VidaLiberal']);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
 
   // Poll state
   const [includePoll, setIncludePoll] = useState(false);
@@ -29,6 +32,29 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     }
   };
 
+  const handleUploadFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    setIsUploading(true);
+    for (const file of files) {
+      if (file.size > 20 * 1024 * 1024) {
+        alert(`"${file.name}" excede o limite de 20 MB.`);
+        continue;
+      }
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const path = `${currentUser.id}/posts/${crypto.randomUUID()}.${extension}`;
+      const { publicUrl, error } = await uploadPublicMedia(file, path);
+      if (error || !publicUrl) {
+        alert(`Não foi possível enviar "${file.name}". Tente novamente.`);
+        continue;
+      }
+      setMediaUrls(prev => [...prev, publicUrl]);
+    }
+    setIsUploading(false);
+  };
+
   const handleAddTag = () => {
     if (tagInput.trim()) {
       const clean = tagInput.trim().replace(/^#/, '');
@@ -37,14 +63,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() && mediaUrls.length === 0) {
       alert('Escreva algo ou adicione uma foto para publicar.');
       return;
     }
 
-    createPost(
+    setIsPublishing(true);
+    await createPost(
       content,
       mediaUrls,
       tags,
@@ -55,6 +82,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     );
 
     // Reset and close
+    setIsPublishing(false);
     setContent('');
     setMediaUrls([]);
     onClose();
@@ -112,6 +140,13 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               ))}
             </div>
           )}
+
+          {/* Upload from device */}
+          <label className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-purple-700/50 text-xs font-semibold text-purple-200 hover:bg-purple-950/40 cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+            <Image className="w-4 h-4" />
+            {isUploading ? 'Enviando foto...' : 'Enviar foto do dispositivo'}
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={handleUploadFiles} />
+          </label>
 
           {/* Add media URL or presets */}
           <div className="flex gap-2">
@@ -227,10 +262,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             <span className="text-[11px] text-zinc-400">Todo conteúdo deve ser respeitoso.</span>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 via-fuchsia-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer"
+              disabled={isUploading || isPublishing}
+              className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 via-fuchsia-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
-              Publicar no Feed
+              {isPublishing ? 'Publicando...' : 'Publicar no Feed'}
             </button>
           </div>
         </form>
