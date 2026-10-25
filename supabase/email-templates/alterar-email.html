@@ -1,0 +1,27 @@
+<!-- Supabase > Authentication > Emails > Change Email Address
+     Assunto: Confirme seu novo e-mail no VYBE -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<body style="margin:0;padding:0;background:#08060c;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#08060c;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#110c1c;border:1px solid #3b1f5e;border-radius:20px;">
+        <tr><td style="padding:32px 32px 8px;text-align:center;">
+          <div style="font-size:28px;font-weight:900;letter-spacing:2px;color:#e879f9;">VYBE</div>
+        </td></tr>
+        <tr><td style="padding:16px 32px;color:#e4e4e7;font-size:15px;line-height:1.6;">
+          <h1 style="font-size:20px;color:#ffffff;margin:0 0 12px;">Confirme a troca de e-mail</h1>
+          <p style="margin:0 0 16px;">Você pediu para trocar o e-mail da sua conta de <strong>{{ .Email }}</strong> para <strong>{{ .NewEmail }}</strong>.</p>
+          <p style="text-align:center;margin:28px 0;">
+            <a href="{{ .ConfirmationURL }}" style="background-color:#9333ea;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block;">Confirmar novo e-mail</a>
+          </p>
+          <p style="margin:0;font-size:13px;color:#a1a1aa;">Se não foi você, ignore este e-mail e troque sua senha imediatamente.</p>
+        </td></tr>
+        <tr><td style="padding:16px 32px 28px;font-size:11px;color:#71717a;text-align:center;border-top:1px solid #241635;">
+          VYBE — este é um e-mail automático, não responda.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

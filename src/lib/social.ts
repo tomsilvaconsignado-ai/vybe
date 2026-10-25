@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { mapProfileRow } from './profiles';
+import { mapProfileRow, avatarOrDefault } from './profiles';
 import { Post, PostComment, UserProfile } from '../types';
 
 // ----------------- FORMATAÇÃO ----------------- //
@@ -127,7 +127,7 @@ function mapPostRow(row: any, me: string): Post {
       userId: c.user_id,
       username: c.author?.username ?? '',
       userDisplayName: c.author?.display_name ?? 'Usuário',
-      userAvatar: c.author?.avatar_url ?? '',
+      userAvatar: avatarOrDefault(c.author?.avatar_url, c.author?.display_name ?? 'U'),
       isVerified: c.author?.is_verified ?? false,
       content: c.content,
       createdAt: formatRelativeTime(c.created_at),
@@ -141,7 +141,7 @@ function mapPostRow(row: any, me: string): Post {
       id: author?.id ?? row.user_id,
       username: author?.username ?? '',
       displayName: author?.display_name ?? 'Usuário',
-      avatarUrl: author?.avatar_url ?? '',
+      avatarUrl: avatarOrDefault(author?.avatar_url, author?.display_name ?? 'U'),
       profileType: author?.profile_type ?? 'couple',
       isVerified: author?.is_verified ?? false,
       city: author ? formatLocation(author.city, author.state, author.location_privacy) : ''

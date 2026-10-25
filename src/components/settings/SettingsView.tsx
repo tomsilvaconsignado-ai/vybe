@@ -18,12 +18,18 @@ export const SettingsView: React.FC = () => {
   const { 
     currentUser, 
     updateCurrentUser, 
-    setPrivacyTermsModalOpen, 
-    logout 
+    setPrivacyTermsModalOpen,
+    deleteAccount,
+    posts
   } = useApp();
 
   const handleExportDataLGPD = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentUser, null, 2));
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      profile: currentUser,
+      posts: posts.filter(p => p.userId === currentUser.id)
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute("href", dataStr);
     downloadAnchor.setAttribute("download", `vybe_meus_dados_lgpd_${currentUser.username}.json`);
@@ -33,11 +39,19 @@ export const SettingsView: React.FC = () => {
     alert('Relatório de dados pessoais (LGPD Art. 18) exportado com sucesso em formato JSON legível.');
   };
 
-  const handleDeleteAccount = () => {
-    if (confirm('Atenção: A exclusão é definitiva e irrevogável, apagando suas fotos, cofres e mensagens. Deseja prosseguir com o pedido de exclusão?')) {
-      alert('Sua conta e dados foram removidos da plataforma com sucesso conforme previsto na LGPD.');
-      logout();
+  const handleDeleteAccount = async () => {
+    if (!confirm('Atenção: A exclusão é definitiva e irrevogável, apagando seu perfil, fotos, publicações, cofres e mensagens. Deseja prosseguir?')) return;
+    const typed = prompt(`Para confirmar, digite seu nome de usuário: ${currentUser.username}`);
+    if (typed?.trim() !== currentUser.username) {
+      alert('Nome de usuário não confere. A conta não foi excluída.');
+      return;
     }
+    const error = await deleteAccount();
+    if (error) {
+      alert(`Não foi possível excluir a conta: ${error}`);
+      return;
+    }
+    alert('Sua conta e seus dados foram excluídos definitivamente, conforme a LGPD.');
   };
 
   return (

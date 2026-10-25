@@ -168,6 +168,41 @@ O script pode ser executado novamente sem perder dados. Ele cria:
 
 ---
 
+## ✉️ E-mails (confirmação de cadastro e recuperação de senha)
+
+Sem SMTP próprio, o Supabase só envia e-mails para membros da equipe do projeto e com limite de poucos por hora. Para os usuários receberem os e-mails, configure um remetente próprio.
+
+### 1. Configurar o SMTP
+No Supabase: **Authentication** > **Emails** > **SMTP Settings** > **Enable custom SMTP**.
+
+| Campo | Gmail (para começar) | Domínio próprio (recomendado, ex.: Resend ou Brevo) |
+|---|---|---|
+| Host | `smtp.gmail.com` | Fornecido pelo provedor (ex.: `smtp.resend.com`, `smtp-relay.brevo.com`) |
+| Porta | `465` | `465` ou `587` |
+| Usuário | o próprio e-mail Gmail | Fornecido pelo provedor |
+| Senha | **senha de app** do Google (exige verificação em 2 etapas) | Chave SMTP do provedor |
+| Sender email | o mesmo e-mail Gmail | ex.: `nao-responda@seudominio.com` |
+| Sender name | `VYBE` | `VYBE` |
+
+- Gmail: limite de cerca de 500 envios por dia e maior chance de cair no spam. Bom para testes e início.
+- Domínio próprio: configure os registros SPF e DKIM indicados pelo provedor para não cair no spam.
+- Depois, em **Authentication** > **Rate Limits**, ajuste "Rate limit for sending emails" conforme o volume.
+
+### 2. Modelos em português
+Em **Authentication** > **Emails** > **Templates**, cole o HTML de cada arquivo de `supabase/email-templates/` e use o assunto indicado no comentário do topo:
+
+| Modelo no Supabase | Arquivo |
+|---|---|
+| Confirm signup | `confirmar-cadastro.html` |
+| Reset Password | `redefinir-senha.html` |
+| Change Email Address | `alterar-email.html` |
+| Magic Link | `link-de-acesso.html` |
+
+### 3. Notificações por e-mail (próxima etapa)
+Curtidas, comentários, pedidos de conexão e de cofre já geram linhas na tabela `notifications`. Enviá-las por e-mail exige uma Edge Function acionada por Database Webhook, usando a API do mesmo provedor de e-mail.
+
+---
+
 ## 🚀 Publicação no GitHub Pages
 
 O workflow `.github/workflows/deploy.yml` verifica os tipos, compila o app e publica a pasta `dist` a cada push na branch `vybe.main` (ou manualmente pela aba **Actions** > **Run workflow**).

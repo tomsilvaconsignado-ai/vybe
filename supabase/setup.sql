@@ -426,11 +426,11 @@ $$;
 -- ==============================================================================
 
 -- 4.1 Criação automática do perfil no cadastro (dados vêm de options.data do signUp)
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
+CREATE OR REPLACE FUNCTION public.create_profile_for_user(new_user auth.users)
+RETURNS VOID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
-  meta JSONB := coalesce(NEW.raw_user_meta_data, '{}'::jsonb);
+  meta JSONB := coalesce(new_user.raw_user_meta_data, '{}'::jsonb);
   v_birthdate DATE := nullif(meta ->> 'birthdate', '')::date;
   v_age INTEGER;
   v_username TEXT;
@@ -444,17 +444,17 @@ BEGIN
 
   v_username := lower(regexp_replace(coalesce(meta ->> 'username', ''), '[^a-zA-Z0-9_]', '', 'g'));
   IF length(v_username) < 3 THEN
-    v_username := 'user_' || substr(replace(NEW.id::text, '-', ''), 1, 8);
+    v_username := 'user_' || substr(replace(new_user.id::text, '-', ''), 1, 8);
   END IF;
   IF EXISTS (SELECT 1 FROM public.profiles WHERE username = v_username) THEN
-    v_username := left(v_username, 40) || '_' || substr(replace(NEW.id::text, '-', ''), 1, 6);
+    v_username := left(v_username, 40) || '_' || substr(replace(new_user.id::text, '-', ''), 1, 6);
   END IF;
 
   INSERT INTO public.profiles (
     id, username, display_name, profile_type, city, state, location_privacy, age,
     gender, orientation, bio, avatar_url, cover_url, interests, verification_requested
   ) VALUES (
-    NEW.id,
+    new_user.id,
     v_username,
     coalesce(nullif(meta ->> 'display_name', ''), v_username),
     coalesce(nullif(meta ->> 'profile_type', ''), 'couple')::profile_type_enum,
@@ -472,13 +472,13 @@ BEGIN
   );
 
   INSERT INTO public.profile_private (user_id, email, birthdate, adult_declared_at, terms_accepted_at)
-  VALUES (NEW.id, NEW.email, v_birthdate, now(), now());
+  VALUES (new_user.id, new_user.email, v_birthdate, now(), now());
 
   IF jsonb_typeof(meta -> 'partners') = 'array' THEN
     FOR v_partner IN SELECT * FROM jsonb_array_elements(meta -> 'partners') LOOP
       INSERT INTO public.joint_partners (profile_id, name, age, gender, orientation, consent_confirmed)
       VALUES (
-        NEW.id,
+        new_user.id,
         coalesce(nullif(v_partner ->> 'name', ''), 'Parceiro'),
         greatest(coalesce((v_partner ->> 'age')::int, 18), 18),
         coalesce(v_partner ->> 'gender', ''),
@@ -492,7 +492,7 @@ BEGIN
     profile_id, objectives, interested_in, age_range_min, age_range_max, max_distance_km,
     meeting_preference, pace_preference, discretion_level, group_readiness, personal_limits, lifestyle_tags
   ) VALUES (
-    NEW.id,
+    new_user.id,
     coalesce(ARRAY(SELECT jsonb_array_elements_text(meta #> '{prefs,objectives}')), '{}'),
     coalesce(ARRAY(SELECT jsonb_array_elements_text(meta #> '{prefs,interestedIn}')), '{}'),
     coalesce((meta #>> '{prefs,ageRange,0}')::int, 18),
@@ -505,10 +505,33 @@ BEGIN
     coalesce(ARRAY(SELECT jsonb_array_elements_text(meta #> '{prefs,personalLimits}')), '{}'),
     coalesce(ARRAY(SELECT jsonb_array_elements_text(meta #> '{prefs,lifestyleTags}')), '{}')
   );
+END;
+$$;
 
+REVOKE EXECUTE ON FUNCTION public.create_profile_for_user(auth.users) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.create_profile_for_user(NEW);
   RETURN NEW;
 END;
 $$;
+
+-- Contas criadas antes deste script (sem perfil) recebem o perfil agora.
+-- Cadastros sem data de nascimento válida (+18) são ignorados e listados no aviso.
+DO $$
+DECLARE u auth.users;
+BEGIN
+  FOR u IN SELECT * FROM auth.users WHERE id NOT IN (SELECT id FROM public.profiles) LOOP
+    BEGIN
+      PERFORM public.create_profile_for_user(u);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'Perfil não criado para %: %', u.email, SQLERRM;
+    END;
+  END LOOP;
+END $$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -532,7 +555,9 @@ END;
 $$;
 
 DROP TRIGGER IF EXISTS on_auth_user_confirmed ON auth.users;
-CREATE TRIGGER on_auth_user_confirmed
+-- Nome escolhido para disparar depois de on_auth_user_created (gatilhos rodam em ordem alfabética)
+DROP TRIGGER IF EXISTS on_auth_user_verified ON auth.users;
+CREATE TRIGGER on_auth_user_verified
   AFTER INSERT OR UPDATE OF email_confirmed_at ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.grant_primary_admin();
 
@@ -783,6 +808,34 @@ BEGIN
 END;
 $$;
 
+-- Marca a conversa como lida para o usuário atual
+CREATE OR REPLACE FUNCTION public.mark_conversation_read(conv UUID)
+RETURNS VOID
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.conversation_participants
+  SET last_read_at = now()
+  WHERE conversation_id = conv AND user_id = auth.uid();
+  UPDATE public.messages
+  SET status = 'read'
+  WHERE conversation_id = conv AND sender_id <> auth.uid() AND status <> 'read'
+    AND public.is_conversation_participant(conv, auth.uid());
+$$;
+
+-- Exclusão definitiva da própria conta (LGPD art. 18, VI). Apaga o usuário do Auth;
+-- perfil, posts, mensagens, álbuns etc. são removidos em cascata.
+-- Arquivos do Storage são apagados pelo app antes de chamar esta função.
+CREATE OR REPLACE FUNCTION public.delete_own_account()
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Não autenticado.'; END IF;
+  IF public.admin_role_of(auth.uid()) IS NOT NULL THEN
+    RAISE EXCEPTION 'Contas administrativas não podem ser excluídas pelo app. Remova o papel em admin_users primeiro.';
+  END IF;
+  DELETE FROM auth.users WHERE id = auth.uid();
+END;
+$$;
+
 -- ==============================================================================
 -- 6. ROW LEVEL SECURITY
 -- ==============================================================================
@@ -807,6 +860,9 @@ END $$;
 
 GRANT EXECUTE ON FUNCTION public.start_conversation(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_message_request(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_conversation_read(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.delete_own_account() FROM PUBLIC, anon;
 
 -- profiles
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT TO authenticated

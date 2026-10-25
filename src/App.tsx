@@ -33,6 +33,8 @@ const AppContent: React.FC = () => {
     isLoggedIn,
     authLoading,
     passwordRecoveryMode,
+    profileMissing,
+    logout,
     activeTab,
     isAdminMode,
     authModalType
@@ -50,6 +52,27 @@ const AppContent: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#08060c]">
         <ResetPasswordModal />
+      </div>
+    );
+  }
+
+  // Sessão válida mas sem perfil no banco (ex.: cadastro feito antes de rodar supabase/setup.sql)
+  if (profileMissing) {
+    return (
+      <div className="min-h-screen bg-[#08060c] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-8 text-center space-y-4">
+          <h2 className="text-xl font-bold text-white">Não encontramos seu perfil</h2>
+          <p className="text-xs text-zinc-400">
+            Sua conta existe, mas o perfil não foi criado. Tente novamente em alguns minutos.
+            Se o problema continuar, fale com o suporte.
+          </p>
+          <button
+            onClick={logout}
+            className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 cursor-pointer"
+          >
+            Sair
+          </button>
+        </div>
       </div>
     );
   }

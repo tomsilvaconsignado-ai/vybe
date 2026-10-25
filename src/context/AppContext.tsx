@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  UserProfile, 
-  Post, 
-  Community, 
-  Conversation, 
-  NotificationItem, 
-  ModerationReport, 
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import {
+  UserProfile,
+  Post,
+  Community,
+  Conversation,
+  NotificationItem,
+  ModerationReport,
   AdminAuditLog,
   AdminUserRecord,
   AdminMediaRecord,
@@ -14,10 +14,8 @@ import {
   PostComment
 } from '../types';
 import {
-  MOCK_COMMUNITIES, 
-  MOCK_CONVERSATIONS, 
-  MOCK_NOTIFICATIONS, 
-  MOCK_REPORTS, 
+  MOCK_COMMUNITIES,
+  MOCK_REPORTS,
   MOCK_ADMIN_LOGS,
   INITIAL_ADMIN_USERS,
   INITIAL_ADMIN_MEDIA
@@ -41,6 +39,23 @@ import {
   sendConnectionRequest,
   acceptConnectionRequest
 } from '../lib/social';
+import {
+  fetchConversations,
+  fetchMessages,
+  insertMessage,
+  startConversation,
+  acceptConversation,
+  leaveConversation,
+  markConversationRead
+} from '../lib/messaging';
+import {
+  fetchNotifications,
+  fetchNotification,
+  markNotificationsRead,
+  insertReport,
+  deleteOwnAccount,
+  touchLastActive
+} from '../lib/activity';
 
 // Dados enviados ao Supabase Auth no cadastro; o gatilho handle_new_user cria o perfil a partir deles
 export interface SignUpMetadata {
@@ -59,6 +74,13 @@ export interface SignUpMetadata {
   verification_requested: boolean;
   partners?: { name: string; age: number; gender: string; consentConfirmed: boolean }[];
   prefs: Partial<UserProfile['compatibilityPrefs']>;
+}
+
+export interface ReportTarget {
+  targetType: 'profile' | 'post' | 'media' | 'message';
+  targetId: string;
+  reportedUserId: string;
+  reportedUserName: string;
 }
 
 interface AppContextType {
@@ -122,10 +144,12 @@ interface AppContextType {
   toggleJoinCommunity: (communityId: string) => void;
 
   // Messaging Actions
-  sendMessage: (conversationId: string, content: string, mediaUrl?: string) => void;
-  startOrOpenConversation: (targetUserId: string) => void;
-  acceptMessageRequest: (conversationId: string) => void;
-  rejectMessageRequest: (conversationId: string) => void;
+  conversationMessages: Record<string, ChatMessage[]>;
+  loadConversationMessages: (conversationId: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: string, mediaUrl?: string) => Promise<void>;
+  startOrOpenConversation: (targetUserId: string) => Promise<void>;
+  acceptMessageRequest: (conversationId: string) => Promise<void>;
+  rejectMessageRequest: (conversationId: string) => Promise<void>;
 
   // Notifications
   markNotificationAsRead: (notifId: string) => void;
@@ -139,7 +163,9 @@ interface AppContextType {
     targetId: string;
     category: ModerationReport['category'];
     description: string;
-  }) => void;
+  }) => Promise<boolean>;
+  deleteAccount: () => Promise<string | null>;
+  profileMissing: boolean;
 
   // Admin Security & Portal Controls
   isAuthorizedAdmin: boolean;
@@ -149,7 +175,7 @@ interface AppContextType {
   setAdminRole: (role: AdminRole) => void;
   adminMfaVerified: boolean;
   refreshAdminMfa: () => Promise<void>;
-  
+
   // Advanced Admin Management Actions
   adminResolveReport: (reportId: string, resolution: 'resolved' | 'dismissed', note: string, actionTaken?: string) => void;
   adminUpdateUserStatus: (userId: string, status: UserAccountStatus, reason: string) => void;
@@ -162,8 +188,8 @@ interface AppContextType {
   // Modals
   authModalType: 'login' | 'register' | null;
   setAuthModalType: (type: 'login' | 'register' | null) => void;
-  reportModalTarget: { targetType: 'profile' | 'post' | 'media' | 'message'; targetId: string; reportedUserName: string } | null;
-  setReportModalTarget: (target: { targetType: 'profile' | 'post' | 'media' | 'message'; targetId: string; reportedUserName: string } | null) => void;
+  reportModalTarget: ReportTarget | null;
+  setReportModalTarget: (target: ReportTarget | null) => void;
   privacyTermsModalOpen: boolean;
   setPrivacyTermsModalOpen: (open: boolean) => void;
 }
@@ -219,37 +245,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
 
-  const [communities, setCommunities] = useState<Community[]>(() => 
+  const [communities, setCommunities] = useState<Community[]>(() =>
     safeStorageGet('vybe_communities', MOCK_COMMUNITIES)
   );
 
-  const [conversations, setConversations] = useState<Conversation[]>(() => 
-    safeStorageGet('vybe_conversations', MOCK_CONVERSATIONS)
-  );
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const conversationsRef = useRef<Conversation[]>([]);
+  conversationsRef.current = conversations;
+  const [conversationMessages, setConversationMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [profileMissing, setProfileMissing] = useState<boolean>(false);
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>(() => 
-    safeStorageGet('vybe_notifications', MOCK_NOTIFICATIONS)
-  );
-
-  const [reports, setReports] = useState<ModerationReport[]>(() => 
+  const [reports, setReports] = useState<ModerationReport[]>(() =>
     safeStorageGet('vybe_reports', MOCK_REPORTS)
   );
 
-  const [adminLogs, setAdminLogs] = useState<AdminAuditLog[]>(() => 
+  const [adminLogs, setAdminLogs] = useState<AdminAuditLog[]>(() =>
     safeStorageGet('vybe_admin_logs', MOCK_ADMIN_LOGS)
   );
 
-  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>(() => 
+  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>(() =>
     safeStorageGet('vybe_admin_users', INITIAL_ADMIN_USERS)
   );
 
-  const [adminMediaList, setAdminMediaList] = useState<AdminMediaRecord[]>(() => 
+  const [adminMediaList, setAdminMediaList] = useState<AdminMediaRecord[]>(() =>
     safeStorageGet('vybe_admin_media', INITIAL_ADMIN_MEDIA)
   );
 
   // UI state
-  const [activeTab, setActiveTab] = useState<string>('feed');
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [activeTab, setActiveTabState] = useState<string>('feed');
+  const [selectedProfileId, setSelectedProfileIdState] = useState<string | null>(null);
+
+  // Ir para "Meu Perfil" pelo menu limpa o perfil visitado
+  const setActiveTab = (tab: string) => {
+    if (tab === 'profile') setSelectedProfileIdState(null);
+    setActiveTabState(tab);
+  };
+
+  // Selecionar um perfil abre a tela de perfil
+  const setSelectedProfileId = (id: string | null) => {
+    setSelectedProfileIdState(id);
+    if (id) {
+      setIsAdminModeInternal(false);
+      setActiveTabState('profile');
+      window.scrollTo({ top: 0 });
+    }
+  };
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
 
   const [connections, setConnections] = useState<string[]>([]);
@@ -266,7 +307,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adminMfaVerified, setAdminMfaVerified] = useState<boolean>(false);
 
   const [authModalType, setAuthModalType] = useState<'login' | 'register' | null>(null);
-  const [reportModalTarget, setReportModalTarget] = useState<{ targetType: 'profile' | 'post' | 'media' | 'message'; targetId: string; reportedUserName: string } | null>(null);
+  const [reportModalTarget, setReportModalTarget] = useState<ReportTarget | null>(null);
   const [privacyTermsModalOpen, setPrivacyTermsModalOpen] = useState<boolean>(false);
 
   const refreshAdminMfa = async () => {
@@ -282,14 +323,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loadSocialData = async (userId: string) => {
-    const [loadedProfiles, graph, feed] = await Promise.all([
+    const [loadedProfiles, graph, feed, loadedConversations, loadedNotifications] = await Promise.all([
       fetchProfiles(userId),
       fetchSocialGraph(userId),
-      fetchFeed(userId)
+      fetchFeed(userId),
+      fetchConversations(userId),
+      fetchNotifications(userId)
     ]);
     setProfiles(loadedProfiles);
     applySocialGraph(graph);
     setPosts(feed);
+    setConversations(loadedConversations);
+    setNotifications(loadedNotifications);
+    touchLastActive(userId);
   };
 
   const refreshSocialData = async () => {
@@ -303,6 +349,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(GUEST_USER);
       setProfiles([]);
       setPosts([]);
+      setConversations([]);
+      setConversationMessages({});
+      setNotifications([]);
+      setProfileMissing(false);
+      setSelectedConversationId(null);
       applySocialGraph({ following: [], connections: [], incomingRequests: [], outgoingRequests: [] });
       setDbAdminRole(null);
       setAdminMfaVerified(false);
@@ -320,6 +371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('[VYBE] Sessão sem perfil correspondente. O script supabase/setup.sql foi executado?');
       setCurrentUser(GUEST_USER);
     }
+    setProfileMissing(!profile);
 
     setDbAdminRole(role);
     if (role) setAdminRole(role);
@@ -347,13 +399,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // Tempo real: novas mensagens, conversas aceitas e notificações
   useEffect(() => {
-    safeStorageSet('vybe_conversations', conversations);
-  }, [conversations]);
+    const me = currentUser.id;
+    if (!me) return;
 
-  useEffect(() => {
-    safeStorageSet('vybe_notifications', notifications);
-  }, [notifications]);
+    const channel = supabase
+      .channel(`vybe-live-${me}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+        const row = payload.new as { conversation_id: string };
+        if (conversationMessagesRef.current[row.conversation_id]) {
+          loadConversationMessagesRef.current(row.conversation_id);
+        }
+        refreshConversationsRef.current();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, () => {
+        refreshConversationsRef.current();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` }, async payload => {
+        const notification = await fetchNotification((payload.new as { id: string }).id);
+        if (notification) setNotifications(prev => [notification, ...prev.filter(n => n.id !== notification.id)]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser.id]);
 
   useEffect(() => {
     safeStorageSet('vybe_reports', reports);
@@ -628,119 +700,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
-  const sendMessage = (conversationId: string, content: string, mediaUrl?: string) => {
-    if (!content.trim() && !mediaUrl) return;
-
-    const newMsg: ChatMessage = {
-      id: `msg_${Date.now()}`,
-      conversationId,
-      senderId: currentUser.id,
-      senderName: currentUser.displayName,
-      senderAvatar: currentUser.avatarUrl,
-      content,
-      mediaUrl,
-      createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'sent'
-    };
-
-    setConversations(prev => prev.map(conv => {
-      if (conv.id !== conversationId) return conv;
-      return {
-        ...conv,
-        lastMessage: newMsg,
-        unreadCount: 0
-      };
-    }));
+  const refreshConversations = async () => {
+    if (currentUser.id) setConversations(await fetchConversations(currentUser.id));
   };
 
-  const startOrOpenConversation = (targetUserId: string) => {
-    const existing = conversations.find(c => c.participantIds.includes(targetUserId));
-    if (existing) {
-      setSelectedConversationId(existing.id);
-      setActiveTab('messages');
+  // Carrega o histórico de uma conversa e marca como lida
+  const loadConversationMessages = async (conversationId: string) => {
+    const conversation = conversationsRef.current.find(c => c.id === conversationId);
+    if (!conversation || !currentUser.id) return;
+    const messages = await fetchMessages(conversation, currentUser);
+    setConversationMessages(prev => ({ ...prev, [conversationId]: messages }));
+    if (conversation.unreadCount > 0) {
+      await markConversationRead(conversationId);
+      setConversations(prev => prev.map(c => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)));
+    }
+  };
+
+  const sendMessage = async (conversationId: string, content: string, mediaUrl?: string) => {
+    if (!content.trim() && !mediaUrl) return;
+    const error = await insertMessage(currentUser.id, conversationId, content.trim(), mediaUrl);
+    if (error) {
+      alert(error);
       return;
     }
+    // A mensagem chega também pelo Realtime; recarregar garante consistência se o Realtime falhar
+    await loadConversationMessages(conversationId);
+    await refreshConversations();
+  };
 
-    const targetUser = profiles.find(p => p.id === targetUserId);
-    if (!targetUser) return;
-
-    const newConv: Conversation = {
-      id: `conv_${Date.now()}`,
-      participantIds: [currentUser.id, targetUserId],
-      participants: [
-        {
-          id: targetUser.id,
-          username: targetUser.username,
-          displayName: targetUser.displayName,
-          avatarUrl: targetUser.avatarUrl,
-          profileType: targetUser.profileType,
-          isVerified: targetUser.isVerified,
-          lastActive: targetUser.lastActive
-        }
-      ],
-      unreadCount: 0,
-      isPendingRequest: true
-    };
-
-    setConversations(prev => [newConv, ...prev]);
-    setSelectedConversationId(newConv.id);
+  const startOrOpenConversation = async (targetUserId: string) => {
+    const { conversationId, error } = await startConversation(targetUserId);
+    if (error || !conversationId) {
+      reportFailure('abrir a conversa', error ?? 'sem id');
+      return;
+    }
+    await refreshConversations();
+    setSelectedConversationId(conversationId);
     setActiveTab('messages');
   };
 
-  const acceptMessageRequest = (conversationId: string) => {
-    setConversations(prev => prev.map(c => {
-      if (c.id !== conversationId) return c;
-      return { ...c, isPendingRequest: false };
-    }));
+  const acceptMessageRequest = async (conversationId: string) => {
+    const error = await acceptConversation(conversationId);
+    if (error) reportFailure('aceitar a conversa', error);
+    await refreshConversations();
   };
 
-  const rejectMessageRequest = (conversationId: string) => {
+  const rejectMessageRequest = async (conversationId: string) => {
+    const error = await leaveConversation(currentUser.id, conversationId);
+    if (error) {
+      reportFailure('recusar a conversa', error);
+      return;
+    }
     setConversations(prev => prev.filter(c => c.id !== conversationId));
+    if (selectedConversationId === conversationId) setSelectedConversationId(null);
   };
 
-  const markNotificationAsRead = (notifId: string) => {
+  const markNotificationAsRead = async (notifId: string) => {
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+    await markNotificationsRead(currentUser.id, [notifId]);
   };
 
-  const markAllNotificationsAsRead = () => {
+  const markAllNotificationsAsRead = async () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    await markNotificationsRead(currentUser.id);
   };
 
-  const submitReport = (data: {
+  const submitReport = async (data: {
     reportedUserId: string;
     reportedUserName: string;
     targetType: 'profile' | 'post' | 'media' | 'message';
     targetId: string;
     category: ModerationReport['category'];
     description: string;
-  }) => {
-    const newReport: ModerationReport = {
-      id: `rep_${Date.now()}`,
-      reporterUserId: currentUser.id,
-      reporterName: currentUser.displayName,
-      reportedUserId: data.reportedUserId,
-      reportedUserName: data.reportedUserName,
-      targetType: data.targetType,
-      targetId: data.targetId,
-      category: data.category,
-      description: data.description,
-      status: 'pending',
-      priority: data.category === 'underage_suspicion' || data.category === 'non_consensual' ? 'urgent' : 'high',
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
-    };
-
-    setReports(prev => [newReport, ...prev]);
-
-    // Also update report count in admin users registry
-    setAdminUsers(prev => prev.map(u => {
-      if (u.id === data.reportedUserId || u.username === data.reportedUserName) {
-        return { ...u, reportsReceivedCount: u.reportsReceivedCount + 1 };
-      }
-      return u;
-    }));
-
+  }): Promise<boolean> => {
+    const error = await insertReport(currentUser.id, data);
+    if (error) {
+      reportFailure('enviar a denúncia', error);
+      return false;
+    }
     setReportModalTarget(null);
     alert('Denúncia recebida pela Equipe de Segurança & Moderação do VYBE. Investigaremos o caso com rigor e discrição.');
+    return true;
+  };
+
+  const conversationMessagesRef = useRef(conversationMessages);
+  conversationMessagesRef.current = conversationMessages;
+  const loadConversationMessagesRef = useRef(loadConversationMessages);
+  loadConversationMessagesRef.current = loadConversationMessages;
+  const refreshConversationsRef = useRef(refreshConversations);
+  refreshConversationsRef.current = refreshConversations;
+
+  const deleteAccount = async (): Promise<string | null> => {
+    const error = await deleteOwnAccount(currentUser.id);
+    if (error) return error;
+    await supabase.auth.signOut();
+    return null;
   };
 
   // ----------------- ADMIN ACTIONS WITH IMMUTABLE AUDIT LOG ----------------- //
@@ -967,6 +1021,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveAlbumAccess,
         revokeAlbumAccess,
         toggleJoinCommunity,
+        conversationMessages,
+        loadConversationMessages,
         sendMessage,
         startOrOpenConversation,
         acceptMessageRequest,
@@ -974,6 +1030,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationAsRead,
         markAllNotificationsAsRead,
         submitReport,
+        deleteAccount,
+        profileMissing,
         isAuthorizedAdmin,
         isAdminMode,
         setIsAdminMode,

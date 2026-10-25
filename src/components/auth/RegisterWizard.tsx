@@ -18,6 +18,7 @@ import {
   Key
 } from 'lucide-react';
 import { ProfileType, LocationPrivacy } from '../../types';
+import { defaultAvatar } from '../../lib/profiles';
 
 export const RegisterWizard: React.FC = () => {
   const { setAuthModalType, register, setPrivacyTermsModalOpen } = useApp();
@@ -61,8 +62,9 @@ export const RegisterWizard: React.FC = () => {
   const [limitsText, setLimitsText] = useState('Respeito mútuo absoluto e conversa prévia.');
 
   // Step 5: Photos & Presentation
-  const [avatarUrl, setAvatarUrl] = useState('https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?w=500&auto=format&fit=crop&q=80');
-  const [coverUrl, setCoverUrl] = useState('https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1200&auto=format&fit=crop&q=80');
+  // Fotos são enviadas depois do primeiro login (o envio ao Storage exige conta confirmada)
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [coverUrl, setCoverUrl] = useState('');
 
   // Step 6: Verification
   const [isVerifying, setIsVerifying] = useState(false);
@@ -627,14 +629,15 @@ export const RegisterWizard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <img
-                  src={avatarUrl}
+                  src={avatarUrl || defaultAvatar(displayName || username)}
                   alt="Avatar"
                   className="w-16 h-16 rounded-full object-cover border-2 border-purple-500"
                 />
                 <div className="flex-1">
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">Foto de Perfil (URL ou Câmera)</label>
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1">Foto de Perfil (link opcional)</label>
                   <input
-                    type="text"
+                    type="url"
+                    placeholder="https://..."
                     value={avatarUrl}
                     onChange={e => setAvatarUrl(e.target.value)}
                     className="w-full px-3 py-1.5 bg-zinc-900 border border-purple-900/30 rounded-xl text-xs text-zinc-200 focus:outline-none"
@@ -643,14 +646,19 @@ export const RegisterWizard: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">Foto de Capa do Perfil</label>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1">Foto de Capa (link opcional)</label>
                 <input
-                  type="text"
+                  type="url"
+                  placeholder="https://..."
                   value={coverUrl}
                   onChange={e => setCoverUrl(e.target.value)}
                   className="w-full px-3 py-1.5 bg-zinc-900 border border-purple-900/30 rounded-xl text-xs text-zinc-200 focus:outline-none"
                 />
               </div>
+
+              <p className="text-[11px] text-zinc-400">
+                Depois de confirmar seu e-mail, você pode enviar fotos direto do celular ou computador em <strong className="text-zinc-200">Meu Perfil → Editar</strong>.
+              </p>
 
               {/* Private Vault explanation */}
               <div className="p-3.5 bg-purple-950/40 border border-purple-800/40 rounded-2xl">

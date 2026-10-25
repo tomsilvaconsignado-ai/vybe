@@ -172,6 +172,7 @@ export interface ChatMessage {
 
 export interface Conversation {
   id: string;
+  createdBy?: string; // quem iniciou; só o destinatário pode aceitar o pedido
   participantIds: string[];
   participants: {
     id: string;

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { X, Save, User, MapPin, Sparkles, Shield, Camera } from 'lucide-react';
 import { LocationPrivacy } from '../../types';
+import { uploadPublicMedia } from '../../lib/supabase';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -20,7 +21,30 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
   const [coverUrl, setCoverUrl] = useState(currentUser.coverUrl);
   const [statusText, setStatusText] = useState(currentUser.statusText || '');
 
+  const [uploading, setUploading] = useState<'avatar' | 'cover' | null>(null);
+
   if (!isOpen) return null;
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, kind: 'avatar' | 'cover') => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert('A imagem deve ter no máximo 10 MB.');
+      return;
+    }
+    setUploading(kind);
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    // Nome único evita que o navegador mostre a foto antiga do cache
+    const { publicUrl, error } = await uploadPublicMedia(file, `${currentUser.id}/profile/${kind}-${Date.now()}.${extension}`);
+    setUploading(null);
+    if (error || !publicUrl) {
+      alert('Não foi possível enviar a imagem. Tente novamente.');
+      return;
+    }
+    if (kind === 'avatar') setAvatarUrl(publicUrl);
+    else setCoverUrl(publicUrl);
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,23 +152,23 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">URL Foto Perfil</label>
-              <input
-                type="text"
-                value={avatarUrl}
-                onChange={e => setAvatarUrl(e.target.value)}
-                className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white"
-              />
+            <div className="space-y-2">
+              <span className="block text-xs font-semibold text-zinc-300">Foto de Perfil</span>
+              <img src={avatarUrl} alt="" className="w-16 h-16 rounded-full object-cover border border-purple-500/40" />
+              <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-900/40 border border-purple-700/40 text-[11px] font-semibold text-purple-200 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Camera className="w-3.5 h-3.5" />
+                {uploading === 'avatar' ? 'Enviando...' : 'Trocar foto'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => handleUpload(e, 'avatar')} />
+              </label>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">URL Foto Capa</label>
-              <input
-                type="text"
-                value={coverUrl}
-                onChange={e => setCoverUrl(e.target.value)}
-                className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white"
-              />
+            <div className="space-y-2">
+              <span className="block text-xs font-semibold text-zinc-300">Foto de Capa</span>
+              <img src={coverUrl} alt="" className="w-full h-16 rounded-xl object-cover border border-purple-500/40" />
+              <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-900/40 border border-purple-700/40 text-[11px] font-semibold text-purple-200 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Camera className="w-3.5 h-3.5" />
+                {uploading === 'cover' ? 'Enviando...' : 'Trocar capa'}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => handleUpload(e, 'cover')} />
+              </label>
             </div>
           </div>
 

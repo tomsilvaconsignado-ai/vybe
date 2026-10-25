@@ -40,6 +40,19 @@ export const GUEST_USER: UserProfile = {
   lastActive: ''
 };
 
+// Avatar padrão (SVG com a inicial) para quem ainda não enviou foto
+export function defaultAvatar(name: string): string {
+  const initial = (name.trim().charAt(0) || 'V').toUpperCase().replace(/[<>&"']/g, '');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c3aed"/><stop offset="1" stop-color="#e11d48"/></linearGradient></defs><rect width="200" height="200" fill="url(#g)"/><text x="50%" y="54%" font-family="Arial, sans-serif" font-size="96" font-weight="bold" fill="#fff" text-anchor="middle" dominant-baseline="middle">${initial}</text></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+export const DEFAULT_COVER = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1e1033"/><stop offset=".5" stop-color="#4c1d95"/><stop offset="1" stop-color="#881337"/></linearGradient></defs><rect width="1200" height="400" fill="url(#g)"/></svg>'
+)}`;
+
+export const avatarOrDefault = (url: string | null | undefined, name: string) => url || defaultAvatar(name);
+
 // PostgREST devolve relações 1:1 como objeto, mas pode devolver array dependendo da detecção
 const one = <T,>(value: T | T[] | null | undefined): T | null =>
   Array.isArray(value) ? value[0] ?? null : value ?? null;
@@ -71,8 +84,8 @@ export function mapProfileRow(row: any): UserProfile {
     gender: row.gender ?? undefined,
     orientation: row.orientation ?? undefined,
     bio: row.bio,
-    avatarUrl: row.avatar_url,
-    coverUrl: row.cover_url,
+    avatarUrl: avatarOrDefault(row.avatar_url, row.display_name),
+    coverUrl: row.cover_url || DEFAULT_COVER,
     isVerified: row.is_verified,
     verifiedBadgeType: row.verified_badge_type ?? undefined,
     followersCount: row.followers_count,
@@ -143,7 +156,8 @@ export async function saveOwnProfile(userId: string, updates: Partial<UserProfil
   const row: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(updates)) {
     const column = EDITABLE_COLUMNS[key as keyof UserProfile];
-    if (column) row[column] = value ?? null;
+    // Avatar/capa padrão são gerados no app (data:); no banco fica vazio
+    if (column) row[column] = typeof value === 'string' && value.startsWith('data:') ? '' : value ?? null;
   }
   if (Object.keys(row).length === 0) return null;
 

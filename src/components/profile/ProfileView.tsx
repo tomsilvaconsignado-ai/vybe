@@ -97,6 +97,7 @@ export const ProfileView: React.FC = () => {
                 onClick={() => setReportModalTarget({
                   targetType: 'profile',
                   targetId: profile.id,
+                  reportedUserId: profile.id,
                   reportedUserName: profile.username
                 })}
                 className="p-2 rounded-full bg-black/60 text-zinc-400 hover:text-rose-400 transition-colors cursor-pointer"

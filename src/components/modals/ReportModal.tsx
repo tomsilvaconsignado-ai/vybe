@@ -11,24 +11,23 @@ export const ReportModal: React.FC = () => {
 
   if (!reportModalTarget) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim()) {
       alert('Por favor, descreva brevemente o motivo da denúncia para que a moderação possa agir.');
       return;
     }
     setIsSubmitting(true);
-    setTimeout(() => {
-      submitReport({
-        reportedUserId: reportModalTarget.targetId,
-        reportedUserName: reportModalTarget.reportedUserName,
-        targetType: reportModalTarget.targetType,
-        targetId: reportModalTarget.targetId,
-        category,
-        description
-      });
-      setIsSubmitting(false);
-    }, 400);
+    const sent = await submitReport({
+      reportedUserId: reportModalTarget.reportedUserId,
+      reportedUserName: reportModalTarget.reportedUserName,
+      targetType: reportModalTarget.targetType,
+      targetId: reportModalTarget.targetId,
+      category,
+      description: description.trim()
+    });
+    setIsSubmitting(false);
+    if (sent) setDescription('');
   };
 
   const categories: { id: ModerationReport['category']; label: string; desc: string }[] = [

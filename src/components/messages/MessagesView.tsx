@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   MessageSquare, 
@@ -26,23 +26,45 @@ export const MessagesView: React.FC = () => {
     acceptMessageRequest, 
     rejectMessageRequest,
     setReportModalTarget,
-    setSelectedProfileId 
+    setSelectedProfileId,
+    conversationMessages,
+    loadConversationMessages
   } = useApp();
 
   const [inputText, setInputText] = useState('');
   const [activeTab, setActiveTab] = useState<'chats' | 'requests'>('chats');
   const [discreetBlur, setDiscreetBlur] = useState(false);
 
-  const activeConversations = conversations.filter(c => !c.isPendingRequest);
-  const pendingRequests = conversations.filter(c => c.isPendingRequest);
+  // Pedidos que EU recebi ficam em "Solicitações"; os que eu enviei aparecem nas conversas como "aguardando"
+  const isIncomingRequest = (c: { isPendingRequest: boolean; createdBy?: string }) =>
+    c.isPendingRequest && c.createdBy !== currentUser.id;
+  const activeConversations = conversations.filter(c => !isIncomingRequest(c));
+  const pendingRequests = conversations.filter(isIncomingRequest);
 
   const activeConv = conversations.find(c => c.id === selectedConversationId) || (activeTab === 'chats' ? activeConversations[0] : pendingRequests[0]);
   const otherParticipant = activeConv?.participants[0];
+  const messages = activeConv ? conversationMessages[activeConv.id] ?? [] : [];
+  const awaitingMyAcceptance = activeConv ? isIncomingRequest(activeConv) : false;
+  const awaitingTheirAcceptance = Boolean(activeConv?.isPendingRequest && !awaitingMyAcceptance);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const [isSending, setIsSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeConv) loadConversationMessages(activeConv.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConv?.id]);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [messages.length, activeConv?.id]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !activeConv) return;
-    sendMessage(activeConv.id, inputText);
+    if (!inputText.trim() || !activeConv || isSending) return;
+    setIsSending(true);
+    await sendMessage(activeConv.id, inputText);
+    setIsSending(false);
     setInputText('');
   };
 
@@ -218,6 +240,7 @@ export const MessagesView: React.FC = () => {
                   onClick={() => setReportModalTarget({
                     targetType: 'message',
                     targetId: activeConv.id,
+                    reportedUserId: otherParticipant.id,
                     reportedUserName: otherParticipant.username
                   })}
                   className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-zinc-800 transition-colors cursor-pointer"
@@ -229,7 +252,16 @@ export const MessagesView: React.FC = () => {
             </div>
 
             {/* Pending Request Gate Warning */}
-            {activeConv.isPendingRequest && (
+            {awaitingTheirAcceptance && (
+              <div className="p-3 bg-purple-950/40 border-b border-purple-800/40 text-xs text-purple-200 flex items-center gap-2">
+                <Lock className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>
+                  <strong>Aguardando aceite:</strong> você pode enviar uma mensagem de apresentação em texto. Mídias e respostas são liberadas quando {otherParticipant.displayName} aceitar.
+                </span>
+              </div>
+            )}
+
+            {awaitingMyAcceptance && (
               <div className="p-3 bg-amber-950/40 border-b border-amber-800/40 flex items-center justify-between gap-4">
                 <div className="text-xs text-amber-200 flex items-center gap-2">
                   <Lock className="w-4 h-4 text-amber-400 shrink-0" />
@@ -255,32 +287,41 @@ export const MessagesView: React.FC = () => {
             )}
 
             {/* Messages Scroll Area */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-4">
+            <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto space-y-4">
               
               <div className="text-center py-2">
                 <span className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full bg-purple-950/60 text-purple-300 border border-purple-900/30">
-                  🔒 Conversa Privada Criptografada
+                  🔒 Conversa privada
                 </span>
               </div>
 
-              {/* Simulated chat message history */}
-              {activeConv.lastMessage && (
-                <div className={`flex flex-col ${
-                  activeConv.lastMessage.senderId === currentUser.id ? 'items-end' : 'items-start'
-                }`}>
-                  <div className={`max-w-sm sm:max-w-md p-3.5 rounded-2xl text-xs leading-relaxed ${
-                    activeConv.lastMessage.senderId === currentUser.id
-                      ? 'bg-gradient-to-r from-purple-600 to-rose-600 text-white rounded-br-none shadow-md'
-                      : 'bg-zinc-900 text-zinc-200 border border-purple-900/30 rounded-bl-none'
-                  }`}>
-                    <p>{activeConv.lastMessage.content}</p>
-                  </div>
-                  <span className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1">
-                    {activeConv.lastMessage.createdAt} • Lido
-                    <CheckCheck className="w-3 h-3 text-purple-400" />
-                  </span>
-                </div>
+              {messages.length === 0 && (
+                <p className="text-center text-xs text-zinc-500 py-6">Nenhuma mensagem ainda. Comece com respeito e boa energia.</p>
               )}
+
+              {messages.map(msg => {
+                const isMine = msg.senderId === currentUser.id;
+                return (
+                  <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                    <div className={`max-w-sm sm:max-w-md p-3.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
+                      isMine
+                        ? 'bg-gradient-to-r from-purple-600 to-rose-600 text-white rounded-br-none shadow-md'
+                        : 'bg-zinc-900 text-zinc-200 border border-purple-900/30 rounded-bl-none'
+                    } ${discreetBlur ? 'blur-sm hover:blur-none transition' : ''}`}>
+                      {msg.mediaUrl && (
+                        <img src={msg.mediaUrl} alt="" className="rounded-xl mb-2 max-h-64 object-cover" />
+                      )}
+                      {msg.content && <p>{msg.content}</p>}
+                    </div>
+                    <span className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1">
+                      {msg.createdAt}
+                      {isMine && (msg.status === 'read'
+                        ? <><span>• Lida</span><CheckCheck className="w-3 h-3 text-purple-400" /></>
+                        : <Check className="w-3 h-3 text-zinc-500" />)}
+                    </span>
+                  </div>
+                );
+              })}
 
             </div>
 
@@ -289,27 +330,19 @@ export const MessagesView: React.FC = () => {
               
               <button
                 type="button"
-                onClick={() => alert('Compartilhamento de chave de álbum privado enviado com sucesso!')}
-                className="p-2.5 rounded-xl text-fuchsia-400 hover:bg-purple-950 transition-colors cursor-pointer"
-                title="Compartilhar Acesso a Cofre Privado"
-              >
-                <Key className="w-5 h-5" />
-              </button>
-
-              <button
-                type="button"
                 onClick={() => setDiscreetBlur(!discreetBlur)}
                 className={`p-2.5 rounded-xl transition-colors cursor-pointer ${
                   discreetBlur ? 'bg-purple-950 text-fuchsia-400 border border-fuchsia-500/50' : 'text-zinc-400 hover:text-white'
                 }`}
-                title="Modo Discreto de Envio"
+                title="Modo discreto: desfoca as mensagens na tela"
               >
                 <Lock className="w-5 h-5" />
               </button>
 
               <input
                 type="text"
-                placeholder="Escreva uma mensagem com respeito e boa energia..."
+                placeholder={awaitingMyAcceptance ? 'Aceite a conversa para responder' : 'Escreva uma mensagem com respeito e boa energia...'}
+                disabled={awaitingMyAcceptance}
                 value={inputText}
                 onChange={e => setInputText(e.target.value)}
                 className="flex-1 px-4 py-2.5 bg-zinc-900/90 border border-purple-900/40 rounded-full text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
@@ -317,7 +350,7 @@ export const MessagesView: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={!inputText.trim()}
+                disabled={!inputText.trim() || isSending || awaitingMyAcceptance}
                 className="p-2.5 rounded-full bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white disabled:opacity-40 shadow transition-all cursor-pointer"
               >
                 <Send className="w-4 h-4" />

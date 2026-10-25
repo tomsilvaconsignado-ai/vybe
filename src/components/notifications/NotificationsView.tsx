@@ -107,11 +107,17 @@ export const NotificationsView: React.FC = () => {
           >
             {/* Avatar or Icon */}
             <div className="relative shrink-0">
-              <img
-                src={n.actor.avatarUrl}
-                alt={n.actor.displayName}
-                className="w-11 h-11 rounded-full object-cover border border-purple-500/40"
-              />
+              {n.actor.avatarUrl ? (
+                <img
+                  src={n.actor.avatarUrl}
+                  alt={n.actor.displayName}
+                  className="w-11 h-11 rounded-full object-cover border border-purple-500/40"
+                />
+              ) : (
+                <div className="w-11 h-11 rounded-full bg-purple-950 border border-purple-500/40 flex items-center justify-center text-sm font-bold text-purple-300">
+                  {n.actor.displayName.charAt(0).toUpperCase()}
+                </div>
+              )}
               <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center">
                 {getIcon(n.type)}
               </div>
@@ -126,9 +132,8 @@ export const NotificationsView: React.FC = () => {
                 <span className="text-[10px] text-zinc-400 shrink-0">{n.createdAt}</span>
               </div>
               <p className="text-xs text-zinc-300 leading-snug">
-                <strong className="text-purple-300">{n.actor.displayName}</strong>{' '}
                 {currentUser.discreetModeEnabled && n.type.includes('vault')
-                  ? 'enviou uma solicitação confidencial.'
+                  ? <><strong className="text-purple-300">{n.actor.displayName}</strong> enviou uma solicitação confidencial.</>
                   : n.message}
               </p>
             </div>

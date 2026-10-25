@@ -126,6 +126,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
                     setReportModalTarget({
                       targetType: 'post',
                       targetId: post.id,
+                      reportedUserId: post.userId,
                       reportedUserName: post.user.username
                     });
                     setShowMenu(false);
