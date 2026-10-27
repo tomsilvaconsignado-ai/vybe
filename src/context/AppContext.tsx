@@ -14,7 +14,8 @@ import {
   PostComment,
   StoryGroup,
   VybeEvent,
-  Ad
+  Ad,
+  ProfileType
 } from '../types';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, authRedirectUrl, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
@@ -205,6 +206,8 @@ interface AppContextType {
   // Modals
   authModalType: 'login' | 'register' | null;
   setAuthModalType: (type: 'login' | 'register' | null) => void;
+  registerProfileType: ProfileType | null;
+  setRegisterProfileType: (type: ProfileType | null) => void;
   reportModalTarget: ReportTarget | null;
   setReportModalTarget: (target: ReportTarget | null) => void;
   privacyTermsModalOpen: boolean;
@@ -231,7 +234,7 @@ function safeStorageGet<T>(key: string, fallback: T): T {
     }
     return parsed;
   } catch (err) {
-    console.warn(`[VYBE] Safe storage fallback for "${key}":`, err);
+    console.warn(`[Vybelog] Safe storage fallback for "${key}":`, err);
     return fallback;
   }
 }
@@ -242,7 +245,7 @@ function safeStorageSet(key: string, value: any): void {
       localStorage.setItem(key, JSON.stringify(value));
     }
   } catch (err) {
-    console.warn(`[VYBE] Safe storage write failed for "${key}":`, err);
+    console.warn(`[Vybelog] Safe storage write failed for "${key}":`, err);
   }
 }
 
@@ -317,6 +320,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adminMfaVerified, setAdminMfaVerified] = useState<boolean>(false);
 
   const [authModalType, setAuthModalType] = useState<'login' | 'register' | null>(null);
+  // Tipo de perfil escolhido no card da página inicial, usado como padrão no cadastro
+  const [registerProfileType, setRegisterProfileType] = useState<ProfileType | null>(null);
   const [reportModalTarget, setReportModalTarget] = useState<ReportTarget | null>(null);
   const [privacyTermsModalOpen, setPrivacyTermsModalOpen] = useState<boolean>(false);
 
@@ -392,7 +397,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (profile) {
       setCurrentUser({ ...profile, email: profile.email || nextSession.user.email || '' });
     } else {
-      console.error('[VYBE] Sessão sem perfil correspondente. O script supabase/setup.sql foi executado?');
+      console.error('[Vybelog] Sessão sem perfil correspondente. O script supabase/setup.sql foi executado?');
       setCurrentUser(GUEST_USER);
     }
     setProfileMissing(!profile);
@@ -528,7 +533,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser.id) return;
     saveOwnProfile(currentUser.id, updated).then(error => {
       if (error) {
-        console.error('[VYBE] Falha ao salvar perfil:', error);
+        console.error('[Vybelog] Falha ao salvar perfil:', error);
         alert('Não foi possível salvar as alterações do perfil. Tente novamente.');
       }
     });
@@ -553,7 +558,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const reportFailure = (action: string, error: string) => {
-    console.error(`[VYBE] Falha ao ${action}:`, error);
+    console.error(`[Vybelog] Falha ao ${action}:`, error);
     alert(`Não foi possível ${action}. Tente novamente.`);
   };
 
@@ -802,7 +807,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
     setReportModalTarget(null);
-    alert('Denúncia recebida pela Equipe de Segurança & Moderação do VYBE. Investigaremos o caso com rigor e discrição.');
+    alert('Denúncia recebida pela Equipe de Segurança & Moderação do Vybelog. Investigaremos o caso com rigor e discrição.');
     return true;
   };
 
@@ -964,6 +969,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshAdminData,
         authModalType,
         setAuthModalType,
+        registerProfileType,
+        setRegisterProfileType,
         reportModalTarget,
         setReportModalTarget,
         privacyTermsModalOpen,

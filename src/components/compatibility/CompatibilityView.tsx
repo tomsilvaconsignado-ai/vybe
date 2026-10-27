@@ -37,7 +37,7 @@ export const CompatibilityView: React.FC = () => {
           </h1>
         </div>
         <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl">
-          A compatibilidade no VYBE avalia a reciprocidade de ambos os lados: objetivos declarados, estilo de aproximação, interesses culturais, discrição e limites mútuos. Não prometemos garantias afetivas, apenas clareza e transparência.
+          A compatibilidade no Vybelog avalia a reciprocidade de ambos os lados: objetivos declarados, estilo de aproximação, interesses culturais, discrição e limites mútuos. Não prometemos garantias afetivas, apenas clareza e transparência.
         </p>
       </div>
 

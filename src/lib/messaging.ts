@@ -41,7 +41,7 @@ export async function fetchConversations(me: string): Promise<Conversation[]> {
     .limit(1, { referencedTable: 'messages' });
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar conversas:', error.message);
+    console.error('[Vybelog] Falha ao carregar conversas:', error.message);
     return [];
   }
 
@@ -87,7 +87,7 @@ export async function fetchMessages(conversation: Conversation, me: { id: string
     .limit(500);
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar mensagens:', error.message);
+    console.error('[Vybelog] Falha ao carregar mensagens:', error.message);
     return [];
   }
 

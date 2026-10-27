@@ -18,7 +18,7 @@ export async function fetchAdminUsers(): Promise<AdminUserRecord[]> {
   ]);
 
   if (usersRes.error) {
-    console.error('[VYBE] Falha ao carregar usuários (admin):', usersRes.error.message);
+    console.error('[Vybelog] Falha ao carregar usuários (admin):', usersRes.error.message);
     return [];
   }
 
@@ -69,7 +69,7 @@ export async function fetchAdminReports(): Promise<ModerationReport[]> {
     .limit(300);
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar denúncias:', error.message);
+    console.error('[Vybelog] Falha ao carregar denúncias:', error.message);
     return [];
   }
 
@@ -99,7 +99,7 @@ export async function fetchAdminLogs(): Promise<AdminAuditLog[]> {
     .limit(500);
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar auditoria:', error.message);
+    console.error('[Vybelog] Falha ao carregar auditoria:', error.message);
     return [];
   }
 
@@ -126,7 +126,7 @@ export async function fetchAdminMedia(): Promise<AdminMediaRecord[]> {
     .limit(300);
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar mídias:', error.message);
+    console.error('[Vybelog] Falha ao carregar mídias:', error.message);
     return [];
   }
 

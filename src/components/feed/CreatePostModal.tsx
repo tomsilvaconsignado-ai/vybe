@@ -14,7 +14,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [mediaUrlInput, setMediaUrlInput] = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState<string[]>(['VYBE', 'VidaLiberal']);
+  const [tags, setTags] = useState<string[]>(['Vybelog', 'VidaLiberal']);
   const [isUploading, setIsUploading] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 

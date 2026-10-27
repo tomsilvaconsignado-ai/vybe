@@ -47,7 +47,7 @@ export const LoginModal: React.FC = () => {
             <Lock className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-white">Entrar no VYBE</h3>
+            <h3 className="text-xl font-bold text-white">Entrar no Vybelog</h3>
             <p className="text-xs text-zinc-400">Sua conexão liberal segura e privativa</p>
           </div>
         </div>
@@ -108,7 +108,7 @@ export const LoginModal: React.FC = () => {
 
         <div className="pt-4 mt-4 border-t border-purple-950/40 text-center">
           <p className="text-xs text-zinc-400">
-            Ainda não tem conta no VYBE?{' '}
+            Ainda não tem conta no Vybelog?{' '}
             <button
               onClick={() => setAuthModalType('register')}
               className="text-fuchsia-400 font-bold hover:underline cursor-pointer"

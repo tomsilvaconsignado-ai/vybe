@@ -1,5 +1,5 @@
 -- ==============================================================================
--- PROJETO VYBE — SETUP COMPLETO DO SUPABASE
+-- PROJETO Vybelog — SETUP COMPLETO DO SUPABASE
 -- Execute este arquivo inteiro no SQL Editor do Supabase (Dashboard -> SQL Editor).
 -- É idempotente: pode ser executado novamente sem perder dados.
 --
@@ -1016,7 +1016,7 @@ BEGIN
     target::text, 'profile', reason);
   IF verified THEN
     PERFORM public.notify(target, NULL, 'system_safety', 'Perfil verificado',
-      'Seu perfil recebeu o selo de verificação do VYBE.', NULL);
+      'Seu perfil recebeu o selo de verificação do Vybelog.', NULL);
   END IF;
 END;
 $$;

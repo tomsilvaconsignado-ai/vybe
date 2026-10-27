@@ -11,7 +11,7 @@ export async function fetchStoryGroups(me: string): Promise<StoryGroup[]> {
     .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar stories:', error.message);
+    console.error('[Vybelog] Falha ao carregar stories:', error.message);
     return [];
   }
 

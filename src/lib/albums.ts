@@ -16,7 +16,7 @@ export async function fetchAlbums(ownerId: string): Promise<MediaAlbum[]> {
   ]);
 
   if (albumsRes.error) {
-    console.error('[VYBE] Falha ao carregar álbuns:', albumsRes.error.message);
+    console.error('[Vybelog] Falha ao carregar álbuns:', albumsRes.error.message);
     return [];
   }
 

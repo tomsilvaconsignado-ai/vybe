@@ -43,7 +43,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({ placement, index = 0, variant = 
           </div>
           <div className="min-w-0 space-y-1">
             <p className="text-sm font-bold text-white">Organiza festas ou tem uma casa liberal?</p>
-            <p className="text-xs text-zinc-400">Divulgue seu evento na agenda do VYBE. A moderação revisa e publica.</p>
+            <p className="text-xs text-zinc-400">Divulgue seu evento na agenda do Vybelog. A moderação revisa e publica.</p>
             {ADS_CONTACT && <p className="text-[11px] text-zinc-500">Anúncios: {ADS_CONTACT}</p>}
           </div>
         </div>

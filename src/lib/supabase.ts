@@ -13,7 +13,7 @@ export const isSupabaseConfigured = (): boolean => {
 };
 
 if (!isSupabaseConfigured()) {
-  console.error('[VYBE] Supabase não configurado: defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env');
+  console.error('[Vybelog] Supabase não configurado: defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env');
 }
 
 export const supabase = createClient(

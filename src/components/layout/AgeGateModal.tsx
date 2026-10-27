@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import logoUrl from '../../assets/logo.png';
 import { ShieldAlert, CheckCircle, AlertTriangle, Lock } from 'lucide-react';
 
 export const AgeGateModal: React.FC = () => {
@@ -14,18 +15,17 @@ export const AgeGateModal: React.FC = () => {
         <div className="absolute -top-16 -left-16 w-32 h-32 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-16 -right-16 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-purple-700 to-rose-600 p-[2px] flex items-center justify-center">
-          <div className="w-full h-full bg-[#0d0a17] rounded-[14px] flex items-center justify-center">
-            <span className="text-2xl font-black text-rose-400">+18</span>
-          </div>
-        </div>
+        <img src={logoUrl} alt="Vybelog" className="w-24 h-24 mx-auto mb-3 rounded-full shadow-xl shadow-amber-900/30" />
+        <span className="inline-block mb-3 text-xs font-black tracking-widest px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
+          +18
+        </span>
 
         <h2 className="text-2xl font-extrabold text-white mb-2">
           Acesso Exclusivo para Adultos
         </h2>
         
         <p className="text-sm text-zinc-300 mb-6 leading-relaxed">
-          O <strong className="text-purple-300">VYBE</strong> é uma rede social voltada exclusivamente para pessoas maiores de 18 anos, casais liberais e solteiros, baseada no <strong className="text-rose-300">consentimento estrito</strong>, respeito mútuo e conformidade com a LGPD.
+          O <strong className="text-purple-300">Vybelog</strong> é uma rede social voltada exclusivamente para pessoas maiores de 18 anos, casais liberais e solteiros, baseada no <strong className="text-rose-300">consentimento estrito</strong>, respeito mútuo e conformidade com a LGPD.
         </p>
 
         <div className="bg-zinc-950/70 border border-purple-900/30 rounded-2xl p-4 text-left space-y-2 mb-6">

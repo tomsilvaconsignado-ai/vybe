@@ -49,7 +49,7 @@ export async function fetchEvents(me: string): Promise<VybeEvent[]> {
     supabase.from('events').select('*').eq('created_by', me).order('starts_at', { ascending: false }).limit(50),
     supabase.from('event_attendees').select('event_id, status').eq('user_id', me)
   ]);
-  if (eventsRes.error) console.error('[VYBE] Falha ao carregar eventos:', eventsRes.error.message);
+  if (eventsRes.error) console.error('[Vybelog] Falha ao carregar eventos:', eventsRes.error.message);
 
   const rsvp = new Map(((rsvpRes.data ?? []) as any[]).map(r => [r.event_id, r.status]));
   const byId = new Map<string, VybeEvent>();

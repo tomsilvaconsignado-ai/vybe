@@ -1,4 +1,4 @@
-name: Deploy VYBE to GitHub Pages
+name: Deploy Vybelog to GitHub Pages
 
 on:
   push:

@@ -34,7 +34,7 @@ export const AdminMfaGate: React.FC = () => {
       if (factor.status === 'unverified') await supabase.auth.mfa.unenroll({ factorId: factor.id });
     }
 
-    const { data, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'VYBE Admin' });
+    const { data, error: enrollError } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Vybelog Admin' });
     setIsLoading(false);
     if (enrollError || !data) {
       setError(translateAuthError(enrollError?.message));

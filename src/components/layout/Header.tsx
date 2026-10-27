@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import logoUrl from '../../assets/logo.png';
 import { 
   ShieldCheck, 
   Bell, 
@@ -47,17 +48,15 @@ export const Header: React.FC = () => {
             }}
             className="flex items-center gap-2 group text-left cursor-pointer focus:outline-none"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-700 via-fuchsia-600 to-rose-500 p-[2px] shadow-lg shadow-purple-900/30 group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-[#0d0a17] rounded-[10px] flex items-center justify-center">
-                <span className="font-extrabold text-xl tracking-tighter bg-gradient-to-r from-purple-400 via-pink-400 to-rose-400 bg-clip-text text-transparent">
-                  V
-                </span>
-              </div>
-            </div>
+            <img
+              src={logoUrl}
+              alt=""
+              className="w-11 h-11 rounded-full shadow-lg shadow-amber-900/30 group-hover:scale-105 transition-transform"
+            />
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-2xl tracking-wider text-white group-hover:text-purple-300 transition-colors">
-                  VYBE
+                  Vybelog
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
                   +18

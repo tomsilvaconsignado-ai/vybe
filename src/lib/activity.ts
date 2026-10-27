@@ -5,7 +5,7 @@ import { ModerationReport, NotificationItem } from '../types';
 
 // ----------------- NOTIFICAÇÕES ----------------- //
 
-const SYSTEM_ACTOR = { id: 'sys', displayName: 'VYBE', username: 'vybe', avatarUrl: '' };
+const SYSTEM_ACTOR = { id: 'sys', displayName: 'Vybelog', username: 'vybelog', avatarUrl: '' };
 
 export function mapNotificationRow(row: any): NotificationItem {
   const actor = row.actor;
@@ -35,7 +35,7 @@ export async function fetchNotifications(me: string): Promise<NotificationItem[]
     .limit(100);
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar notificações:', error.message);
+    console.error('[Vybelog] Falha ao carregar notificações:', error.message);
     return [];
   }
   return data.map(mapNotificationRow);

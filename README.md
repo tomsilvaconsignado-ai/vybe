@@ -1,4 +1,4 @@
-# VYBE — Sua conexão. Suas regras. (+18)
+# Vybelog — Sua conexão. Suas regras. (+18)
 
 Rede social moderna e sofisticada voltada exclusivamente para adultos maiores de 18 anos, especialmente casais liberais, pessoas solteiras e conexões consensuais.
 
@@ -134,7 +134,7 @@ vybe/
 
 ## 🗄 Configuração Completa do Supabase
 
-Para conectar o VYBE ao Supabase em produção:
+Para conectar o Vybelog ao Supabase em produção:
 
 ### 1. Criar o Projeto no Supabase
 1. Acesse [supabase.com](https://supabase.com) e crie uma conta gratuita ou faça login.
@@ -184,7 +184,7 @@ No Supabase: **Authentication** > **Emails** > **SMTP Settings** > **Enable cust
 | Usuário | o próprio e-mail Gmail | Fornecido pelo provedor |
 | Senha | **senha de app** do Google (exige verificação em 2 etapas) | Chave SMTP do provedor |
 | Sender email | o mesmo e-mail Gmail | ex.: `nao-responda@seudominio.com` |
-| Sender name | `VYBE` | `VYBE` |
+| Sender name | `Vybelog` | `Vybelog` |
 
 - Gmail: limite de cerca de 500 envios por dia e maior chance de cair no spam. Bom para testes e início.
 - Domínio próprio: configure os registros SPF e DKIM indicados pelo provedor para não cair no spam.
@@ -254,5 +254,5 @@ O site fica em `https://tomsilvaconsignado-ai.github.io/vybe/`. O `base: './'` d
 - **Moderação Não-Invasiva:** Não existe leitura silenciosa ou indiscriminada de mensagens de usuários; inspeções técnicas ocorrem estritamente sob denúncia formal fundamentada e auditada em log.
 
 ---
-**VYBE — Sua conexão. Suas regras.**
+**Vybelog — Sua conexão. Suas regras.**
 Todos os direitos reservados.

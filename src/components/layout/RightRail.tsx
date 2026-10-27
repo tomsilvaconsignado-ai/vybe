@@ -68,7 +68,7 @@ export const RightRail: React.FC = () => {
       )}
 
       <p className="text-[10px] text-zinc-600 px-2 leading-relaxed">
-        VYBE · Exclusivo para maiores de 18 anos ·{' '}
+        Vybelog · Exclusivo para maiores de 18 anos ·{' '}
         <button type="button" onClick={() => setPrivacyTermsModalOpen(true)} className="underline cursor-pointer">Termos e privacidade</button>
       </p>
     </aside>

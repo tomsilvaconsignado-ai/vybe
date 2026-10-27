@@ -119,7 +119,7 @@ export async function fetchOwnProfile(userId: string): Promise<UserProfile | nul
     .maybeSingle();
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar perfil:', error.message);
+    console.error('[Vybelog] Falha ao carregar perfil:', error.message);
     return null;
   }
   return data ? mapProfileRow(data) : null;

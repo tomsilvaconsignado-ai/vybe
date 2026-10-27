@@ -77,7 +77,7 @@ export const SettingsView: React.FC = () => {
           </h3>
 
           <p className="text-xs text-zinc-300 leading-relaxed">
-            O VYBE nunca divulga endereços físicos ou dados exatos de geolocalização. Escolha como sua região geográfica é apresentada:
+            O Vybelog nunca divulga endereços físicos ou dados exatos de geolocalização. Escolha como sua região geográfica é apresentada:
           </p>
 
           <div className="grid sm:grid-cols-3 gap-3">

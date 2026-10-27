@@ -21,7 +21,7 @@ import { ProfileType, LocationPrivacy } from '../../types';
 import { defaultAvatar } from '../../lib/profiles';
 
 export const RegisterWizard: React.FC = () => {
-  const { setAuthModalType, register, setPrivacyTermsModalOpen } = useApp();
+  const { setAuthModalType, register, setPrivacyTermsModalOpen, registerProfileType } = useApp();
   const [step, setStep] = useState(1);
   const [submitError, setSubmitError] = useState('');
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export const RegisterWizard: React.FC = () => {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Step 2: Profile Type
-  const [profileType, setProfileType] = useState<ProfileType>('couple');
+  const [profileType, setProfileType] = useState<ProfileType>(registerProfileType ?? 'couple');
   const [partner1Name, setPartner1Name] = useState('');
   const [partner1Age, setPartner1Age] = useState(30);
   const [partner1Gender, setPartner1Gender] = useState('Masculino');
@@ -113,7 +113,7 @@ export const RegisterWizard: React.FC = () => {
         return;
       }
       if (calculateAge(birthdate) < 18) {
-        alert('O acesso ao VYBE é estritamente restrito a maiores de 18 anos civis.');
+        alert('O acesso ao Vybelog é estritamente restrito a maiores de 18 anos civis.');
         return;
       }
       if (!confirmedAdult || !acceptedTerms) {
@@ -241,7 +241,7 @@ export const RegisterWizard: React.FC = () => {
         {step === 1 && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-xl font-bold text-white mb-1">Crie sua Conta VYBE</h3>
+              <h3 className="text-xl font-bold text-white mb-1">Crie sua Conta Vybelog</h3>
               <p className="text-xs text-zinc-400">
                 Seus dados de login são protegidos e nunca divulgados publicamente.
               </p>
@@ -343,7 +343,7 @@ export const RegisterWizard: React.FC = () => {
             <div>
               <h3 className="text-xl font-bold text-white mb-1">Como você deseja se apresentar?</h3>
               <p className="text-xs text-zinc-400">
-                O VYBE acolhe diversas composições de relacionamentos adultos consensuais.
+                O Vybelog acolhe diversas composições de relacionamentos adultos consensuais.
               </p>
             </div>
 
@@ -505,7 +505,7 @@ export const RegisterWizard: React.FC = () => {
                   ))}
                 </div>
                 <p className="text-[10px] text-zinc-400 mt-1">
-                  * O VYBE nunca publica endereços residenciais exatos.
+                  * O Vybelog nunca publica endereços residenciais exatos.
                 </p>
               </div>
 

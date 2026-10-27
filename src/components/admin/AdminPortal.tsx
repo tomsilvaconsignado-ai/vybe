@@ -512,7 +512,7 @@ export const AdminPortal: React.FC = () => {
                       rows={3}
                       value={resolutionNote}
                       onChange={e => setResolutionNote(e.target.value)}
-                      placeholder="Descreva a sanção aplicada e a fundamentação nos termos do VYBE..."
+                      placeholder="Descreva a sanção aplicada e a fundamentação nos termos do Vybelog..."
                       className="w-full px-3 py-2 bg-zinc-950 border border-purple-900/30 rounded-xl text-xs text-white focus:outline-none"
                     />
 

@@ -37,7 +37,7 @@ export async function fetchProfiles(excludeUserId: string): Promise<UserProfile[
     .limit(200);
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar perfis:', error.message);
+    console.error('[Vybelog] Falha ao carregar perfis:', error.message);
     return [];
   }
   return data.map(row => {
@@ -185,7 +185,7 @@ export async function fetchFeed(me: string): Promise<Post[]> {
     .limit(50);
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar feed:', error.message);
+    console.error('[Vybelog] Falha ao carregar feed:', error.message);
     return [];
   }
   return data.map(row => mapPostRow(row, me));
@@ -267,7 +267,7 @@ export async function fetchCommunities(me: string): Promise<Community[]> {
   const joined = new Set((memberships ?? []).map(m => m.community_id));
 
   if (error) {
-    console.error('[VYBE] Falha ao carregar comunidades:', error.message);
+    console.error('[Vybelog] Falha ao carregar comunidades:', error.message);
     return [];
   }
 
@@ -306,7 +306,7 @@ export async function fetchUserPosts(userId: string, me: string): Promise<Post[]
     .order('created_at', { ascending: false })
     .limit(60);
   if (error) {
-    console.error('[VYBE] Falha ao carregar publicações do perfil:', error.message);
+    console.error('[Vybelog] Falha ao carregar publicações do perfil:', error.message);
     return [];
   }
   return data.map(row => mapPostRow(row, me));

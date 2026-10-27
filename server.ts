@@ -33,7 +33,7 @@ async function startServer() {
   }
 
   app.listen(PORT, () => {
-    console.log(`[VYBE] Servidor rodando na porta ${PORT}`);
+    console.log(`[Vybelog] Servidor rodando na porta ${PORT}`);
   });
 }
 

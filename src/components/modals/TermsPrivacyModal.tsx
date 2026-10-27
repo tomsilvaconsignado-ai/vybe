@@ -19,7 +19,7 @@ export const TermsPrivacyModal: React.FC = () => {
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">Termos de Uso & Política de Privacidade</h2>
-              <p className="text-xs text-zinc-400">VYBE — Conformidade com a Lei Geral de Proteção de Dados (LGPD)</p>
+              <p className="text-xs text-zinc-400">Vybelog — Conformidade com a Lei Geral de Proteção de Dados (LGPD)</p>
             </div>
           </div>
           <button
@@ -39,7 +39,7 @@ export const TermsPrivacyModal: React.FC = () => {
               1. Princípio Absoluto: Consentimento e Respeito
             </h4>
             <p>
-              O VYBE fundamenta-se na autonomia do corpo, da intimidade e da vontade consciente. Toda e qualquer interação, conversa, troca de mídia ou encontro presencial entre adultos cadastrados deve ser estritamente consensual e mútua. O "Não" é definitivo em qualquer etapa. É vedado qualquer ato de coerção, chantagem ou importunação.
+              O Vybelog fundamenta-se na autonomia do corpo, da intimidade e da vontade consciente. Toda e qualquer interação, conversa, troca de mídia ou encontro presencial entre adultos cadastrados deve ser estritamente consensual e mútua. O "Não" é definitivo em qualquer etapa. É vedado qualquer ato de coerção, chantagem ou importunação.
             </p>
           </div>
 
@@ -48,7 +48,7 @@ export const TermsPrivacyModal: React.FC = () => {
               2. Maioridade Legal e Verificação (+18)
             </h4>
             <p>
-              O ingresso e a permanência na rede são restritos a maiores de 18 anos civis no Brasil. O VYBE implementa checagens e reserva-se o direito de exigir comprovação biométrica ou documental para perfis com atividade suspeita. Contas de menores ou de quem fornecer dados falsos serão imediatamente banidas com notificação aos órgãos competentes.
+              O ingresso e a permanência na rede são restritos a maiores de 18 anos civis no Brasil. O Vybelog implementa checagens e reserva-se o direito de exigir comprovação biométrica ou documental para perfis com atividade suspeita. Contas de menores ou de quem fornecer dados falsos serão imediatamente banidas com notificação aos órgãos competentes.
             </p>
           </div>
 
