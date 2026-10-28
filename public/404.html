@@ -4,21 +4,17 @@
     <meta charset="utf-8" />
     <title>Vybelog — Redirecionando...</title>
     <script>
-      // Single Page Application redirect script for GitHub Pages
-      // Prevents 404 white screens on subpath navigation or page reload
-      var pathSegmentsToKeep = 1; // repository name on github.io/repo-name/
+      // GitHub Pages: rota desconhecida (ex.: página recarregada) volta para o app.
+      // Em *.github.io o app fica em /vybe/; no domínio próprio, na raiz.
       var l = window.location;
-      
-      // If deployed at root or subpath, redirect safely back to index.html
-      var repoSegment = l.pathname.split('/')[1] || '';
-      var target = l.protocol + '//' + l.host + (repoSegment ? '/' + repoSegment : '') + '/';
-      
-      l.replace(target);
+      var onGithubIo = /\.github\.io$/.test(l.hostname);
+      var repoSegment = onGithubIo ? (l.pathname.split('/')[1] || '') : '';
+      l.replace(l.protocol + '//' + l.host + (repoSegment ? '/' + repoSegment : '') + '/');
     </script>
   </head>
   <body style="background-color: #08060c; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
     <div style="text-align: center;">
-      <h2 style="color: #f43f5e; margin-bottom: 8px;">Vybelog</h2>
+      <h2 style="color: #f2a5b8; margin-bottom: 8px;">Vybelog</h2>
       <p style="color: #a1a1aa; font-size: 14px;">Carregando sua conexão...</p>
     </div>
   </body>

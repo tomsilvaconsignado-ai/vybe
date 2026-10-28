@@ -178,10 +178,11 @@ Executa o `setup.sql` num Postgres em memória e tenta os ataques conhecidos (co
 
 ### 4. Configurar Redirecionamentos de Autenticação
 1. No painel do Supabase, acesse **Authentication** -> **URL Configuration**.
-2. Em **Site URL**, configure a URL da sua aplicação (ex: `https://vybe.app` ou `http://localhost:3000`).
+2. Em **Site URL**, use `https://vybelog.com.br`.
 3. Em **Redirect URLs**, adicione:
-   - `http://localhost:3000/**`
-   - `https://tomsilvaconsignado-ai.github.io/vybe/**`
+   - `https://vybelog.com.br/**`
+   - `https://www.vybelog.com.br/**`
+   - `http://localhost:3000/**` (desenvolvimento)
 
 ---
 
@@ -239,9 +240,18 @@ O workflow `.github/workflows/deploy.yml` verifica os tipos, compila o app e pub
 
 Configuração única no repositório:
 1. **Settings** > **Pages** > **Build and deployment** > **Source**: selecione **GitHub Actions**.
-2. No Supabase, em **Authentication** > **URL Configuration** > **Redirect URLs**, adicione `https://tomsilvaconsignado-ai.github.io/vybe/**`.
+2. **Settings** > **Pages** > **Custom domain**: `vybelog.com.br`, depois marque **Enforce HTTPS**.
+3. No Supabase, siga a seção "Configurar Redirecionamentos de Autenticação".
 
-O site fica em `https://tomsilvaconsignado-ai.github.io/vybe/`. O `base: './'` do Vite e o `public/404.html` evitam tela branca em subpastas e ao recarregar a página.
+### Domínio vybelog.com.br (Registro.br > DNS > Editar zona)
+| Tipo | Nome | Valor |
+|---|---|---|
+| A | (vazio) | `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153` (um registro para cada) |
+| AAAA | (vazio) | `2606:50c0:8000::153`, `2606:50c0:8001::153`, `2606:50c0:8002::153`, `2606:50c0:8003::153` |
+| CNAME | www | `tomsilvaconsignado-ai.github.io` |
+| TXT | `_github-pages-challenge-tomsilvaconsignado-ai` | código mostrado pelo GitHub ao verificar o domínio |
+
+O site fica em `https://vybelog.com.br/` (o endereço antigo `tomsilvaconsignado-ai.github.io/vybe/` redireciona para ele). O `base: './'` do Vite e o `public/404.html` evitam tela branca em subpastas e ao recarregar a página.
 
 ---
 
