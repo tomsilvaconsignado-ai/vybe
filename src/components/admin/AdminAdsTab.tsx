@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { Ad, AdPlacement } from '../../types';
 import { deleteAd, fetchAllAds, saveAd } from '../../lib/events';
 import { uploadPublicMedia } from '../../lib/supabase';
+import { notify, askConfirm } from '../common/Feedback';
 
 const PLACEMENT_LABEL: Record<AdPlacement, string> = {
   feed: 'Feed (entre publicações)',
@@ -40,7 +41,7 @@ export const AdminAdsTab: React.FC = () => {
     const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
     const { publicUrl, error } = await uploadPublicMedia(file, `${currentUser.id}/ads/${crypto.randomUUID()}.${extension}`);
     setUploading(false);
-    if (error || !publicUrl) alert('Não foi possível enviar a imagem.');
+    if (error || !publicUrl) notify('Não foi possível enviar a imagem.');
     else set('imageUrl', publicUrl);
   };
 
@@ -48,14 +49,14 @@ export const AdminAdsTab: React.FC = () => {
     e.preventDefault();
     if (!editing) return;
     if (editing.linkUrl && !/^https?:\/\//i.test(editing.linkUrl)) {
-      alert('O link deve começar com http:// ou https://');
+      notify('O link deve começar com http:// ou https://');
       return;
     }
     setSaving(true);
     const error = await saveAd(currentUser.id, editing);
     setSaving(false);
     if (error) {
-      alert(`Não foi possível salvar: ${error}`);
+      notify(`Não foi possível salvar: ${error}`);
       return;
     }
     setEditing(null);
@@ -64,14 +65,14 @@ export const AdminAdsTab: React.FC = () => {
 
   const toggleActive = async (ad: Ad) => {
     const error = await saveAd(currentUser.id, { ...ad, isActive: !ad.isActive });
-    if (error) alert(error);
+    if (error) notify(error);
     load();
   };
 
   const remove = async (ad: Ad) => {
-    if (!confirm(`Apagar o anúncio "${ad.title}"?`)) return;
+    if (!(await askConfirm({ title: "Apagar anúncio?", message: `"${ad.title}" deixa de ser exibido.`, confirmLabel: "Apagar", danger: true }))) return;
     const error = await deleteAd(ad.id);
-    if (error) alert(error);
+    if (error) notify(error);
     load();
   };
 

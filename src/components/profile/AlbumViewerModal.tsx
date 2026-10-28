@@ -3,6 +3,7 @@ import { X, Upload, Trash2, Lock, ChevronLeft, ChevronRight } from 'lucide-react
 import { useApp } from '../../context/AppContext';
 import { MediaAlbum } from '../../types';
 import { deleteAlbum, deleteAlbumItem, uploadAlbumItem } from '../../lib/albums';
+import { notify, askConfirm } from '../common/Feedback';
 
 interface AlbumViewerModalProps {
   album: MediaAlbum;
@@ -24,30 +25,30 @@ export const AlbumViewerModal: React.FC<AlbumViewerModalProps> = ({ album, isOwn
     e.target.value = '';
     for (const [index, file] of files.entries()) {
       if (file.size > MAX_FILE_MB * 1024 * 1024) {
-        alert(`"${file.name}" excede o limite de ${MAX_FILE_MB} MB.`);
+        notify(`"${file.name}" excede o limite de ${MAX_FILE_MB} MB.`);
         continue;
       }
       setUploading(`Enviando ${index + 1} de ${files.length}...`);
       const error = await uploadAlbumItem(currentUser.id, album, file);
-      if (error) alert(`Não foi possível enviar "${file.name}": ${error}`);
+      if (error) notify(`Não foi possível enviar "${file.name}": ${error}`);
     }
     setUploading(null);
     await onChanged();
   };
 
   const handleDeleteItem = async (index: number) => {
-    if (!confirm('Apagar esta foto definitivamente?')) return;
+    if (!(await askConfirm({ title: 'Apagar foto?', message: 'Esta ação não pode ser desfeita.', confirmLabel: 'Apagar', danger: true }))) return;
     const error = await deleteAlbumItem(album.items[index]);
-    if (error) alert(`Não foi possível apagar: ${error}`);
+    if (error) notify(`Não foi possível apagar: ${error}`);
     setViewIndex(null);
     await onChanged();
   };
 
   const handleDeleteAlbum = async () => {
-    if (!confirm(`Apagar o álbum "${album.title}" e todas as suas fotos? Esta ação não pode ser desfeita.`)) return;
+    if (!(await askConfirm({ title: "Apagar álbum?", message: `"${album.title}" e todas as suas fotos serão apagados. Esta ação não pode ser desfeita.`, confirmLabel: "Apagar", danger: true }))) return;
     const error = await deleteAlbum(currentUser.id, album);
     if (error) {
-      alert(`Não foi possível apagar o álbum: ${error}`);
+      notify(`Não foi possível apagar o álbum: ${error}`);
       return;
     }
     await onChanged();

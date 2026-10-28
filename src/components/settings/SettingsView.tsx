@@ -14,6 +14,7 @@ import {
   Ban
 } from 'lucide-react';
 import { LocationPrivacy } from '../../types';
+import { notify, askConfirm, askText } from '../common/Feedback';
 
 export const SettingsView: React.FC = () => {
   const { 
@@ -39,22 +40,22 @@ export const SettingsView: React.FC = () => {
     downloadAnchor.click();
     downloadAnchor.remove();
     URL.revokeObjectURL(url);
-    alert('Relatório de dados pessoais (LGPD Art. 18) exportado com sucesso em formato JSON legível.');
+    notify('Relatório de dados pessoais (LGPD Art. 18) exportado com sucesso em formato JSON legível.');
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm('Atenção: A exclusão é definitiva e irrevogável, apagando seu perfil, fotos, publicações, cofres e mensagens. Deseja prosseguir?')) return;
-    const typed = prompt(`Para confirmar, digite seu nome de usuário: ${currentUser.username}`);
+    if (!(await askConfirm({ title: 'Excluir conta?', message: 'A exclusão é definitiva: apaga seu perfil, fotos, publicações, cofres e mensagens.', confirmLabel: 'Continuar', danger: true }))) return;
+    const typed = await askText({ title: "Confirme a exclusão", message: `Digite seu nome de usuário: ${currentUser.username}`, placeholder: currentUser.username, confirmLabel: "Excluir conta", danger: true });
     if (typed?.trim() !== currentUser.username) {
-      alert('Nome de usuário não confere. A conta não foi excluída.');
+      notify('Nome de usuário não confere. A conta não foi excluída.');
       return;
     }
     const error = await deleteAccount();
     if (error) {
-      alert(`Não foi possível excluir a conta: ${error}`);
+      notify(`Não foi possível excluir a conta: ${error}`);
       return;
     }
-    alert('Sua conta e seus dados foram excluídos definitivamente, conforme a LGPD.');
+    notify('Sua conta e seus dados foram excluídos definitivamente, conforme a LGPD.');
   };
 
   return (
@@ -155,8 +156,8 @@ export const SettingsView: React.FC = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() => {
-                      if (confirm(`Desbloquear ${b.displayName}? A pessoa volta a ver seu perfil e poderá interagir com você. Seguir e conexões desfeitos no bloqueio não voltam sozinhos.`)) unblockUser(b.id);
+                    onClick={async () => {
+                      if (await askConfirm({ title: `Desbloquear ${b.displayName}?`, message: "A pessoa volta a ver seu perfil e poderá interagir com você. Seguir e conexões desfeitos no bloqueio não voltam sozinhos.", confirmLabel: "Desbloquear" })) unblockUser(b.id);
                     }}
                     className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-bold cursor-pointer transition-colors shrink-0"
                   >

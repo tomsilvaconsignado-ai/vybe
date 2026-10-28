@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ProfileType, LocationPrivacy } from '../../types';
 import { defaultAvatar } from '../../lib/profiles';
+import { notify } from '../common/Feedback';
 
 export const RegisterWizard: React.FC = () => {
   const { setAuthModalType, register, setPrivacyTermsModalOpen, registerProfileType } = useApp();
@@ -104,30 +105,30 @@ export const RegisterWizard: React.FC = () => {
   const handleNext = () => {
     if (step === 1) {
       if (!username.trim() || !email.trim() || !password || !birthdate) {
-        alert('Por favor, preencha todos os campos obrigatórios da conta.');
+        notify('Por favor, preencha todos os campos obrigatórios da conta.');
         return;
       }
       if (password.length < 8) {
-        alert('A senha deve ter pelo menos 8 caracteres.');
+        notify('A senha deve ter pelo menos 8 caracteres.');
         return;
       }
       if (calculateAge(birthdate) < 18) {
-        alert('O acesso ao Vybelog é estritamente restrito a maiores de 18 anos civis.');
+        notify('O acesso ao Vybelog é estritamente restrito a maiores de 18 anos civis.');
         return;
       }
       if (!confirmedAdult || !acceptedTerms) {
-        alert('É obrigatório confirmar a maioridade e aceitar os termos de uso e consentimento.');
+        notify('É obrigatório confirmar a maioridade e aceitar os termos de uso e consentimento.');
         return;
       }
     }
 
     if (step === 2 && profileType === 'couple' && !mutualConsentChecked) {
-      alert('Para perfis conjuntos ou de casais, a concordância mútua de ambos os parceiros é mandatória.');
+      notify('Para perfis conjuntos ou de casais, a concordância mútua de ambos os parceiros é mandatória.');
       return;
     }
 
     if (step === 3 && !displayName.trim()) {
-      alert('Por favor, defina um apelido público para o perfil.');
+      notify('Por favor, defina um apelido público para o perfil.');
       return;
     }
 

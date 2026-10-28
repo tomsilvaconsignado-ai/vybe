@@ -3,6 +3,7 @@ import { X, Lock, Users, Globe } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { AlbumVisibility } from '../../types';
 import { createAlbum } from '../../lib/albums';
+import { notify } from '../common/Feedback';
 
 interface CreateAlbumModalProps {
   onClose: () => void;
@@ -29,7 +30,7 @@ export const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ onClose, onC
     const error = await createAlbum(currentUser.id, title.trim(), description.trim(), visibility);
     setSaving(false);
     if (error) {
-      alert(`Não foi possível criar o álbum: ${error}`);
+      notify(`Não foi possível criar o álbum: ${error}`);
       return;
     }
     await onCreated();

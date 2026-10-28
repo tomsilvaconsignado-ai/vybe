@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { uploadPublicMedia } from '../../lib/supabase';
 import { X, Image, Sparkles, Send, Plus, BarChart2 } from 'lucide-react';
+import { notify } from '../common/Feedback';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -32,14 +33,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     setIsUploading(true);
     for (const file of files) {
       if (file.size > 20 * 1024 * 1024) {
-        alert(`"${file.name}" excede o limite de 20 MB.`);
+        notify(`"${file.name}" excede o limite de 20 MB.`);
         continue;
       }
       const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
       const path = `${currentUser.id}/posts/${crypto.randomUUID()}.${extension}`;
       const { publicUrl, error } = await uploadPublicMedia(file, path);
       if (error || !publicUrl) {
-        alert(error?.message.startsWith('Não foi possível processar') ? error.message : `Não foi possível enviar "${file.name}". Tente novamente.`);
+        notify(error?.message.startsWith('Não foi possível processar') ? error.message : `Não foi possível enviar "${file.name}". Tente novamente.`);
         continue;
       }
       setMediaUrls(prev => [...prev, publicUrl]);
@@ -58,7 +59,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() && mediaUrls.length === 0) {
-      alert('Escreva algo ou adicione uma foto para publicar.');
+      notify('Escreva algo ou adicione uma foto para publicar.');
       return;
     }
 

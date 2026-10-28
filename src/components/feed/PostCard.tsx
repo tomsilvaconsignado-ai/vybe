@@ -16,6 +16,7 @@ import {
   Link2
 } from 'lucide-react';
 import { Post } from '../../types';
+import { notify, askConfirm } from '../common/Feedback';
 
 interface PostCardProps {
   post: Post;
@@ -77,7 +78,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
   const copyLink = () => {
     navigator.clipboard?.writeText(window.location.href).catch(() => undefined);
-    alert('Link copiado.');
+    notify('Link copiado.');
     setShowMenu(false);
   };
 
@@ -129,9 +130,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               {isOwner ? (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     setShowMenu(false);
-                    if (confirm('Excluir esta publicação?')) deletePost(post.id);
+                    if (await askConfirm({ title: 'Excluir publicação?', message: 'Ela será removida do seu perfil e do feed.', confirmLabel: 'Excluir', danger: true })) deletePost(post.id);
                   }}
                   className="w-full px-3 py-2 text-left text-xs text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
                 >

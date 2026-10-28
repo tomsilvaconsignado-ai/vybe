@@ -19,6 +19,7 @@ import {
   Sliders
 } from 'lucide-react';
 import { AdminUserRecord, UserAccountStatus } from '../../types';
+import { notify, askText } from '../common/Feedback';
 
 interface AdminUserDetailModalProps {
   user: AdminUserRecord | null;
@@ -62,12 +63,12 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
 
   const handleUpdateStatus = async () => {
     if (statusReason.trim().length < 5) {
-      alert('Informe a justificativa (mínimo 5 caracteres). Ela fica registrada no livro de auditoria.');
+      notify('Informe a justificativa (mínimo 5 caracteres). Ela fica registrada no livro de auditoria.');
       return;
     }
     if (await adminUpdateUserStatus(user.id, selectedStatus, statusReason.trim())) {
       setStatusReason('');
-      alert(`Situação de @${user.username} alterada para "${statusLabels[selectedStatus]}". O usuário foi notificado.`);
+      notify(`Situação de @${user.username} alterada para "${statusLabels[selectedStatus]}". O usuário foi notificado.`);
     }
   };
 
@@ -78,29 +79,29 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
   };
 
   const handleApplyRestrictions = async () => {
-    const reason = prompt('Informe a justificativa para estas restrições (mínimo 5 caracteres):');
+    const reason = await askText({ title: 'Aplicar restrições', message: 'Informe a justificativa (mínimo 5 caracteres):', confirmLabel: 'Aplicar', multiline: true });
     if (!reason || reason.trim().length < 5) return;
     const ok = await adminSetRestrictions(user.id, {
       cannotPost: restrictPost,
       cannotMessage: restrictMessage,
       cannotRequestVault: restrictVault
     }, reason.trim());
-    if (ok) alert('Restrições atualizadas e registradas na auditoria.');
+    if (ok) notify('Restrições atualizadas e registradas na auditoria.');
   };
 
   const handleVerify = async () => {
-    if (await adminVerifyUserAge(user.id)) alert('Selo de verificação concedido. O usuário foi notificado.');
+    if (await adminVerifyUserAge(user.id)) notify('Selo de verificação concedido. O usuário foi notificado.');
   };
 
   const handleSetRole = async () => {
     if (roleReason.trim().length < 5) {
-      alert('Informe a justificativa (mínimo 5 caracteres).');
+      notify('Informe a justificativa (mínimo 5 caracteres).');
       return;
     }
     const role = selectedRole ? (selectedRole as 'superadmin' | 'moderator' | 'support' | 'auditor') : null;
     if (await adminSetUserRole(user.id, role, roleReason.trim())) {
       setRoleReason('');
-      alert(role ? 'Papel na equipe atualizado.' : 'Acesso administrativo removido.');
+      notify(role ? 'Papel na equipe atualizado.' : 'Acesso administrativo removido.');
     }
   };
 

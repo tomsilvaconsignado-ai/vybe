@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { ShieldAlert, X, AlertTriangle, Send } from 'lucide-react';
 import { ModerationReport } from '../../types';
+import { notify } from '../common/Feedback';
 
 export const ReportModal: React.FC = () => {
   const { reportModalTarget, setReportModalTarget, submitReport } = useApp();
@@ -14,7 +15,7 @@ export const ReportModal: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim()) {
-      alert('Por favor, descreva brevemente o motivo da denúncia para que a moderação possa agir.');
+      notify('Por favor, descreva brevemente o motivo da denúncia para que a moderação possa agir.');
       return;
     }
     setIsSubmitting(true);
