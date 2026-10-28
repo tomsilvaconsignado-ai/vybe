@@ -47,7 +47,8 @@ export async function fetchProfiles(excludeUserId: string): Promise<UserProfile[
       profile.city = formatLocation(row.city, row.state, row.location_privacy);
       profile.state = '';
     }
-    profile.lastActive = formatRelativeTime(row.last_active_at);
+    // No modo discreto o banco só guarda o dia da atividade; não exibe "há X h"
+    profile.lastActive = row.discreet_mode_enabled ? 'Modo discreto' : formatRelativeTime(row.last_active_at);
     // Só o tipo de cada álbum (para o selo de cofre); o conteúdo é carregado no perfil
     profile.albums = (row.albums ?? []).map((a: { id: string; visibility: UserProfile['albums'][number]['visibility'] }) => ({
       id: a.id, userId: row.id, title: '', description: '', coverUrl: '', visibility: a.visibility,
@@ -94,6 +95,46 @@ export async function setFollow(me: string, target: string, follow: boolean) {
 export async function sendConnectionRequest(me: string, target: string) {
   const { error } = await supabase.from('connections').insert({ requester_id: me, addressee_id: target });
   if (error?.code === '23505') return 'Já existe uma solicitação de conexão entre vocês.';
+  if (error?.message.includes('row-level security')) return 'Não é possível pedir conexão com este perfil.';
+  return error?.message ?? null;
+}
+
+// ----------------- BLOQUEIO ----------------- //
+
+export interface BlockedUser {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+}
+
+export async function fetchBlockedUsers(me: string): Promise<BlockedUser[]> {
+  const { data, error } = await supabase
+    .from('user_blocks')
+    .select('blocked_id, created_at, profile:profiles!user_blocks_blocked_id_fkey(username, display_name, avatar_url)')
+    .eq('blocker_id', me)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('[Vybelog] Falha ao carregar bloqueios:', error.message);
+    return [];
+  }
+  return (data as any[]).map(row => ({
+    id: row.blocked_id,
+    username: row.profile?.username ?? '',
+    displayName: row.profile?.display_name ?? 'Perfil indisponível',
+    avatarUrl: avatarOrDefault(row.profile?.avatar_url, row.profile?.display_name ?? 'U')
+  }));
+}
+
+// O banco desfaz seguir, conexão e acessos a cofre entre os dois e arquiva as conversas
+export async function blockUser(target: string) {
+  const { error } = await supabase.rpc('block_user', { target });
+  return error?.message ?? null;
+}
+
+export async function unblockUser(me: string, target: string) {
+  const { error } = await supabase.from('user_blocks').delete().eq('blocker_id', me).eq('blocked_id', target);
   return error?.message ?? null;
 }
 

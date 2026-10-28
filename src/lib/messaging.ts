@@ -3,7 +3,7 @@ import { formatRelativeTime } from './social';
 import { avatarOrDefault } from './profiles';
 import { ChatMessage, Conversation } from '../types';
 
-const PARTICIPANT_PROFILE = 'id, username, display_name, avatar_url, profile_type, is_verified, last_active_at';
+const PARTICIPANT_PROFILE = 'id, username, display_name, avatar_url, profile_type, is_verified, last_active_at, discreet_mode_enabled';
 
 export function formatMessageTime(iso: string): string {
   const date = new Date(iso);
@@ -48,10 +48,13 @@ export async function fetchConversations(me: string): Promise<Conversation[]> {
   return data.flatMap((row: any) => {
     const parts: any[] = row.conversation_participants ?? [];
     const mine = parts.find(p => p.user_id === me);
-    // Conversas que o usuário recusou/saiu não têm mais a linha de participante dele
-    if (!mine) return [];
+    // Conversas que o usuário saiu não têm mais a linha dele; recusadas e com quem ele
+    // bloqueou ficam arquivadas (voltam ao abrir a conversa pelo perfil)
+    if (!mine || mine.is_archived) return [];
 
+    // Sem o perfil do outro lado (ex.: a pessoa bloqueou o usuário), a conversa some
     const others = parts.filter(p => p.user_id !== me && p.profile);
+    if (others.length === 0) return [];
     const senders = new Map(parts.filter(p => p.profile).map(p => [p.user_id, { name: p.profile.display_name, avatar: avatarOrDefault(p.profile.avatar_url, p.profile.display_name) }]));
     const last = row.messages?.[0];
     const unread = last && last.sender_id !== me && (!mine.last_read_at || last.created_at > mine.last_read_at) ? 1 : 0;
@@ -67,7 +70,7 @@ export async function fetchConversations(me: string): Promise<Conversation[]> {
         avatarUrl: avatarOrDefault(p.profile.avatar_url, p.profile.display_name),
         profileType: p.profile.profile_type,
         isVerified: p.profile.is_verified,
-        lastActive: formatRelativeTime(p.profile.last_active_at)
+        lastActive: p.profile.discreet_mode_enabled ? 'Modo discreto' : formatRelativeTime(p.profile.last_active_at)
       })),
       lastMessage: last ? mapMessage(last, senders) : undefined,
       unreadCount: unread,
@@ -101,7 +104,10 @@ export async function insertMessage(me: string, conversationId: string, content:
     .from('messages')
     .insert({ conversation_id: conversationId, sender_id: me, content, media_url: mediaUrl ?? null });
   if (error?.message.includes('row-level security')) {
-    return 'Enquanto o pedido de conversa não for aceito, só é possível enviar uma mensagem de texto de apresentação.';
+    return 'Mensagem não enviada. Enquanto o pedido de conversa não for aceito, só é possível enviar uma única mensagem de texto de apresentação. Se a outra pessoa bloqueou a conversa, ela não recebe novas mensagens.';
+  }
+  if (error?.message.includes('links externos') || error?.message.includes('Mídia inválida')) {
+    return 'Envie a imagem pelo app; links externos não são aceitos.';
   }
   return error?.message ?? null;
 }
@@ -116,13 +122,10 @@ export async function acceptConversation(conversationId: string) {
   return error?.message ?? null;
 }
 
-// Recusar = sair da conversa; ela some da lista de quem recusou
-export async function leaveConversation(me: string, conversationId: string) {
-  const { error } = await supabase
-    .from('conversation_participants')
-    .delete()
-    .eq('conversation_id', conversationId)
-    .eq('user_id', me);
+// Recusar arquiva a conversa para quem recusou. Ela continua existindo para que quem
+// enviou não possa abrir outra e insistir (o pedido pendente aceita só uma mensagem).
+export async function declineConversation(conversationId: string) {
+  const { error } = await supabase.rpc('decline_message_request', { conv: conversationId });
   return error?.message ?? null;
 }
 

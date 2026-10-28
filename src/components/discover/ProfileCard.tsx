@@ -72,7 +72,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
             <div className="flex items-center gap-2 text-xs text-zinc-400">
               <span className="flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                {profile.city}, {profile.state}
+                {[profile.city, profile.state].filter(Boolean).join(', ')}
               </span>
               <span>•</span>
               <span>{profile.approximateDistanceKm} km de distância</span>
@@ -169,7 +169,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
           </div>
           <div className="flex items-center gap-1 text-[11px] text-zinc-300 drop-shadow">
             <MapPin className="w-3 h-3 text-rose-400" />
-            <span>{profile.city}, {profile.state}</span>
+            <span>{[profile.city, profile.state].filter(Boolean).join(', ')}</span>
             <span>•</span>
             <span>{profile.approximateDistanceKm} km</span>
           </div>

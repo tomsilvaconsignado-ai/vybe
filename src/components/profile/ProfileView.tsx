@@ -22,7 +22,8 @@ import {
   ChevronLeft,
   Grid3x3,
   Copy,
-  MessageCircle
+  MessageCircle,
+  Ban
 } from 'lucide-react';
 import { EditProfileModal } from './EditProfileModal';
 import { AlbumPermissionsModal } from './AlbumPermissionsModal';
@@ -51,7 +52,8 @@ export const ProfileView: React.FC = () => {
     requestAlbumAccess,
     postCache,
     cachePosts,
-    setReportModalTarget 
+    setReportModalTarget,
+    blockUser
   } = useApp();
 
   const isSelf = !selectedProfileId || selectedProfileId === currentUser.id;
@@ -152,8 +154,23 @@ export const ProfileView: React.FC = () => {
                 })}
                 className="p-2 rounded-full bg-black/60 text-zinc-400 hover:text-rose-400 transition-colors cursor-pointer"
                 title="Denunciar perfil à moderação"
+                aria-label="Denunciar perfil à moderação"
               >
                 <ShieldAlert className="w-4 h-4" />
+              </button>
+            )}
+            {!isSelf && (
+              <button
+                onClick={async () => {
+                  if (confirm(`Bloquear ${profile.displayName}? Vocês deixam de se seguir e de ser conexões, a pessoa não verá mais seu perfil, posts e stories e não poderá enviar mensagens nem pedir acesso aos seus cofres. Ela não é avisada. Você pode desbloquear em Configurações.`)) {
+                    await blockUser(profile.id);
+                  }
+                }}
+                className="p-2 rounded-full bg-black/60 text-zinc-400 hover:text-rose-400 transition-colors cursor-pointer"
+                title="Bloquear perfil"
+                aria-label="Bloquear perfil"
+              >
+                <Ban className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -253,7 +270,7 @@ export const ProfileView: React.FC = () => {
               <span>•</span>
               <span className="flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                {profile.locationPrivacy === 'hidden' ? 'Localização Oculta' : `${profile.city}, ${profile.state}`}
+                {profile.locationPrivacy === 'hidden' ? 'Localização Oculta' : [profile.city, profile.state].filter(Boolean).join(', ')}
               </span>
               <span>•</span>
               <span className="text-emerald-400 font-medium">{profile.lastActive}</span>

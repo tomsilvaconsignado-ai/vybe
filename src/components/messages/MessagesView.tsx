@@ -12,7 +12,8 @@ import {
   UserX, 
   Sparkles,
   ChevronLeft,
-  Info
+  Info,
+  Ban
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 
@@ -28,7 +29,8 @@ export const MessagesView: React.FC = () => {
     setReportModalTarget,
     setSelectedProfileId,
     conversationMessages,
-    loadConversationMessages
+    loadConversationMessages,
+    blockUser
   } = useApp();
 
   const [inputText, setInputText] = useState('');
@@ -46,6 +48,9 @@ export const MessagesView: React.FC = () => {
   const messages = activeConv ? conversationMessages[activeConv.id] ?? [] : [];
   const awaitingMyAcceptance = activeConv ? isIncomingRequest(activeConv) : false;
   const awaitingTheirAcceptance = Boolean(activeConv?.isPendingRequest && !awaitingMyAcceptance);
+  // O pedido de conversa aceita só a mensagem de apresentação; depois dela, aguarda o aceite
+  const introAlreadySent = awaitingTheirAcceptance && messages.some(m => m.senderId === currentUser.id);
+  const inputLocked = awaitingMyAcceptance || introAlreadySent;
 
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -245,8 +250,21 @@ export const MessagesView: React.FC = () => {
                   })}
                   className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-zinc-800 transition-colors cursor-pointer"
                   title="Denunciar conversa"
+                  aria-label="Denunciar conversa"
                 >
                   <ShieldAlert className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={async () => {
+                    if (confirm(`Bloquear ${otherParticipant.displayName}? A pessoa não poderá mais enviar mensagens nem ver seu perfil. A conversa continua guardada caso você queira denunciá-la depois.`)) {
+                      await blockUser(otherParticipant.id);
+                    }
+                  }}
+                  className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-zinc-800 transition-colors cursor-pointer"
+                  title="Bloquear pessoa"
+                  aria-label="Bloquear pessoa"
+                >
+                  <Ban className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -256,7 +274,7 @@ export const MessagesView: React.FC = () => {
               <div className="p-3 bg-purple-950/40 border-b border-purple-800/40 text-xs text-purple-200 flex items-center gap-2">
                 <Lock className="w-4 h-4 text-purple-400 shrink-0" />
                 <span>
-                  <strong>Aguardando aceite:</strong> você pode enviar uma mensagem de apresentação em texto. Mídias e respostas são liberadas quando {otherParticipant.displayName} aceitar.
+                  <strong>Aguardando aceite:</strong> você pode enviar uma única mensagem de apresentação em texto. Novas mensagens, mídias e respostas são liberadas quando {otherParticipant.displayName} aceitar.
                 </span>
               </div>
             )}
@@ -341,8 +359,12 @@ export const MessagesView: React.FC = () => {
 
               <input
                 type="text"
-                placeholder={awaitingMyAcceptance ? 'Aceite a conversa para responder' : 'Escreva uma mensagem com respeito e boa energia...'}
-                disabled={awaitingMyAcceptance}
+                placeholder={
+                  awaitingMyAcceptance ? 'Aceite a conversa para responder'
+                    : introAlreadySent ? 'Apresentação enviada. Aguarde o aceite para continuar'
+                    : 'Escreva uma mensagem com respeito e boa energia...'
+                }
+                disabled={inputLocked}
                 value={inputText}
                 onChange={e => setInputText(e.target.value)}
                 className="flex-1 px-4 py-2.5 bg-zinc-900/90 border border-purple-900/40 rounded-full text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
@@ -350,7 +372,7 @@ export const MessagesView: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={!inputText.trim() || isSending || awaitingMyAcceptance}
+                disabled={!inputText.trim() || isSending || inputLocked}
                 className="p-2.5 rounded-full bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white disabled:opacity-40 shadow transition-all cursor-pointer"
               >
                 <Send className="w-4 h-4" />

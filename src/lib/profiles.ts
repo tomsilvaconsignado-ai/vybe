@@ -114,7 +114,7 @@ export function mapProfileRow(row: any): UserProfile {
 export async function fetchOwnProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('*, joint_partners(*), compatibility_preferences(*), profile_private(email)')
+    .select('*, joint_partners(*), compatibility_preferences(*), profile_private(email, city, state)')
     .eq('id', userId)
     .maybeSingle();
 
@@ -122,7 +122,15 @@ export async function fetchOwnProfile(userId: string): Promise<UserProfile | nul
     console.error('[Vybelog] Falha ao carregar perfil:', error.message);
     return null;
   }
-  return data ? mapProfileRow(data) : null;
+  if (!data) return null;
+  const profile = mapProfileRow(data);
+  // Em profiles a localização já vem mascarada; a real (só para o dono) fica em profile_private
+  const priv = one<any>(data.profile_private);
+  if (priv && priv.city !== null) {
+    profile.city = priv.city ?? '';
+    profile.state = priv.state ?? '';
+  }
+  return profile;
 }
 
 export async function fetchAdminRole(userId: string): Promise<AdminRole | null> {
@@ -140,8 +148,6 @@ export async function fetchAdminRole(userId: string): Promise<AdminRole | null> 
 const EDITABLE_COLUMNS: Partial<Record<keyof UserProfile, string>> = {
   displayName: 'display_name',
   bio: 'bio',
-  city: 'city',
-  state: 'state',
   locationPrivacy: 'location_privacy',
   avatarUrl: 'avatar_url',
   coverUrl: 'cover_url',
@@ -159,8 +165,17 @@ export async function saveOwnProfile(userId: string, updates: Partial<UserProfil
     // Avatar/capa padrão são gerados no app (data:); no banco fica vazio
     if (column) row[column] = typeof value === 'string' && value.startsWith('data:') ? '' : value ?? null;
   }
+  // Cidade e estado reais vão para profile_private; o banco recalcula o que o perfil exibe
+  const location: Record<string, string> = {};
+  if (updates.city !== undefined) location.city = updates.city;
+  if (updates.state !== undefined) location.state = updates.state;
+  if (Object.keys(location).length > 0) {
+    const { error } = await supabase.from('profile_private').update(location).eq('user_id', userId);
+    if (error) return error.message;
+  }
   if (Object.keys(row).length === 0) return null;
 
   const { error } = await supabase.from('profiles').update(row).eq('id', userId);
+  if (error?.message.includes('links externos')) return 'Envie a foto pelo app; links externos não são aceitos.';
   return error ? error.message : null;
 }

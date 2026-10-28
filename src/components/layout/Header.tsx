@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import logoUrl from '../../assets/logo.png';
 import { 
@@ -10,8 +10,13 @@ import {
   ChevronDown,
   Lock,
   Compass,
-  ArrowRightLeft
+  ArrowRightLeft,
+  LogOut
 } from 'lucide-react';
+
+// Saída rápida: troca a página atual por um site neutro (sem deixar o app no "voltar")
+const QUICK_EXIT_URL = 'https://www.google.com/search?q=previs%C3%A3o+do+tempo';
+const quickExit = () => window.location.replace(QUICK_EXIT_URL);
 
 export const Header: React.FC = () => {
   const { 
@@ -31,6 +36,20 @@ export const Header: React.FC = () => {
   } = useApp();
 
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+
+  // Esc duas vezes seguidas (menos de 0,7 s) aciona a saída rápida
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let lastEsc = 0;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const now = Date.now();
+      if (now - lastEsc < 700) quickExit();
+      lastEsc = now;
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isLoggedIn]);
 
   const unreadNotifications = Array.isArray(notifications) ? notifications.filter(n => !n.read).length : 0;
   const unreadMessages = Array.isArray(conversations) ? conversations.reduce((acc, c) => acc + (c?.unreadCount || 0), 0) : 0;
@@ -91,6 +110,17 @@ export const Header: React.FC = () => {
 
         {/* Right Action Icons & User Status */}
         <div className="flex items-center gap-2 sm:gap-3">
+
+          {isLoggedIn && (
+            <button
+              onClick={quickExit}
+              className="p-2 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-white hover:border-rose-500/60 transition-colors cursor-pointer"
+              title="Saída rápida (ou aperte Esc duas vezes)"
+              aria-label="Saída rápida: sai do Vybelog para uma página neutra"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
           
           {/* EXCLUSIVE ADMIN PANEL BUTTON - ONLY DISPLAYED FOR ACCOUNTS IN admin_users */}
           {isLoggedIn && isAuthorizedAdmin && (
