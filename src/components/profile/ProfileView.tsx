@@ -53,7 +53,8 @@ export const ProfileView: React.FC = () => {
     postCache,
     cachePosts,
     setReportModalTarget,
-    blockUser
+    blockUser,
+    getCompatibility
   } = useApp();
 
   const isSelf = !selectedProfileId || selectedProfileId === currentUser.id;
@@ -106,7 +107,7 @@ export const ProfileView: React.FC = () => {
 
   const isFollowing = following.includes(profile.id);
   const isConnected = connections.includes(profile.id);
-  const compat = !isSelf ? calculateCompatibility(currentUser, profile) : null;
+  const compat = !isSelf ? getCompatibility(profile) : null;
   const userPosts = posts.filter(p => p.userId === profile.id);
 
   return (

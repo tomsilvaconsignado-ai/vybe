@@ -209,6 +209,28 @@ r.rows.length === 0 ? ok('visitante sem login não lista o bucket público') : b
 r = await as(ids.b, `SELECT name FROM storage.objects WHERE bucket_id = 'public-media'`);
 r.rows.length === 0 ? ok('B não lista arquivos de A') : bad('B lista arquivos de A');
 
+console.log('\nCompatibilidade e limites íntimos');
+await expectOk('A registra limites íntimos', ids.a, `UPDATE compatibility_preferences SET personal_limits = ARRAY['segredo'] WHERE profile_id = $1`, [ids.a]);
+r = await as(ids.v, `SELECT personal_limits FROM compatibility_preferences WHERE profile_id = $1`, [ids.a]);
+r.rows.length === 0 ? ok('vítima (não conexão) não lê as preferências de A') : bad('preferências expostas a não conexão');
+r = await as(ids.b, `SELECT personal_limits FROM compatibility_preferences WHERE profile_id = $1`, [ids.a]);
+r.rows.length === 1 ? ok('B (conexão) lê as preferências de A') : bad('conexão não lê preferências');
+r = await expectOk('vítima calcula o score com A pela RPC', ids.v, `SELECT public.compatibility_with($1) AS c`, [ids.a]);
+const compat = r?.rows[0].c;
+compat && compat.score >= 18 && !('personal_limits' in compat) ? ok('score devolvido sem os limites') : bad('RPC de compatibilidade: ' + JSON.stringify(compat));
+r = await as(ids.v, `SELECT count(*)::int AS n FROM public.compatibility_scores($1::uuid[])`, [[ids.a, ids.b, ids.v]]);
+r.rows[0].n === 2 ? ok('score em lote ignora o próprio perfil') : bad('lote devolveu ' + r.rows[0].n);
+await expectOk('vítima bloqueia B de novo', ids.v, `SELECT public.block_user($1)`, [ids.b]);
+r = await as(ids.b, `SELECT public.compatibility_with($1) AS c`, [ids.v]);
+r.rows[0].c === null ? ok('bloqueado não recebe score de quem o bloqueou') : bad('score vazou após bloqueio');
+await expectFail('visitante sem login não calcula score', null, `SELECT public.compatibility_with($1)`, [ids.a]);
+
+console.log('\nEventos');
+await db.query(`UPDATE profiles SET restrictions = '{"cannotPost": true}' WHERE id = $1`, [ids.a]);
+await expectFail('quem está proibido de postar não publica evento', ids.a, `INSERT INTO events (created_by, title, starts_at, venue_name, city) VALUES ($1, 'festa', now() + interval '1 day', 'Clube', 'Campinas')`, [ids.a]);
+await db.query(`UPDATE profiles SET restrictions = '{}' WHERE id = $1`, [ids.a]);
+await expectOk('sem restrição, publica normalmente', ids.a, `INSERT INTO events (created_by, title, starts_at, venue_name, city) VALUES ($1, 'festa', now() + interval '1 day', 'Clube', 'Campinas')`, [ids.a]);
+
 console.log('\nModo discreto');
 await expectOk('B ativa modo discreto', ids.b, `UPDATE profiles SET discreet_mode_enabled = true, last_active_at = now() WHERE id = $1`, [ids.b]);
 r = await db.query(`SELECT last_active_at = date_trunc('day', last_active_at) AS rounded FROM profiles WHERE id = $1`, [ids.b]);

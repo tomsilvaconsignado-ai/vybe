@@ -1212,6 +1212,119 @@ BEGIN
 END;
 $$;
 
+-- Compatibilidade calculada no banco: as preferências (inclusive os limites íntimos)
+-- ficam legíveis só para o dono e as conexões; os demais recebem apenas o score.
+-- Porte fiel de src/utils/compatibility.ts — mantenha os dois em sincronia.
+CREATE OR REPLACE FUNCTION public.is_interested_in(looking TEXT[], target_type profile_type_enum)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN looking IS NULL THEN false
+    WHEN 'all' = ANY(looking) THEN true
+    WHEN target_type = 'couple'        AND 'couples'        = ANY(looking) THEN true
+    WHEN target_type = 'single_female' AND 'singles_female' = ANY(looking) THEN true
+    WHEN target_type = 'single_male'   AND 'singles_male'   = ANY(looking) THEN true
+    WHEN target_type = 'joint_profile' AND 'couples'        = ANY(looking) THEN true
+    WHEN target_type = 'polyamorous' THEN true
+    ELSE false
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.compatibility_with(target UUID)
+RETURNS JSONB
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
+DECLARE
+  me UUID := auth.uid();
+  a_type profile_type_enum; b_type profile_type_enum;
+  a_interests TEXT[]; b_interests TEXT[];
+  a public.compatibility_preferences; b public.compatibility_preferences;
+  match_ab BOOLEAN; match_ba BOOLEAN; mutual BOOLEAN;
+  pts INT := 0; combined INT; dist INT := 30; max_dist INT;
+  shared_obj TEXT[]; shared_int TEXT[]; shared_tags TEXT[];
+  reasons TEXT[] := '{}'; score INT; tier TEXT; color TEXT;
+BEGIN
+  IF me IS NULL OR target IS NULL OR me = target THEN RETURN NULL; END IF;
+  -- Bloqueio em qualquer direção: nada a calcular
+  IF EXISTS (SELECT 1 FROM public.user_blocks
+             WHERE (blocker_id = me AND blocked_id = target) OR (blocker_id = target AND blocked_id = me)) THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT profile_type, interests INTO a_type, a_interests FROM public.profiles WHERE id = me;
+  SELECT profile_type, interests INTO b_type, b_interests FROM public.profiles WHERE id = target;
+  IF a_type IS NULL OR b_type IS NULL THEN RETURN NULL; END IF;
+  SELECT * INTO a FROM public.compatibility_preferences WHERE profile_id = me;
+  SELECT * INTO b FROM public.compatibility_preferences WHERE profile_id = target;
+
+  -- 1. Interesse recíproco no formato de perfil (30)
+  match_ab := public.is_interested_in(a.interested_in, b_type);
+  match_ba := public.is_interested_in(b.interested_in, a_type);
+  mutual := match_ab AND match_ba;
+  IF mutual THEN pts := pts + 30; reasons := reasons || 'Interesse recíproco no formato de perfil'::text;
+  ELSIF match_ab OR match_ba THEN pts := pts + 12; reasons := reasons || 'Interesse parcial no perfil'::text;
+  ELSE pts := pts + 4; END IF;
+
+  -- 2. Objetivos em comum (25)
+  SELECT coalesce(array_agg(o), '{}') INTO shared_obj
+    FROM unnest(coalesce(a.objectives, '{}')) o
+    WHERE o = ANY (coalesce(b.objectives, '{}'));
+  IF coalesce(array_length(shared_obj, 1), 0) >= 3 THEN
+    pts := pts + 25; reasons := reasons || ('Forte alinhamento de intenções (' || array_length(shared_obj, 1) || ' objetivos mútuos)');
+  ELSIF coalesce(array_length(shared_obj, 1), 0) >= 1 THEN
+    pts := pts + 15; reasons := reasons || 'Objetivos compatíveis em comum'::text;
+  ELSE pts := pts + 2; END IF;
+
+  -- 3. Interesses + estilo de vida (20), sem diferenciar maiúsculas
+  SELECT coalesce(array_agg(i), '{}') INTO shared_int
+    FROM unnest(coalesce(a_interests, '{}')) i
+    WHERE lower(i) IN (SELECT lower(x) FROM unnest(coalesce(b_interests, '{}')) x);
+  SELECT coalesce(array_agg(t), '{}') INTO shared_tags
+    FROM unnest(coalesce(a.lifestyle_tags, '{}')) t
+    WHERE lower(t) IN (SELECT lower(x) FROM unnest(coalesce(b.lifestyle_tags, '{}')) x);
+  combined := coalesce(array_length(shared_int, 1), 0) + coalesce(array_length(shared_tags, 1), 0);
+  IF combined >= 4 THEN pts := pts + 20; reasons := reasons || 'Altíssima afinidade cultural e de estilo de vida'::text;
+  ELSIF combined >= 2 THEN pts := pts + 14; reasons := reasons || 'Gostos e afinidades em comum'::text;
+  ELSIF combined >= 1 THEN pts := pts + 8; END IF;
+
+  -- 4. Distância (15): sem geolocalização real, usa 30 km como o app
+  max_dist := greatest(coalesce(a.max_distance_km, 50), coalesce(b.max_distance_km, 50));
+  IF dist <= 30 THEN pts := pts + 15; reasons := reasons || 'Mesma região metropolitana / proximidade geográfica'::text;
+  ELSIF dist <= max_dist THEN pts := pts + 10; reasons := reasons || 'Distância dentro da faixa desejada'::text;
+  ELSE pts := pts + 3; reasons := reasons || 'Perfis em cidades diferentes (conexão virtual ou viagens)'::text; END IF;
+
+  -- 5. Ritmo e discrição (10)
+  IF a.pace_preference IS NOT DISTINCT FROM b.pace_preference THEN
+    pts := pts + 5; reasons := reasons || 'Mesmo ritmo de aproximação desejado'::text;
+  END IF;
+  IF a.discretion_level IS NOT DISTINCT FROM b.discretion_level THEN
+    pts := pts + 5; reasons := reasons || 'Nível de discrição e privacidade harmonizado'::text;
+  END IF;
+
+  score := least(greatest(pts, 18), 98);
+  IF    score >= 80 THEN tier := 'Altíssima Sintonia'; color := '#10b981';
+  ELSIF score >= 65 THEN tier := 'Boa Sintonia';       color := '#a855f7';
+  ELSIF score >= 45 THEN tier := 'Sintonia Parcial';   color := '#f59e0b';
+  ELSE                   tier := 'Baixa Sintonia';     color := '#ef4444'; END IF;
+
+  RETURN jsonb_build_object(
+    'score', score, 'tier', tier, 'color', color,
+    'reasons', to_jsonb(reasons),
+    'sharedObjectives', to_jsonb(shared_obj),
+    'sharedInterests', to_jsonb(shared_int),
+    'sharedLifestyleTags', to_jsonb(shared_tags),
+    'distanceKm', dist, 'isMutualTargetMatch', mutual
+  );
+END;
+$$;
+
+-- Versão em lote para a Descoberta (limitada para não virar varredura da base)
+CREATE OR REPLACE FUNCTION public.compatibility_scores(targets UUID[])
+RETURNS TABLE (target UUID, breakdown JSONB)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT s.target, s.breakdown
+  FROM (SELECT t AS target, public.compatibility_with(t) AS breakdown FROM unnest(targets[1:500]) AS t) s
+  WHERE s.breakdown IS NOT NULL;
+$$;
+
 -- ==============================================================================
 -- 5.1 PAINEL ADMINISTRATIVO
 -- Toda ação valida o papel (com MFA) e grava no livro de auditoria na mesma transação.
@@ -1597,8 +1710,14 @@ CREATE POLICY "joint_partners_select" ON public.joint_partners FOR SELECT TO aut
 CREATE POLICY "joint_partners_write" ON public.joint_partners FOR ALL TO authenticated
   USING (profile_id = auth.uid()) WITH CHECK (profile_id = auth.uid());
 
+-- Preferências incluem limites íntimos: só o dono, as conexões e a equipe leem.
+-- Os demais veem apenas o score, pela RPC compatibility_with / compatibility_scores.
 CREATE POLICY "prefs_select" ON public.compatibility_preferences FOR SELECT TO authenticated
-  USING (profile_id = auth.uid() OR NOT public.has_blocked_me(profile_id));
+  USING (
+    profile_id = auth.uid()
+    OR public.is_staff()
+    OR (public.are_connected(profile_id, auth.uid()) AND NOT public.has_blocked_me(profile_id))
+  );
 CREATE POLICY "prefs_write" ON public.compatibility_preferences FOR ALL TO authenticated
   USING (profile_id = auth.uid()) WITH CHECK (profile_id = auth.uid());
 
@@ -1874,7 +1993,11 @@ CREATE POLICY "story_views_insert" ON public.story_views FOR INSERT TO authentic
 CREATE POLICY "events_select" ON public.events FOR SELECT TO authenticated
   USING (status = 'approved' OR created_by = auth.uid() OR public.is_staff());
 CREATE POLICY "events_insert" ON public.events FOR INSERT TO authenticated
-  WITH CHECK (created_by = auth.uid() AND public.can_interact());
+  WITH CHECK (
+    created_by = auth.uid() AND public.can_interact()
+    -- mesma regra de posts e stories: quem a moderação proibiu de postar não publica eventos
+    AND coalesce((SELECT (restrictions ->> 'cannotPost')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
+  );
 CREATE POLICY "events_update" ON public.events FOR UPDATE TO authenticated
   USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
 CREATE POLICY "events_delete" ON public.events FOR DELETE TO authenticated

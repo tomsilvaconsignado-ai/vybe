@@ -22,7 +22,7 @@ interface DiscoverViewProps {
 }
 
 export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all' }) => {
-  const { profiles, currentUser, discoverSearch: searchQuery, setDiscoverSearch: setSearchQuery } = useApp();
+  const { profiles, currentUser, getCompatibility, discoverSearch: searchQuery, setDiscoverSearch: setSearchQuery } = useApp();
   const [selectedType, setSelectedType] = useState<string>(
     initialFilter === 'couples' ? 'couple' : initialFilter === 'singles' ? 'singles' : 'all'
   );
@@ -65,8 +65,8 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
   // Sorting
   const sortedProfiles = [...filteredProfiles].sort((a, b) => {
     if (sortBy === 'compatibility') {
-      const compatA = calculateCompatibility(currentUser, a).score;
-      const compatB = calculateCompatibility(currentUser, b).score;
+      const compatA = getCompatibility(a).score;
+      const compatB = getCompatibility(b).score;
       return compatB - compatA;
     }
     if (sortBy === 'distance') {

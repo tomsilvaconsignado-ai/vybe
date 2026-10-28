@@ -20,6 +20,8 @@ import {
 import type { Session } from '@supabase/supabase-js';
 import { supabase, authRedirectUrl, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
 import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile } from '../lib/profiles';
+import { calculateCompatibility, CompatibilityBreakdown } from '../utils/compatibility';
+import { fetchCompatibilityMap } from '../lib/compatibility';
 import {
   SocialGraph,
   fetchProfiles,
@@ -116,6 +118,7 @@ interface AppContextType {
 
   // Data
   profiles: UserProfile[];
+  getCompatibility: (profile: UserProfile) => CompatibilityBreakdown;
   posts: Post[];
   communities: Community[];
   conversations: Conversation[];
@@ -270,6 +273,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Perfis, feed e grafo social vêm do Supabase
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  // Scores de compatibilidade calculados no banco (RPC). Chave: id do perfil.
+  const [compatibilityMap, setCompatibilityMap] = useState<Map<string, CompatibilityBreakdown>>(new Map());
   const [posts, setPosts] = useState<Post[]>([]);
   const [postCache, setPostCache] = useState<Record<string, Post>>({});
 
@@ -363,7 +368,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchActiveAds().then(setAds);
     // Quem eu bloqueei continua visível no banco (para a lista de desbloqueio), mas não na descoberta
     const blockedIds = new Set(blocked.map(b => b.id));
-    setProfiles(loadedProfiles.filter(p => !blockedIds.has(p.id)));
+    const visibleProfiles = loadedProfiles.filter(p => !blockedIds.has(p.id));
+    setProfiles(visibleProfiles);
+    // Pré-calcula os scores no banco; se a RPC não existir ainda, o mapa fica
+    // vazio e getCompatibility recai no cálculo local.
+    fetchCompatibilityMap(visibleProfiles.map(p => p.id)).then(setCompatibilityMap);
     applySocialGraph(graph);
     setPosts(feed);
     setConversations(loadedConversations);
@@ -374,6 +383,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshSocialData = async () => {
     if (currentUser.id) await loadSocialData(currentUser.id);
   };
+
+  // Score de compatibilidade: usa o valor vindo do banco (RPC) e, enquanto ele
+  // não chega (ou a RPC não existe), recai no cálculo local — assim nada quebra
+  // durante a migração nem antes de trancar o RLS das preferências.
+  const getCompatibility = (profile: UserProfile): CompatibilityBreakdown =>
+    compatibilityMap.get(profile.id) ?? calculateCompatibility(currentUser, profile);
 
   const loadSession = async (nextSession: Session | null) => {
     setSession(nextSession);
@@ -943,6 +958,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedConversationId,
         setSelectedConversationId,
         profiles,
+        getCompatibility,
         posts,
         communities,
         conversations,

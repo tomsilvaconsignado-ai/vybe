@@ -28,12 +28,13 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
     connections, 
     requestConnection,
     following,
-    toggleFollow
+    toggleFollow,
+    getCompatibility
   } = useApp();
 
   const isConnected = connections.includes(profile.id);
   const isFollowing = following.includes(profile.id);
-  const compat = calculateCompatibility(currentUser, profile);
+  const compat = getCompatibility(profile);
 
   if (viewMode === 'list') {
     return (
