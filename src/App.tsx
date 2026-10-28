@@ -15,6 +15,7 @@ import { LandingPage } from './components/auth/LandingPage';
 import { LoginModal } from './components/auth/LoginModal';
 import { ResetPasswordModal } from './components/auth/ResetPasswordModal';
 import { MediaProtection } from './components/layout/MediaProtection';
+import { IntroSplash } from './components/layout/IntroSplash';
 
 // Tela inicial carrega junto; as demais são baixadas sob demanda (pacote inicial menor)
 import { FeedView } from './components/feed/FeedView';
@@ -183,6 +184,7 @@ export default function App() {
   return (
     <AppProvider>
       <AppContent />
+      <IntroSplash />
     </AppProvider>
   );
 }
