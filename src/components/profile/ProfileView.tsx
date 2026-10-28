@@ -615,7 +615,7 @@ export const ProfileView: React.FC = () => {
           )}
 
           {openPost && (
-            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto" onClick={() => setOpenPostId(null)}>
+            <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto" onClick={() => setOpenPostId(null)}>
               <div className="w-full max-w-xl my-auto" onClick={e => e.stopPropagation()}>
                 <button type="button" onClick={() => setOpenPostId(null)} className="mb-2 ml-auto flex items-center gap-1 text-xs text-zinc-300 cursor-pointer">
                   Fechar ✕

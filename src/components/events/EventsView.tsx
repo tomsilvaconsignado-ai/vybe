@@ -91,7 +91,7 @@ export const EventsView: React.FC = () => {
       {submitOpen && <SubmitEventModal onClose={() => setSubmitOpen(false)} />}
 
       {detail && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={() => setOpenEvent(null)}>
+        <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={() => setOpenEvent(null)}>
           <div className="max-w-lg w-full bg-[#130d22] border border-purple-800/40 rounded-3xl overflow-hidden shadow-2xl relative my-auto" onClick={e => e.stopPropagation()}>
             <button type="button" onClick={() => setOpenEvent(null)} className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-black/60 text-white cursor-pointer" aria-label="Fechar">
               <X className="w-5 h-5" />

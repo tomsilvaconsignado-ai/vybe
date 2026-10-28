@@ -62,7 +62,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+    <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="max-w-lg w-full bg-[#130d22] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-auto">
         <button
           onClick={onClose}

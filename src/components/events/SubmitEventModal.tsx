@@ -74,7 +74,7 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="max-w-lg w-full bg-[#130d22] border border-purple-800/40 rounded-3xl p-5 sm:p-6 shadow-2xl relative my-auto">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 cursor-pointer" aria-label="Fechar">
           <X className="w-5 h-5" />

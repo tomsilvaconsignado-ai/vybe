@@ -55,7 +55,7 @@ export const Header: React.FC = () => {
   const unreadMessages = Array.isArray(conversations) ? conversations.reduce((acc, c) => acc + (c?.unreadCount || 0), 0) : 0;
 
   return (
-    <header className="sticky top-0 z-40 bg-[#09070f]/90 backdrop-blur-xl border-b border-purple-900/20 px-4 lg:px-8 py-3 transition-all">
+    <header className="sticky top-0 z-40 bg-[#09070f]/90 backdrop-blur-xl border-b border-purple-900/20 px-4 lg:px-8 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         
         {/* Brand Logo */}
@@ -70,11 +70,11 @@ export const Header: React.FC = () => {
             <img
               src={logoUrl}
               alt=""
-              className="w-11 h-11 rounded-full shadow-lg shadow-purple-900/40 group-hover:scale-105 transition-transform"
+              className="w-9 h-9 sm:w-11 sm:h-11 rounded-full shadow-lg shadow-purple-900/40 group-hover:scale-105 transition-transform"
             />
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-2xl tracking-wider text-white group-hover:text-purple-300 transition-colors">
+                <span className="font-extrabold text-xl sm:text-2xl tracking-wide sm:tracking-wider text-white group-hover:text-purple-300 transition-colors">
                   Vybelog
                 </span>
                 <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
@@ -113,10 +113,10 @@ export const Header: React.FC = () => {
 
           {isLoggedIn && (
             <button
-              onClick={quickExit}
+              onClick={logout}
               className="p-2 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-white hover:border-rose-500/60 transition-colors cursor-pointer"
-              title="Saída rápida (ou aperte Esc duas vezes)"
-              aria-label="Saída rápida: sai do Vybelog para uma página neutra"
+              title="Sair da conta"
+              aria-label="Sair da conta e voltar para o login"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -276,6 +276,13 @@ export const Header: React.FC = () => {
                           className="w-full text-left px-3 py-2 rounded-xl text-xs text-rose-400 hover:bg-rose-950/40 cursor-pointer"
                         >
                           Encerrar Sessão
+                        </button>
+                        <button
+                          onClick={quickExit}
+                          className="w-full text-left px-3 py-2 rounded-xl text-xs text-zinc-400 hover:bg-purple-950/50 cursor-pointer"
+                          title="Troca o Vybelog por uma página neutra (ou aperte Esc duas vezes)"
+                        >
+                          Saída rápida (Esc 2x)
                         </button>
                       </div>
 

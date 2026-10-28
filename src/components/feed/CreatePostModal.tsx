@@ -81,7 +81,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="max-w-lg w-full bg-[#130d22] border border-purple-800/40 rounded-3xl p-6 shadow-2xl relative">
         <button
           onClick={onClose}

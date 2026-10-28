@@ -10,9 +10,42 @@ body {
   background-color: #08060c;
   color: #f3f4f6;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Celular */
+button,
+a,
+[role='button'] {
+  touch-action: manipulation; /* sem atraso de toque duplo nos botões */
+}
+
+@media (pointer: coarse) {
+  /* Abaixo de 16px o iPhone dá zoom sozinho ao tocar no campo */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Janelas (modais): rolam quando o conteúdo é maior que a tela ou o teclado está aberto,
+   e continuam centralizadas quando cabem */
+.modal-overlay {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-items: flex-start !important;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+.modal-overlay > * {
+  margin-block: auto;
 }
 
 /* Marca: abertura (IntroSplash) e logo da página inicial */
