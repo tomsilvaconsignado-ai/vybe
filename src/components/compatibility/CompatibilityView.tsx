@@ -15,11 +15,11 @@ import {
 import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibility';
 
 export const CompatibilityView: React.FC = () => {
-  const { profiles, currentUser, setSelectedProfileId, startOrOpenConversation } = useApp();
+  const { profiles, currentUser, getCompatibility, setSelectedProfileId, startOrOpenConversation } = useApp();
   const [selectedTargetId, setSelectedTargetId] = useState<string>(profiles[0]?.id || '');
 
   const targetProfile = profiles.find(p => p.id === selectedTargetId) || profiles[0];
-  const compat = targetProfile ? calculateCompatibility(currentUser, targetProfile) : null;
+  const compat = targetProfile ? getCompatibility(targetProfile) : null;
 
   return (
     <div className="max-w-5xl mx-auto py-6 px-4">
@@ -50,7 +50,7 @@ export const CompatibilityView: React.FC = () => {
         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
           {profiles.map(p => {
             const isSelected = p.id === selectedTargetId;
-            const matchScore = calculateCompatibility(currentUser, p).score;
+            const matchScore = getCompatibility(p).score;
 
             return (
               <button

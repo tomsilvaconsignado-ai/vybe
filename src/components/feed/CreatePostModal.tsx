@@ -11,7 +11,6 @@ interface CreatePostModalProps {
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClose }) => {
   const { createPost, currentUser } = useApp();
   const [content, setContent] = useState('');
-  const [mediaUrlInput, setMediaUrlInput] = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(['Vybelog', 'VidaLiberal']);
@@ -24,13 +23,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [pollOptions, setPollOptions] = useState(['', '']);
 
   if (!isOpen) return null;
-
-  const handleAddMedia = () => {
-    if (mediaUrlInput.trim()) {
-      setMediaUrls(prev => [...prev, mediaUrlInput.trim()]);
-      setMediaUrlInput('');
-    }
-  };
 
   const handleUploadFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -47,7 +39,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       const path = `${currentUser.id}/posts/${crypto.randomUUID()}.${extension}`;
       const { publicUrl, error } = await uploadPublicMedia(file, path);
       if (error || !publicUrl) {
-        alert(`Não foi possível enviar "${file.name}". Tente novamente.`);
+        alert(error?.message.startsWith('Não foi possível processar') ? error.message : `Não foi possível enviar "${file.name}". Tente novamente.`);
         continue;
       }
       setMediaUrls(prev => [...prev, publicUrl]);
@@ -148,43 +140,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={handleUploadFiles} />
           </label>
 
-          {/* Add media URL or presets */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Inserir URL de imagem ou foto..."
-              value={mediaUrlInput}
-              onChange={e => setMediaUrlInput(e.target.value)}
-              className="flex-1 px-3 py-1.5 bg-zinc-900/90 border border-purple-900/30 rounded-xl text-xs text-zinc-200"
-            />
-            <button
-              type="button"
-              onClick={handleAddMedia}
-              className="px-3 py-1.5 bg-purple-900/40 hover:bg-purple-900/70 border border-purple-700/40 rounded-xl text-xs font-semibold text-purple-200 cursor-pointer"
-            >
-              Adicionar
-            </button>
-          </div>
-
-          {/* Quick aesthetic presets for testing */}
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-            <span>Sugestões visuais:</span>
-            <button
-              type="button"
-              onClick={() => setMediaUrls(prev => [...prev, 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=900&auto=format&fit=crop&q=80'])}
-              className="text-purple-400 hover:underline"
-            >
-              + Lounge Noturno
-            </button>
-            <span>•</span>
-            <button
-              type="button"
-              onClick={() => setMediaUrls(prev => [...prev, 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=900&auto=format&fit=crop&q=80'])}
-              className="text-fuchsia-400 hover:underline"
-            >
-              + Brinde
-            </button>
-          </div>
+          <p className="text-[11px] text-zinc-500">
+            Removemos automaticamente a localização GPS e outros dados escondidos das fotos antes do envio.
+          </p>
 
           {/* Tags */}
           <div>

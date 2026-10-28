@@ -7,7 +7,7 @@ import { calculateCompatibility } from '../../utils/compatibility';
 
 // Coluna lateral (telas largas): agenda, publicidade e sugestões
 export const RightRail: React.FC = () => {
-  const { events, profiles, following, currentUser, toggleFollow, setSelectedProfileId, setActiveTab, setPrivacyTermsModalOpen } = useApp();
+  const { events, profiles, following, currentUser, getCompatibility, toggleFollow, setSelectedProfileId, setActiveTab, setPrivacyTermsModalOpen } = useApp();
 
   const upcoming = useMemo(() =>
     events
@@ -19,10 +19,10 @@ export const RightRail: React.FC = () => {
   const suggestions = useMemo(() =>
     profiles
       .filter(p => !following.includes(p.id))
-      .map(p => ({ p, score: calculateCompatibility(currentUser, p).score }))
+      .map(p => ({ p, score: getCompatibility(p).score }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 4),
-  [profiles, following, currentUser]);
+  [profiles, following, getCompatibility]);
 
   return (
     <aside className="hidden xl:flex w-80 shrink-0 flex-col gap-5 py-6 pr-4 sticky top-16 self-start max-h-[calc(100vh-4rem)] overflow-y-auto no-scrollbar" aria-label="Destaques">

@@ -18,8 +18,10 @@ import {
   ProfileType
 } from '../types';
 import type { Session } from '@supabase/supabase-js';
-import { supabase, authRedirectUrl, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, authRedirectUrl, authLinkError, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
 import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile } from '../lib/profiles';
+import { calculateCompatibility, CompatibilityBreakdown } from '../utils/compatibility';
+import { fetchCompatibilityMap } from '../lib/compatibility';
 import {
   SocialGraph,
   fetchProfiles,
@@ -36,7 +38,11 @@ import {
   sendConnectionRequest,
   acceptConnectionRequest,
   fetchCommunities,
-  setCommunityMembership
+  setCommunityMembership,
+  BlockedUser,
+  fetchBlockedUsers,
+  blockUser as blockUserRequest,
+  unblockUser as unblockUserRequest
 } from '../lib/social';
 import {
   fetchConversations,
@@ -44,7 +50,7 @@ import {
   insertMessage,
   startConversation,
   acceptConversation,
-  leaveConversation,
+  declineConversation,
   markConversationRead
 } from '../lib/messaging';
 import {
@@ -72,8 +78,6 @@ export interface SignUpMetadata {
   state: string;
   location_privacy: UserProfile['locationPrivacy'];
   bio: string;
-  avatar_url: string;
-  cover_url: string;
   interests: string[];
   verification_requested: boolean;
   partners?: { name: string; age: number; gender: string; consentConfirmed: boolean }[];
@@ -97,6 +101,7 @@ interface AppContextType {
   login: (email: string, password: string) => Promise<string | null>;
   register: (email: string, password: string, metadata: SignUpMetadata) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
   requestPasswordReset: (email: string) => Promise<string | null>;
+  resendConfirmationEmail: (email: string) => Promise<string | null>;
   passwordRecoveryMode: boolean;
   updatePassword: (newPassword: string) => Promise<string | null>;
   logout: () => Promise<void>;
@@ -114,6 +119,7 @@ interface AppContextType {
 
   // Data
   profiles: UserProfile[];
+  getCompatibility: (profile: UserProfile) => CompatibilityBreakdown;
   posts: Post[];
   communities: Community[];
   conversations: Conversation[];
@@ -142,6 +148,11 @@ interface AppContextType {
   toggleFollow: (userId: string) => void;
   requestConnection: (userId: string) => void;
   acceptConnection: (userId: string) => void;
+
+  // Bloqueio (a pessoa bloqueada não vê mais o perfil nem consegue interagir)
+  blockedUsers: BlockedUser[];
+  blockUser: (userId: string) => Promise<boolean>;
+  unblockUser: (userId: string) => Promise<void>;
 
   // Private Album Vault Permissions
   requestAlbumAccess: (albumId: string, ownerUserId: string) => Promise<boolean>;
@@ -263,6 +274,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Perfis, feed e grafo social vêm do Supabase
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  // Scores de compatibilidade calculados no banco (RPC). Chave: id do perfil.
+  const [compatibilityMap, setCompatibilityMap] = useState<Map<string, CompatibilityBreakdown>>(new Map());
   const [posts, setPosts] = useState<Post[]>([]);
   const [postCache, setPostCache] = useState<Record<string, Post>>({});
 
@@ -310,6 +323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [following, setFollowing] = useState<string[]>([]);
   const [incomingConnectionRequests, setIncomingConnectionRequests] = useState<string[]>([]);
   const [outgoingConnectionRequests, setOutgoingConnectionRequests] = useState<string[]>([]);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
 
   // Papel administrativo vem da tabela admin_users; os poderes no banco exigem sessão MFA (aal2)
   const [dbAdminRole, setDbAdminRole] = useState<AdminRole | null>(null);
@@ -338,20 +352,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loadSocialData = async (userId: string) => {
-    const [loadedProfiles, graph, feed, loadedConversations, loadedNotifications, loadedCommunities] = await Promise.all([
+    const [loadedProfiles, graph, feed, loadedConversations, loadedNotifications, loadedCommunities, blocked] = await Promise.all([
       fetchProfiles(userId),
       fetchSocialGraph(userId),
       fetchFeed(userId),
       fetchConversations(userId),
       fetchNotifications(userId),
-      fetchCommunities(userId)
+      fetchCommunities(userId),
+      fetchBlockedUsers(userId)
     ]);
     setCommunities(loadedCommunities);
+    setBlockedUsers(blocked);
     // Stories, eventos e anúncios não bloqueiam a abertura do app
     fetchStoryGroups(userId).then(setStoryGroups);
     fetchEvents(userId).then(setEvents);
     fetchActiveAds().then(setAds);
-    setProfiles(loadedProfiles);
+    // Quem eu bloqueei continua visível no banco (para a lista de desbloqueio), mas não na descoberta
+    const blockedIds = new Set(blocked.map(b => b.id));
+    const visibleProfiles = loadedProfiles.filter(p => !blockedIds.has(p.id));
+    setProfiles(visibleProfiles);
+    // Pré-calcula os scores no banco; se a RPC não existir ainda, o mapa fica
+    // vazio e getCompatibility recai no cálculo local.
+    fetchCompatibilityMap(visibleProfiles.map(p => p.id)).then(setCompatibilityMap);
     applySocialGraph(graph);
     setPosts(feed);
     setConversations(loadedConversations);
@@ -362,6 +384,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const refreshSocialData = async () => {
     if (currentUser.id) await loadSocialData(currentUser.id);
   };
+
+  // Score de compatibilidade: usa o valor vindo do banco (RPC) e, enquanto ele
+  // não chega (ou a RPC não existe), recai no cálculo local — assim nada quebra
+  // durante a migração nem antes de trancar o RLS das preferências.
+  const getCompatibility = (profile: UserProfile): CompatibilityBreakdown =>
+    compatibilityMap.get(profile.id) ?? calculateCompatibility(currentUser, profile);
 
   const loadSession = async (nextSession: Session | null) => {
     setSession(nextSession);
@@ -384,6 +412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setProfileMissing(false);
       setSelectedConversationId(null);
       applySocialGraph({ following: [], connections: [], incomingRequests: [], outgoingRequests: [] });
+      setBlockedUsers([]);
       setDbAdminRole(null);
       setAdminMfaVerified(false);
       setIsAdminModeInternal(false);
@@ -412,6 +441,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!isSupabaseConfigured()) {
       setAuthLoading(false);
       return;
+    }
+
+    if (authLinkError) {
+      alert(authLinkError);
+      setAuthModalType('login');
     }
 
     // onAuthStateChange também emite INITIAL_SESSION ao assinar, cobrindo o carregamento inicial
@@ -508,6 +542,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveTab('feed');
     }
     return { error: null, needsEmailConfirmation };
+  };
+
+  const resendConfirmationEmail = async (email: string): Promise<string | null> => {
+    const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: authRedirectUrl() } });
+    return error ? translateAuthError(error.message) : null;
   };
 
   const requestPasswordReset = async (email: string): Promise<string | null> => {
@@ -660,6 +699,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     applySocialGraph(await fetchSocialGraph(currentUser.id));
   };
 
+  const blockUser = async (userId: string) => {
+    const error = await blockUserRequest(userId);
+    if (error) {
+      reportFailure('bloquear o perfil', error);
+      return false;
+    }
+    // O banco já desfez seguir/conexão e escondeu posts, stories e conversas; recarrega tudo
+    if (selectedProfileId === userId) setSelectedProfileIdState(null);
+    if (conversations.some(c => c.id === selectedConversationId && c.participantIds.includes(userId))) {
+      setSelectedConversationId(null);
+    }
+    await loadSocialData(currentUser.id);
+    return true;
+  };
+
+  const unblockUser = async (userId: string) => {
+    const error = await unblockUserRequest(currentUser.id, userId);
+    if (error) {
+      reportFailure('desbloquear o perfil', error);
+      return;
+    }
+    await loadSocialData(currentUser.id);
+  };
+
   // Cofres: o banco notifica o dono (pedido) e quem pediu (aprovação)
   const requestAlbumAccess = async (albumId: string, _ownerUserId: string) => {
     const error = await requestVaultAccess(currentUser.id, albumId);
@@ -774,7 +837,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const rejectMessageRequest = async (conversationId: string) => {
-    const error = await leaveConversation(currentUser.id, conversationId);
+    const error = await declineConversation(conversationId);
     if (error) {
       reportFailure('recusar a conversa', error);
       return;
@@ -893,6 +956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         login,
         register,
         requestPasswordReset,
+        resendConfirmationEmail,
         passwordRecoveryMode,
         updatePassword,
         logout,
@@ -906,6 +970,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedConversationId,
         setSelectedConversationId,
         profiles,
+        getCompatibility,
         posts,
         communities,
         conversations,
@@ -920,6 +985,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         votePoll,
         createPost,
         deletePost,
+        blockedUsers,
+        blockUser,
+        unblockUser,
         postCache,
         cachePosts,
         connections,

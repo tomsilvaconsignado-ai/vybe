@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, uploadToBucket } from './supabase';
 import { DEFAULT_COVER } from './profiles';
 import { AlbumVisibility, MediaAlbum, MediaItem } from '../types';
 
@@ -84,14 +84,14 @@ export async function uploadAlbumItem(me: string, album: MediaAlbum, file: File,
   if (album.visibility === 'private_vault') {
     // Caminho exigido pelas políticas do bucket: <dono>/<álbum>/<arquivo>
     const path = `${me}/${album.id}/${fileName}`;
-    const { error: uploadError } = await supabase.storage.from('private-vaults').upload(path, file, { cacheControl: '3600' });
+    const uploadError = await uploadToBucket('private-vaults', path, file);
     if (uploadError) return uploadError.message;
     const { error } = await supabase.from('album_items').insert({ album_id: album.id, storage_path: path, type, caption: caption ?? null });
     return error?.message ?? null;
   }
 
   const path = `${me}/albums/${album.id}/${fileName}`;
-  const { error: uploadError } = await supabase.storage.from('public-media').upload(path, file, { cacheControl: '3600' });
+  const uploadError = await uploadToBucket('public-media', path, file);
   if (uploadError) return uploadError.message;
   const { data } = supabase.storage.from('public-media').getPublicUrl(path);
   const { error } = await supabase.from('album_items').insert({ album_id: album.id, url: data.publicUrl, type, caption: caption ?? null, blur_preview: false });
@@ -112,7 +112,7 @@ export async function deleteAlbumItem(item: MediaItem) {
 
 export async function requestVaultAccess(me: string, albumId: string) {
   const { error } = await supabase.from('album_permissions').insert({ album_id: albumId, user_id: me });
-  if (error?.code === '23505') return 'Você já pediu acesso a este cofre.';
+  if (error?.code === '23505') return 'Você já pediu acesso a este cofre. A decisão é de quem é dono dele.';
   if (error?.message.includes('row-level security')) return 'Não foi possível pedir acesso: sua conta está com essa função restrita.';
   return error?.message ?? null;
 }
@@ -126,8 +126,13 @@ export async function grantVaultAccess(albumId: string, userId: string) {
   return error?.message ?? null;
 }
 
-// Revogar ou recusar remove a permissão; a pessoa pode pedir de novo depois
+// Revogar ou recusar fica registrado como 'revoked': a pessoa não consegue insistir com
+// novos pedidos. O dono pode liberar de novo quando quiser (grantVaultAccess).
 export async function removeVaultAccess(albumId: string, userId: string) {
-  const { error } = await supabase.from('album_permissions').delete().eq('album_id', albumId).eq('user_id', userId);
+  const { error } = await supabase
+    .from('album_permissions')
+    .update({ status: 'revoked', granted_at: null })
+    .eq('album_id', albumId)
+    .eq('user_id', userId);
   return error?.message ?? null;
 }

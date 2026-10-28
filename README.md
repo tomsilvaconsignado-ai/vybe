@@ -152,6 +152,21 @@ O script pode ser executado novamente sem perder dados. Ele cria:
 - Buckets `public-media` (público) e `private-vaults` (cofres, acesso via *signed URL* só para dono e pessoas aprovadas).
 - Realtime para mensagens e notificações.
 
+> **Ao atualizar o app, rode o `setup.sql` novo no Supabase antes de publicar o frontend.** O app depende das tabelas, colunas e funções do script (ex.: `user_blocks`, `profile_private.city`, `block_user`); com o banco desatualizado, o login falha ao carregar o perfil.
+>
+> Se mudar de projeto Supabase, atualize também `app_media_prefix()` no topo do script: fotos só são aceitas quando vêm do Storage desse projeto.
+
+#### Testes de segurança do banco
+```bash
+npm install --no-save @electric-sql/pglite@0.2.17
+npm run test:db
+```
+Executa o `setup.sql` num Postgres em memória e tenta os ataques conhecidos (conexão forjada, entrar em conversa alheia, ler cofre sem permissão, notificação falsa, links externos de rastreamento etc.). O GitHub Actions roda esses testes antes de cada deploy e em todo Pull Request para a `vybe.main`.
+
+#### Configurações recomendadas no painel (não ficam no script)
+- **Authentication → Attack Protection:** ative o **CAPTCHA** (Cloudflare Turnstile ou hCaptcha) para cadastro e login e a **proteção contra senhas vazadas**. O app já traduz os erros correspondentes. Com CAPTCHA ativo, falta renderizar o widget no cadastro e no login e repassar o token (`options.captchaToken`).
+- **Authentication → Rate Limits:** mantenha limites baixos para envio de e-mails e cadastro.
+
 ### 3. Obter as Chaves de API
 1. Acesse **Project Settings** -> **API Keys**.
 2. Copie a **Project URL** e a chave **publishable** (ou a antiga **anon**) para o `.env`:
@@ -196,9 +211,22 @@ Em **Authentication** > **Emails** > **Templates**, cole o HTML de cada arquivo 
 | Modelo no Supabase | Arquivo |
 |---|---|
 | Confirm signup | `confirmar-cadastro.html` |
-| Reset Password | `redefinir-senha.html` |
-| Change Email Address | `alterar-email.html` |
+| Invite user | `convidar-usuario.html` |
 | Magic Link | `link-de-acesso.html` |
+| Change Email Address | `alterar-email.html` |
+| Reset Password | `redefinir-senha.html` |
+| Reauthentication | `reautenticacao.html` |
+
+Em **Security notifications** (mesma página), ative cada aviso e cole o modelo:
+
+| Aviso no Supabase | Arquivo |
+|---|---|
+| Password changed | `aviso-senha-alterada.html` |
+| Email address changed | `aviso-email-alterado.html` |
+| MFA method added | `aviso-mfa-adicionado.html` |
+| MFA method removed | `aviso-mfa-removido.html` |
+
+Os avisos de telefone e de identidade vinculada não se aplicam: o app não usa login por telefone nem por redes sociais.
 
 ### 3. Notificações por e-mail (próxima etapa)
 Curtidas, comentários, pedidos de conexão e de cofre já geram linhas na tabela `notifications`. Enviá-las por e-mail exige uma Edge Function acionada por Database Webhook, usando a API do mesmo provedor de e-mail.
@@ -249,9 +277,13 @@ O site fica em `https://tomsilvaconsignado-ai.github.io/vybe/`. O `base: './'` d
 
 - **Exclusividade +18:** Verificação etária obrigatória antes da liberação das funcionalidades sociais.
 - **Consentimento Mútuo:** Diretriz primária de toda a rede. Tolerância zero para importunação, fotos sem consentimento e contas falsas.
-- **Privacidade de Localização:** O usuário escolhe entre exibir a cidade, uma região aproximada ou ocultar a localização. O endereço residencial nunca é exposto.
+- **Privacidade de Localização:** O usuário escolhe entre exibir a cidade, uma região aproximada (só o estado) ou ocultar a localização. A regra é aplicada no banco: a localização real fica em `profile_private` e outros usuários só recebem a versão mascarada.
+- **Fotos sem metadados:** Antes do envio, o app redesenha as imagens para remover GPS e outros dados EXIF. Fotos e mídias só são aceitas quando vêm do Storage do próprio app, o que impede links externos de rastrear o IP de quem visualiza.
+- **Bloqueio:** Quem bloqueia some para o bloqueado, que não consegue seguir, pedir conexão, enviar mensagens nem pedir acesso a cofres. A pessoa bloqueada não é avisada.
+- **Pedido de conversa:** Até o aceite, quem inicia a conversa só envia uma mensagem de texto. Recusar arquiva a conversa sem permitir um novo pedido. Mensagens não podem ser apagadas, para preservar evidências em caso de denúncia.
+- **Discrição:** Listas de seguidores, conexões, curtidas, membros de comunidades e presença em eventos são privadas (aparecem só os totais). No modo discreto, outras pessoas veem apenas o dia da última atividade. O botão de saída rápida (ou Esc duas vezes) troca a página por um site neutro.
 - **Direito do Titular:** O usuário pode exportar todos os seus dados em formato JSON (Art. 18 da LGPD) ou solicitar a exclusão irrevogável da conta nas Configurações.
-- **Moderação Não-Invasiva:** Não existe leitura silenciosa ou indiscriminada de mensagens de usuários; inspeções técnicas ocorrem estritamente sob denúncia formal fundamentada e auditada em log.
+- **Moderação Não-Invasiva:** Não existe leitura silenciosa ou indiscriminada de mensagens de usuários; inspeções técnicas ocorrem estritamente sob denúncia formal fundamentada e auditada em log. O mesmo vale para os cofres: a moderação só abre uma mídia privada que tenha denúncia em aberto. Toda alteração de moderação passa por funções que exigem justificativa e registram no livro de auditoria; não há edição direta das tabelas pela equipe.
 
 ---
 **Vybelog — Sua conexão. Suas regras.**

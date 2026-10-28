@@ -62,9 +62,8 @@ export const RegisterWizard: React.FC = () => {
   const [limitsText, setLimitsText] = useState('Respeito mútuo absoluto e conversa prévia.');
 
   // Step 5: Photos & Presentation
-  // Fotos são enviadas depois do primeiro login (o envio ao Storage exige conta confirmada)
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [coverUrl, setCoverUrl] = useState('');
+  // Fotos são enviadas depois do primeiro login (o envio ao Storage exige conta confirmada).
+  // Links externos não são aceitos: o servidor de terceiros veria o IP de quem abre o perfil.
 
   // Step 6: Verification
   const [isVerifying, setIsVerifying] = useState(false);
@@ -150,8 +149,6 @@ export const RegisterWizard: React.FC = () => {
       state,
       location_privacy: locationPrivacy,
       bio: bio || 'Explorando novas conexões com respeito, discrição e cumplicidade.',
-      avatar_url: avatarUrl,
-      cover_url: coverUrl,
       interests: selectedInterests,
       verification_requested: wantsSelfieVerification,
       partners: isCouple ? [
@@ -629,36 +626,14 @@ export const RegisterWizard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <img
-                  src={avatarUrl || defaultAvatar(displayName || username)}
+                  src={defaultAvatar(displayName || username)}
                   alt="Avatar"
                   className="w-16 h-16 rounded-full object-cover border-2 border-purple-500"
                 />
-                <div className="flex-1">
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">Foto de Perfil (link opcional)</label>
-                  <input
-                    type="url"
-                    placeholder="https://..."
-                    value={avatarUrl}
-                    onChange={e => setAvatarUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-zinc-900 border border-purple-900/30 rounded-xl text-xs text-zinc-200 focus:outline-none"
-                  />
-                </div>
+                <p className="flex-1 text-[11px] text-zinc-400">
+                  Depois de confirmar seu e-mail, você pode enviar foto de perfil e capa direto do celular ou computador em <strong className="text-zinc-200">Meu Perfil → Editar</strong>. Removemos automaticamente a localização GPS e outros dados escondidos das fotos.
+                </p>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">Foto de Capa (link opcional)</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={coverUrl}
-                  onChange={e => setCoverUrl(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-zinc-900 border border-purple-900/30 rounded-xl text-xs text-zinc-200 focus:outline-none"
-                />
-              </div>
-
-              <p className="text-[11px] text-zinc-400">
-                Depois de confirmar seu e-mail, você pode enviar fotos direto do celular ou computador em <strong className="text-zinc-200">Meu Perfil → Editar</strong>.
-              </p>
 
               {/* Private Vault explanation */}
               <div className="p-3.5 bg-purple-950/40 border border-purple-800/40 rounded-2xl">

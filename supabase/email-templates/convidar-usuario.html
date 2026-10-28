@@ -1,0 +1,30 @@
+<!-- Supabase > Authentication > Emails > Invite user
+     Assunto: Você foi convidado para o Vybelog -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<body style="margin:0;padding:0;background:#08060c;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#08060c;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#110c1c;border:1px solid #3b1f5e;border-radius:20px;">
+        <tr><td style="padding:32px 32px 8px;text-align:center;">
+          <img src="https://tomsilvaconsignado-ai.github.io/vybe/icons/icon-192.png" width="96" height="96" alt="Vybelog" style="display:block;margin:0 auto 8px;border:0;" />
+          <div style="font-size:24px;font-weight:900;letter-spacing:2px;color:#e0a64a;">Vybelog</div>
+        </td></tr>
+        <tr><td style="padding:16px 32px;color:#e4e4e7;font-size:15px;line-height:1.6;">
+          <h1 style="font-size:20px;color:#ffffff;margin:0 0 12px;">Você recebeu um convite</h1>
+          <p style="margin:0 0 16px;">Você foi convidado para criar uma conta no <strong>Vybelog</strong>, rede social exclusiva para maiores de 18 anos. Para aceitar, clique no botão:</p>
+          <p style="text-align:center;margin:28px 0;">
+            <a href="{{ .ConfirmationURL }}" style="background-color:#9333ea;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block;">Aceitar convite</a>
+          </p>
+          <p style="margin:0 0 8px;font-size:13px;color:#a1a1aa;">Se o botão não funcionar, copie e cole este link no navegador:</p>
+          <p style="margin:0 0 16px;font-size:12px;word-break:break-all;color:#c4b5fd;">{{ .ConfirmationURL }}</p>
+          <p style="margin:0;font-size:13px;color:#a1a1aa;">Se você não esperava este convite ou é menor de 18 anos, ignore este e-mail.</p>
+        </td></tr>
+        <tr><td style="padding:16px 32px 28px;font-size:11px;color:#71717a;text-align:center;border-top:1px solid #241635;">
+          Vybelog — este é um e-mail automático, não responda.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
