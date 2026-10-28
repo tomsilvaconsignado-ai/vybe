@@ -444,6 +444,14 @@ CREATE TABLE IF NOT EXISTS public.events (
   CHECK (ends_at IS NULL OR ends_at >= starts_at)
 );
 CREATE INDEX IF NOT EXISTS idx_events_upcoming ON public.events(status, starts_at);
+-- Link de ingresso só https (sem javascript:, data: ou http sem criptografia).
+-- NOT VALID: vale para novos eventos e edições, sem travar o script por linhas antigas.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'events_ticket_url_https') THEN
+    ALTER TABLE public.events ADD CONSTRAINT events_ticket_url_https
+      CHECK (ticket_url IS NULL OR ticket_url = '' OR ticket_url ~* '^https://') NOT VALID;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.event_attendees (
   event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,

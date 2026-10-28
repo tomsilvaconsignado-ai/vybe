@@ -17,6 +17,17 @@ if (!isSupabaseConfigured()) {
   console.error('[Vybelog] Supabase não configurado: defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no arquivo .env');
 }
 
+// Link de e-mail vencido ou já usado: o Supabase volta com o erro no endereço.
+// Lido antes de criar o cliente, que limpa o endereço ao iniciar.
+export const authLinkError: string | null = (() => {
+  const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search.slice(1));
+  const code = params.get('error_code') ?? params.get('error');
+  if (!code) return null;
+  window.history.replaceState(null, '', window.location.pathname);
+  if (code === 'otp_expired') return 'Este link expirou ou já foi usado. Peça um novo e-mail e use o link mais recente.';
+  return 'Não foi possível validar o link do e-mail. Peça um novo e tente novamente.';
+})();
+
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-anon-key'

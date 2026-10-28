@@ -229,6 +229,7 @@ console.log('\nEventos');
 await db.query(`UPDATE profiles SET restrictions = '{"cannotPost": true}' WHERE id = $1`, [ids.a]);
 await expectFail('quem está proibido de postar não publica evento', ids.a, `INSERT INTO events (created_by, title, starts_at, venue_name, city) VALUES ($1, 'festa', now() + interval '1 day', 'Clube', 'Campinas')`, [ids.a]);
 await db.query(`UPDATE profiles SET restrictions = '{}' WHERE id = $1`, [ids.a]);
+await expectFail('link de ingresso javascript: é recusado', ids.a, `INSERT INTO events (created_by, title, starts_at, venue_name, city, ticket_url) VALUES ($1, 'festa', now() + interval '1 day', 'Clube', 'Campinas', 'javascript:alert(1)')`, [ids.a]);
 await expectOk('sem restrição, publica normalmente', ids.a, `INSERT INTO events (created_by, title, starts_at, venue_name, city) VALUES ($1, 'festa', now() + interval '1 day', 'Clube', 'Campinas')`, [ids.a]);
 
 console.log('\nModo discreto');

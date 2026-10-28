@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { X, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export const LoginModal: React.FC = () => {
-  const { setAuthModalType, login, requestPasswordReset } = useApp();
+  const { setAuthModalType, login, requestPasswordReset, resendConfirmationEmail } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +30,18 @@ export const LoginModal: React.FC = () => {
     const resetError = await requestPasswordReset(email);
     if (resetError) setError(resetError);
     else setInfo('Se houver uma conta com este e-mail, enviamos um link para redefinir a senha.');
+  };
+
+  // Conta criada mas e-mail ainda não confirmado (link perdido ou vencido)
+  const needsConfirmation = error.startsWith('Confirme seu e-mail');
+  const handleResendConfirmation = async () => {
+    const resendError = await resendConfirmationEmail(email);
+    if (resendError) {
+      setError(resendError);
+      return;
+    }
+    setError('');
+    setInfo('Enviamos um novo link de confirmação. Confira também a caixa de spam.');
   };
 
   return (
@@ -94,6 +106,15 @@ export const LoginModal: React.FC = () => {
           </div>
 
           {error && <p className="text-xs text-rose-400">{error}</p>}
+          {needsConfirmation && (
+            <button
+              type="button"
+              onClick={handleResendConfirmation}
+              className="text-xs font-semibold text-purple-400 hover:text-purple-300 cursor-pointer"
+            >
+              Reenviar e-mail de confirmação
+            </button>
+          )}
           {info && <p className="text-xs text-emerald-400">{info}</p>}
 
           <button

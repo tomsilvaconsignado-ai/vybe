@@ -58,8 +58,8 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
       setError('O término precisa ser depois do início.');
       return;
     }
-    if (draft.ticketUrl && !/^https?:\/\//i.test(draft.ticketUrl)) {
-      setError('O link de ingressos deve começar com http:// ou https://');
+    if (draft.ticketUrl && !/^https:\/\//i.test(draft.ticketUrl)) {
+      setError('O link de ingressos deve começar com https://');
       return;
     }
     setSaving(true);

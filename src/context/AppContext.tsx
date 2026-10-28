@@ -18,7 +18,7 @@ import {
   ProfileType
 } from '../types';
 import type { Session } from '@supabase/supabase-js';
-import { supabase, authRedirectUrl, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
+import { supabase, authRedirectUrl, authLinkError, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
 import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile } from '../lib/profiles';
 import { calculateCompatibility, CompatibilityBreakdown } from '../utils/compatibility';
 import { fetchCompatibilityMap } from '../lib/compatibility';
@@ -101,6 +101,7 @@ interface AppContextType {
   login: (email: string, password: string) => Promise<string | null>;
   register: (email: string, password: string, metadata: SignUpMetadata) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
   requestPasswordReset: (email: string) => Promise<string | null>;
+  resendConfirmationEmail: (email: string) => Promise<string | null>;
   passwordRecoveryMode: boolean;
   updatePassword: (newPassword: string) => Promise<string | null>;
   logout: () => Promise<void>;
@@ -442,6 +443,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    if (authLinkError) {
+      alert(authLinkError);
+      setAuthModalType('login');
+    }
+
     // onAuthStateChange também emite INITIAL_SESSION ao assinar, cobrindo o carregamento inicial
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (event === 'PASSWORD_RECOVERY') setPasswordRecoveryMode(true);
@@ -536,6 +542,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveTab('feed');
     }
     return { error: null, needsEmailConfirmation };
+  };
+
+  const resendConfirmationEmail = async (email: string): Promise<string | null> => {
+    const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: authRedirectUrl() } });
+    return error ? translateAuthError(error.message) : null;
   };
 
   const requestPasswordReset = async (email: string): Promise<string | null> => {
@@ -945,6 +956,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         login,
         register,
         requestPasswordReset,
+        resendConfirmationEmail,
         passwordRecoveryMode,
         updatePassword,
         logout,
