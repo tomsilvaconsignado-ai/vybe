@@ -19,6 +19,20 @@
 CREATE OR REPLACE FUNCTION public.primary_admin_email()
 RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$ SELECT 'tomsilvaconsignado@gmail.com'::text $$;
 
+-- Prefixo das URLs públicas do Storage deste projeto. Fotos de perfil, posts, stories,
+-- álbuns e mensagens só aceitam links que comecem por aqui: um link externo deixaria
+-- o dono do servidor registrar o IP de quem visualiza. Troque ao mudar de projeto.
+CREATE OR REPLACE FUNCTION public.app_media_prefix()
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT 'https://efztrffuovqxmkodpbkx.supabase.co/storage/v1/object/public/public-media/'::text
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_app_media_url(u TEXT)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+  SELECT u IS NULL OR u = ''
+    OR (left(u, length(public.app_media_prefix())) = public.app_media_prefix() AND position('..' IN u) = 0);
+$$;
+
 -- ==============================================================================
 -- 1. TIPOS (gen_random_uuid() é nativo do Postgres 13+, sem extensão)
 -- ==============================================================================
@@ -95,6 +109,13 @@ CREATE TABLE IF NOT EXISTS public.profile_private (
   terms_accepted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Localização real. Em profiles fica só o que a privacidade escolhida permite mostrar
+-- (gatilho mask_profile_location), pois qualquer usuário logado lê aquela tabela.
+ALTER TABLE public.profile_private ADD COLUMN IF NOT EXISTS city VARCHAR(100);
+ALTER TABLE public.profile_private ADD COLUMN IF NOT EXISTS state VARCHAR(50);
+UPDATE public.profile_private pp SET city = p.city, state = p.state
+FROM public.profiles p
+WHERE p.id = pp.user_id AND pp.city IS NULL;
 
 CREATE TABLE IF NOT EXISTS public.joint_partners (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -149,6 +170,17 @@ CREATE TABLE IF NOT EXISTS public.connections (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_connections_pair
   ON public.connections (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id));
 CREATE INDEX IF NOT EXISTS idx_connections_addressee ON public.connections(addressee_id);
+
+-- Bloqueio entre usuários: quem bloqueia some para o bloqueado e nenhum dos dois
+-- consegue mais seguir, conectar, conversar ou pedir acesso a cofre do outro.
+CREATE TABLE IF NOT EXISTS public.user_blocks (
+  blocker_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  blocked_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (blocker_id, blocked_id),
+  CHECK (blocker_id <> blocked_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON public.user_blocks(blocked_id);
 
 CREATE TABLE IF NOT EXISTS public.communities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -496,6 +528,33 @@ RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS
   );
 $$;
 
+-- Algum dos dois bloqueou o outro
+CREATE OR REPLACE FUNCTION public.is_blocked_between(a UUID, b UUID)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_blocks
+    WHERE (blocker_id = a AND blocked_id = b) OR (blocker_id = b AND blocked_id = a)
+  );
+$$;
+
+-- "owner" bloqueou o usuário atual (o perfil de owner fica oculto para ele)
+CREATE OR REPLACE FUNCTION public.has_blocked_me(owner UUID)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT EXISTS (SELECT 1 FROM public.user_blocks WHERE blocker_id = owner AND blocked_id = auth.uid());
+$$;
+
+-- Mensagens já enviadas na conversa (o pedido de conversa permite só uma de apresentação)
+CREATE OR REPLACE FUNCTION public.conversation_message_count(conv UUID)
+RETURNS BIGINT LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT count(*) FROM public.messages WHERE conversation_id = conv;
+$$;
+
+-- Status da conta impede publicar ou interagir
+CREATE OR REPLACE FUNCTION public.can_interact()
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT coalesce((SELECT status NOT IN ('suspended', 'blocked') FROM public.profiles WHERE id = auth.uid()), false);
+$$;
+
 -- ==============================================================================
 -- 4. GATILHOS
 -- ==============================================================================
@@ -540,14 +599,15 @@ BEGIN
     meta ->> 'gender',
     meta ->> 'orientation',
     coalesce(meta ->> 'bio', ''),
-    coalesce(meta ->> 'avatar_url', ''),
-    coalesce(meta ->> 'cover_url', ''),
+    -- Links externos de foto são descartados (ver is_app_media_url)
+    CASE WHEN public.is_app_media_url(meta ->> 'avatar_url') THEN coalesce(meta ->> 'avatar_url', '') ELSE '' END,
+    CASE WHEN public.is_app_media_url(meta ->> 'cover_url') THEN coalesce(meta ->> 'cover_url', '') ELSE '' END,
     coalesce(ARRAY(SELECT jsonb_array_elements_text(meta -> 'interests')), '{}'),
     coalesce((meta ->> 'verification_requested')::boolean, false)
   );
 
-  INSERT INTO public.profile_private (user_id, email, birthdate, adult_declared_at, terms_accepted_at)
-  VALUES (new_user.id, new_user.email, v_birthdate, now(), now());
+  INSERT INTO public.profile_private (user_id, email, birthdate, adult_declared_at, terms_accepted_at, city, state)
+  VALUES (new_user.id, new_user.email, v_birthdate, now(), now(), coalesce(meta ->> 'city', ''), coalesce(meta ->> 'state', ''));
 
   IF jsonb_typeof(meta -> 'partners') = 'array' THEN
     FOR v_partner IN SELECT * FROM jsonb_array_elements(meta -> 'partners') LOOP
@@ -645,13 +705,16 @@ WHERE lower(u.email) = public.primary_admin_email() AND u.email_confirmed_at IS 
 ON CONFLICT (user_id) DO UPDATE SET role = 'superadmin';
 
 -- 4.3 Proteção dos campos controlados pela moderação.
--- Chamadas pela API rodam como 'authenticated'; gatilhos internos rodam como dono.
+-- Chamadas pela API rodam como 'authenticated'; gatilhos e RPCs (SECURITY DEFINER)
+-- rodam como dono. Moderadores também não têm exceção aqui: mudanças de moderação
+-- passam pelas funções admin_*, que exigem justificativa e gravam auditoria.
 CREATE OR REPLACE FUNCTION public.protect_profile_fields()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
-  IF current_user = 'authenticated' AND NOT public.is_moderator() THEN
+  IF current_user = 'authenticated' THEN
     NEW.id := OLD.id;
     NEW.username := OLD.username;
+    NEW.age := OLD.age;  -- definida pela data de nascimento no cadastro
     NEW.is_verified := OLD.is_verified;
     NEW.verified_badge_type := OLD.verified_badge_type;
     NEW.status := OLD.status;
@@ -661,11 +724,196 @@ BEGIN
     NEW.connections_count := OLD.connections_count;
     NEW.posts_count := OLD.posts_count;
     NEW.created_at := OLD.created_at;
+    IF NEW.avatar_url IS DISTINCT FROM OLD.avatar_url AND NOT public.is_app_media_url(NEW.avatar_url) THEN
+      RAISE EXCEPTION 'Envie a foto pelo app; links externos não são aceitos.';
+    END IF;
+    IF NEW.cover_url IS DISTINCT FROM OLD.cover_url AND NOT public.is_app_media_url(NEW.cover_url) THEN
+      RAISE EXCEPTION 'Envie a foto pelo app; links externos não são aceitos.';
+    END IF;
+  END IF;
+  -- Modo discreto: os outros só sabem o dia da última atividade, não a hora
+  IF NEW.discreet_mode_enabled THEN
+    NEW.last_active_at := date_trunc('day', NEW.last_active_at);
   END IF;
   NEW.updated_at := now();
   RETURN NEW;
 END;
 $$;
+
+-- Localização: a real fica em profile_private; profiles guarda só o que pode ser exibido.
+-- No cadastro o perfil é criado antes de profile_private, então vale o valor recebido.
+CREATE OR REPLACE FUNCTION public.mask_profile_location()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE raw_city TEXT := NEW.city; raw_state TEXT := NEW.state;
+BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    SELECT coalesce(pp.city, OLD.city), coalesce(pp.state, OLD.state) INTO raw_city, raw_state
+    FROM public.profile_private pp WHERE pp.user_id = NEW.id;
+    IF NOT FOUND THEN raw_city := NEW.city; raw_state := NEW.state; END IF;
+  END IF;
+  NEW.city := CASE WHEN NEW.location_privacy = 'city' THEN coalesce(raw_city, '') ELSE '' END;
+  NEW.state := CASE WHEN NEW.location_privacy = 'hidden' THEN '' ELSE coalesce(raw_state, '') END;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS mask_profile_location ON public.profiles;
+CREATE TRIGGER mask_profile_location
+  BEFORE INSERT OR UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.mask_profile_location();
+
+-- O usuário edita a própria localização em profile_private; os demais campos são fixos
+CREATE OR REPLACE FUNCTION public.protect_private_fields()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF current_user = 'authenticated' THEN
+    NEW.user_id := OLD.user_id;
+    NEW.email := OLD.email;
+    NEW.birthdate := OLD.birthdate;
+    NEW.adult_declared_at := OLD.adult_declared_at;
+    NEW.terms_accepted_at := OLD.terms_accepted_at;
+    NEW.created_at := OLD.created_at;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS protect_private_fields ON public.profile_private;
+CREATE TRIGGER protect_private_fields
+  BEFORE UPDATE ON public.profile_private
+  FOR EACH ROW EXECUTE FUNCTION public.protect_private_fields();
+
+-- Mudou a localização real: recalcula o que o perfil público exibe
+CREATE OR REPLACE FUNCTION public.sync_profile_location()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  UPDATE public.profiles SET city = city WHERE id = NEW.user_id;
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS sync_profile_location ON public.profile_private;
+CREATE TRIGGER sync_profile_location
+  AFTER UPDATE OF city, state ON public.profile_private
+  FOR EACH ROW EXECUTE FUNCTION public.sync_profile_location();
+
+-- Aplica a máscara aos perfis já existentes
+UPDATE public.profiles SET city = city
+WHERE (location_privacy <> 'city' AND city <> '') OR (location_privacy = 'hidden' AND state <> '');
+
+-- Links de mídia precisam vir do Storage do app (protege o IP de quem visualiza)
+CREATE OR REPLACE FUNCTION public.enforce_media_urls()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE u TEXT;
+BEGIN
+  IF current_user <> 'authenticated' THEN RETURN NEW; END IF;
+  IF TG_TABLE_NAME = 'posts' THEN
+    IF TG_OP = 'INSERT' OR NEW.media_urls IS DISTINCT FROM OLD.media_urls THEN
+      FOREACH u IN ARRAY NEW.media_urls LOOP
+        IF NOT public.is_app_media_url(u) THEN RAISE EXCEPTION 'Envie as fotos pelo app; links externos não são aceitos.'; END IF;
+      END LOOP;
+    END IF;
+  ELSIF TG_TABLE_NAME = 'messages' THEN
+    IF NOT public.is_app_media_url(NEW.media_url) THEN RAISE EXCEPTION 'Mídia inválida.'; END IF;
+  ELSIF TG_TABLE_NAME = 'stories' THEN
+    IF NOT public.is_app_media_url(NEW.media_url) THEN RAISE EXCEPTION 'Mídia inválida.'; END IF;
+  ELSIF TG_TABLE_NAME = 'album_items' THEN
+    IF TG_OP = 'INSERT' OR NEW.url IS DISTINCT FROM OLD.url THEN
+      IF NOT public.is_app_media_url(NEW.url) THEN RAISE EXCEPTION 'Mídia inválida.'; END IF;
+    END IF;
+  ELSIF TG_TABLE_NAME = 'albums' THEN
+    IF TG_OP = 'INSERT' OR NEW.cover_url IS DISTINCT FROM OLD.cover_url THEN
+      IF NOT public.is_app_media_url(NEW.cover_url) THEN RAISE EXCEPTION 'Capa inválida.'; END IF;
+    END IF;
+  ELSIF TG_TABLE_NAME = 'joint_partners' THEN
+    IF TG_OP = 'INSERT' OR NEW.avatar_url IS DISTINCT FROM OLD.avatar_url THEN
+      IF NOT public.is_app_media_url(NEW.avatar_url) THEN RAISE EXCEPTION 'Foto inválida.'; END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['posts', 'messages', 'stories', 'album_items', 'albums', 'joint_partners'] LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS enforce_media_urls ON public.%I', t);
+    EXECUTE format('CREATE TRIGGER enforce_media_urls BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.enforce_media_urls()', t);
+  END LOOP;
+END $$;
+
+-- Limpeza única dos links externos gravados antes desta regra (fotos de perfil por link
+-- no cadastro, imagens coladas em posts e mensagens). Reexecutar não altera mais nada.
+UPDATE public.profiles SET avatar_url = '' WHERE NOT public.is_app_media_url(avatar_url);
+UPDATE public.profiles SET cover_url = '' WHERE NOT public.is_app_media_url(cover_url);
+UPDATE public.joint_partners SET avatar_url = NULL WHERE NOT public.is_app_media_url(avatar_url);
+UPDATE public.albums SET cover_url = '' WHERE NOT public.is_app_media_url(cover_url);
+UPDATE public.posts
+SET media_urls = ARRAY(SELECT u FROM unnest(media_urls) AS u WHERE public.is_app_media_url(u))
+WHERE EXISTS (SELECT 1 FROM unnest(media_urls) AS u WHERE NOT public.is_app_media_url(u));
+UPDATE public.messages
+SET media_url = NULL,
+    content = CASE WHEN length(trim(content)) > 0 THEN content ELSE '[imagem externa removida por segurança]' END
+WHERE NOT public.is_app_media_url(media_url);
+
+-- Participantes de conexões, conversas e permissões de cofre não podem ser trocados
+-- por UPDATE (sem isso, quem recebe um pedido poderia reescrever a linha e se
+-- "conectar" a qualquer pessoa, ou entrar numa conversa alheia).
+CREATE OR REPLACE FUNCTION public.protect_relationship_keys()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF current_user = 'authenticated' THEN
+    IF TG_TABLE_NAME = 'connections' THEN
+      IF NEW.requester_id <> OLD.requester_id OR NEW.addressee_id <> OLD.addressee_id THEN
+        RAISE EXCEPTION 'Não é permitido alterar os participantes da conexão.';
+      END IF;
+      NEW.created_at := OLD.created_at;
+    ELSIF TG_TABLE_NAME = 'conversation_participants' THEN
+      IF NEW.conversation_id <> OLD.conversation_id OR NEW.user_id <> OLD.user_id THEN
+        RAISE EXCEPTION 'Não é permitido alterar os participantes da conversa.';
+      END IF;
+      NEW.joined_at := OLD.joined_at;
+    ELSIF TG_TABLE_NAME = 'album_permissions' THEN
+      IF NEW.album_id <> OLD.album_id OR NEW.user_id <> OLD.user_id THEN
+        RAISE EXCEPTION 'Não é permitido alterar a permissão de outro cofre ou pessoa.';
+      END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['connections', 'conversation_participants', 'album_permissions'] LOOP
+    EXECUTE format('DROP TRIGGER IF EXISTS protect_relationship_keys ON public.%I', t);
+    EXECUTE format('CREATE TRIGGER protect_relationship_keys BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.protect_relationship_keys()', t);
+  END LOOP;
+END $$;
+
+-- Ao bloquear, desfaz os vínculos entre as duas pessoas
+CREATE OR REPLACE FUNCTION public.apply_user_block()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  DELETE FROM public.follows
+  WHERE (follower_id = NEW.blocker_id AND following_id = NEW.blocked_id)
+     OR (follower_id = NEW.blocked_id AND following_id = NEW.blocker_id);
+  DELETE FROM public.connections
+  WHERE (requester_id = NEW.blocker_id AND addressee_id = NEW.blocked_id)
+     OR (requester_id = NEW.blocked_id AND addressee_id = NEW.blocker_id);
+  DELETE FROM public.album_permissions ap USING public.albums a
+  WHERE a.id = ap.album_id
+    AND ((a.user_id = NEW.blocker_id AND ap.user_id = NEW.blocked_id)
+      OR (a.user_id = NEW.blocked_id AND ap.user_id = NEW.blocker_id));
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS apply_user_block ON public.user_blocks;
+CREATE TRIGGER apply_user_block AFTER INSERT ON public.user_blocks
+  FOR EACH ROW EXECUTE FUNCTION public.apply_user_block();
 
 DROP TRIGGER IF EXISTS protect_profile_fields ON public.profiles;
 CREATE TRIGGER protect_profile_fields
@@ -675,7 +923,7 @@ CREATE TRIGGER protect_profile_fields
 CREATE OR REPLACE FUNCTION public.protect_post_fields()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
-  IF current_user = 'authenticated' AND NOT public.is_moderator() THEN
+  IF current_user = 'authenticated' THEN
     NEW.user_id := OLD.user_id;
     NEW.likes_count := OLD.likes_count;
     NEW.comments_count := OLD.comments_count;
@@ -848,17 +1096,33 @@ DECLARE
 BEGIN
   IF me IS NULL THEN RAISE EXCEPTION 'Não autenticado.'; END IF;
   IF target = me THEN RAISE EXCEPTION 'Não é possível conversar consigo mesmo.'; END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = target AND status NOT IN ('blocked', 'suspended')) THEN
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = target AND status NOT IN ('blocked', 'suspended'))
+     OR public.is_blocked_between(me, target) THEN
     RAISE EXCEPTION 'Perfil indisponível.';
   END IF;
+  IF NOT public.can_interact() THEN RAISE EXCEPTION 'Sua conta está com essa função restrita.'; END IF;
 
-  SELECT a.conversation_id INTO conv
-  FROM public.conversation_participants a
-  JOIN public.conversation_participants b ON b.conversation_id = a.conversation_id
-  WHERE a.user_id = me AND b.user_id = target
+  -- Reaproveita a conversa existente. Inclui as que eu criei e depois saí: sem isso,
+  -- sair e abrir de novo permitiria mandar quantos pedidos quisesse.
+  SELECT c.id INTO conv
+  FROM public.conversations c
+  JOIN public.conversation_participants b ON b.conversation_id = c.id AND b.user_id = target
+  WHERE c.created_by = me OR public.is_conversation_participant(c.id, me)
+  ORDER BY c.created_at
   LIMIT 1;
 
-  IF conv IS NULL THEN
+  IF conv IS NOT NULL THEN
+    INSERT INTO public.conversation_participants (conversation_id, user_id)
+    VALUES (conv, me)
+    ON CONFLICT DO NOTHING;
+    -- Abrir pelo perfil traz de volta uma conversa que eu tinha arquivado
+    UPDATE public.conversation_participants SET is_archived = false
+    WHERE conversation_id = conv AND user_id = me AND is_archived;
+    -- Viraram conexão depois do pedido: a conversa deixa de ser pedido
+    IF public.are_connected(me, target) THEN
+      UPDATE public.conversations SET is_pending_request = false WHERE id = conv AND is_pending_request;
+    END IF;
+  ELSE
     INSERT INTO public.conversations (created_by, is_pending_request)
     VALUES (me, NOT public.are_connected(me, target))
     RETURNING id INTO conv;
@@ -880,6 +1144,43 @@ BEGIN
   WHERE id = conv
     AND created_by IS DISTINCT FROM auth.uid()
     AND public.is_conversation_participant(conv, auth.uid());
+END;
+$$;
+
+-- Destinatário recusa o pedido: a conversa é arquivada para ele, mas continua existindo.
+-- Assim quem enviou não consegue abrir outra nem mandar mais mensagens (o pedido
+-- pendente aceita só a primeira).
+CREATE OR REPLACE FUNCTION public.decline_message_request(conv UUID)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.conversations
+    WHERE id = conv AND is_pending_request AND created_by IS DISTINCT FROM auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Pedido de conversa não encontrado.';
+  END IF;
+  UPDATE public.conversation_participants
+  SET is_archived = true
+  WHERE conversation_id = conv AND user_id = auth.uid();
+END;
+$$;
+
+-- Bloqueio pelo app (o gatilho apply_user_block desfaz os vínculos)
+CREATE OR REPLACE FUNCTION public.block_user(target UUID)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Não autenticado.'; END IF;
+  IF target = auth.uid() THEN RAISE EXCEPTION 'Não é possível bloquear a si mesmo.'; END IF;
+  INSERT INTO public.user_blocks (blocker_id, blocked_id) VALUES (auth.uid(), target)
+  ON CONFLICT DO NOTHING;
+  -- Conversas com a pessoa saem da lista de quem bloqueou
+  UPDATE public.conversation_participants mine
+  SET is_archived = true
+  FROM public.conversation_participants other
+  WHERE other.conversation_id = mine.conversation_id
+    AND mine.user_id = auth.uid() AND other.user_id = target;
 END;
 $$;
 
@@ -947,7 +1248,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
   SELECT p.id, p.username::text, p.display_name::text, pp.email::text, pp.birthdate,
-         p.profile_type, p.city::text, p.state::text, p.age,
+         p.profile_type, coalesce(pp.city, p.city)::text, coalesce(pp.state, p.state)::text, p.age,
          p.status, p.is_verified, p.verified_badge_type::text,
          p.verification_requested, p.restrictions, p.avatar_url, p.cover_url,
          p.created_at, p.last_active_at, p.posts_count,
@@ -1151,7 +1452,7 @@ CREATE TRIGGER count_event_attendees AFTER INSERT OR UPDATE OR DELETE ON public.
 CREATE OR REPLACE FUNCTION public.protect_event_fields()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
-  IF current_user = 'authenticated' AND NOT public.is_moderator() THEN
+  IF current_user = 'authenticated' THEN
     IF TG_OP = 'INSERT' THEN
       NEW.status := 'pending';
       NEW.is_featured := false;
@@ -1221,15 +1522,20 @@ ON CONFLICT (slug) DO NOTHING;
 -- ==============================================================================
 -- 6. ROW LEVEL SECURITY
 -- ==============================================================================
+-- Regras gerais:
+--  * Moderação não altera tabelas diretamente: só pelas funções admin_* (justificativa + auditoria).
+--  * Bloqueios valem nos dois sentidos para conteúdo e interações.
+--  * Listas de quem segue, quem é conexão, quem curtiu e quem vai a eventos são privadas;
+--    os perfis mostram apenas os contadores.
 DO $$
 DECLARE t TEXT; pol TEXT;
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'profiles', 'profile_private', 'joint_partners', 'compatibility_preferences', 'follows', 'connections',
-    'communities', 'community_members', 'posts', 'post_polls', 'post_poll_votes', 'post_likes', 'post_saves',
-    'post_comments', 'albums', 'album_items', 'album_permissions', 'conversations', 'conversation_participants',
-    'messages', 'notifications', 'moderation_reports', 'admin_users', 'admin_user_notes', 'admin_audit_logs',
-    'stories', 'story_views', 'events', 'event_attendees', 'ads'
+    'user_blocks', 'communities', 'community_members', 'posts', 'post_polls', 'post_poll_votes', 'post_likes',
+    'post_saves', 'post_comments', 'albums', 'album_items', 'album_permissions', 'conversations',
+    'conversation_participants', 'messages', 'notifications', 'moderation_reports', 'admin_users',
+    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'ads'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated', t);
@@ -1241,8 +1547,18 @@ BEGIN
   END LOOP;
 END $$;
 
+-- Funções são executáveis por PUBLIC por padrão no Postgres. O visitante sem login não
+-- precisa de nenhuma; usuários logados precisam das auxiliares usadas nas políticas.
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated, service_role;
+-- notify() grava notificação para qualquer pessoa com qualquer texto: chamada direta
+-- permitiria forjar avisos "da Equipe de Segurança". Só gatilhos e RPCs a usam.
+REVOKE EXECUTE ON FUNCTION public.notify(UUID, UUID, TEXT, TEXT, TEXT, TEXT) FROM authenticated;
+
 GRANT EXECUTE ON FUNCTION public.start_conversation(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_message_request(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.decline_message_request(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.block_user(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_conversation_read(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;
@@ -1258,56 +1574,76 @@ GRANT EXECUTE ON FUNCTION public.album_item_counts(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_review_event(UUID, TEXT, BOOLEAN, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.record_ad_event(UUID, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.delete_own_account() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.admin_log(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.require_moderator(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.create_profile_for_user(auth.users) FROM PUBLIC, anon, authenticated;
 
--- profiles
+-- profiles (quem bloqueou o usuário atual some para ele)
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT TO authenticated
-  USING (status <> 'blocked' OR id = auth.uid() OR public.is_staff());
+  USING (id = auth.uid() OR public.is_staff() OR (status <> 'blocked' AND NOT public.has_blocked_me(id)));
 CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE TO authenticated
-  USING (id = auth.uid() OR public.is_moderator())
-  WITH CHECK (id = auth.uid() OR public.is_moderator());
+  USING (id = auth.uid()) WITH CHECK (id = auth.uid());
 -- INSERT é feito somente pelo gatilho handle_new_user; DELETE via exclusão da conta no Auth.
 
--- profile_private
+-- profile_private (o usuário só consegue alterar a própria localização; ver protect_private_fields)
 CREATE POLICY "profile_private_select" ON public.profile_private FOR SELECT TO authenticated
   USING (user_id = auth.uid() OR public.is_staff());
+CREATE POLICY "profile_private_update" ON public.profile_private FOR UPDATE TO authenticated
+  USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
 -- joint_partners / compatibility_preferences
-CREATE POLICY "joint_partners_select" ON public.joint_partners FOR SELECT TO authenticated USING (true);
+CREATE POLICY "joint_partners_select" ON public.joint_partners FOR SELECT TO authenticated
+  USING (profile_id = auth.uid() OR NOT public.has_blocked_me(profile_id));
 CREATE POLICY "joint_partners_write" ON public.joint_partners FOR ALL TO authenticated
   USING (profile_id = auth.uid()) WITH CHECK (profile_id = auth.uid());
 
-CREATE POLICY "prefs_select" ON public.compatibility_preferences FOR SELECT TO authenticated USING (true);
+CREATE POLICY "prefs_select" ON public.compatibility_preferences FOR SELECT TO authenticated
+  USING (profile_id = auth.uid() OR NOT public.has_blocked_me(profile_id));
 CREATE POLICY "prefs_write" ON public.compatibility_preferences FOR ALL TO authenticated
   USING (profile_id = auth.uid()) WITH CHECK (profile_id = auth.uid());
 
+-- bloqueios: só quem bloqueou vê a própria lista; bloquear é pela RPC block_user
+CREATE POLICY "blocks_select" ON public.user_blocks FOR SELECT TO authenticated
+  USING (blocker_id = auth.uid());
+CREATE POLICY "blocks_delete" ON public.user_blocks FOR DELETE TO authenticated
+  USING (blocker_id = auth.uid());
+
 -- follows
-CREATE POLICY "follows_select" ON public.follows FOR SELECT TO authenticated USING (true);
-CREATE POLICY "follows_insert" ON public.follows FOR INSERT TO authenticated WITH CHECK (follower_id = auth.uid());
+CREATE POLICY "follows_select" ON public.follows FOR SELECT TO authenticated
+  USING (follower_id = auth.uid() OR following_id = auth.uid() OR public.is_staff());
+CREATE POLICY "follows_insert" ON public.follows FOR INSERT TO authenticated
+  WITH CHECK (follower_id = auth.uid() AND public.can_interact() AND NOT public.is_blocked_between(follower_id, following_id));
 CREATE POLICY "follows_delete" ON public.follows FOR DELETE TO authenticated USING (follower_id = auth.uid());
 
--- connections
+-- connections (aceitar só muda pending -> accepted; os participantes são fixos, ver protect_relationship_keys)
 CREATE POLICY "connections_select" ON public.connections FOR SELECT TO authenticated
-  USING (requester_id = auth.uid() OR addressee_id = auth.uid() OR status = 'accepted' OR public.is_staff());
+  USING (requester_id = auth.uid() OR addressee_id = auth.uid() OR public.is_staff());
 CREATE POLICY "connections_insert" ON public.connections FOR INSERT TO authenticated
-  WITH CHECK (requester_id = auth.uid() AND status = 'pending');
+  WITH CHECK (
+    requester_id = auth.uid() AND status = 'pending' AND responded_at IS NULL
+    AND public.can_interact()
+    AND NOT public.is_blocked_between(requester_id, addressee_id)
+  );
 CREATE POLICY "connections_accept" ON public.connections FOR UPDATE TO authenticated
-  USING (addressee_id = auth.uid()) WITH CHECK (addressee_id = auth.uid());
+  USING (addressee_id = auth.uid() AND status = 'pending')
+  WITH CHECK (addressee_id = auth.uid() AND status = 'accepted');
 CREATE POLICY "connections_delete" ON public.connections FOR DELETE TO authenticated
   USING (requester_id = auth.uid() OR addressee_id = auth.uid());
 
 -- communities
 CREATE POLICY "communities_select" ON public.communities FOR SELECT TO authenticated USING (true);
 CREATE POLICY "communities_manage" ON public.communities FOR ALL TO authenticated
-  USING (public.is_moderator()) WITH CHECK (public.is_moderator());
+  USING (public.is_superadmin()) WITH CHECK (public.is_superadmin());
 
-CREATE POLICY "community_members_select" ON public.community_members FOR SELECT TO authenticated USING (true);
+CREATE POLICY "community_members_select" ON public.community_members FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.is_staff());
 CREATE POLICY "community_members_join" ON public.community_members FOR INSERT TO authenticated
   WITH CHECK (
-    user_id = auth.uid() AND role = 'member'
+    user_id = auth.uid() AND role = 'member' AND public.can_interact()
     AND EXISTS (SELECT 1 FROM public.communities c WHERE c.id = community_id AND NOT c.is_private)
   );
 CREATE POLICY "community_members_leave" ON public.community_members FOR DELETE TO authenticated
-  USING (user_id = auth.uid() OR public.is_moderator());
+  USING (user_id = auth.uid());
 
 -- posts
 CREATE POLICY "posts_select" ON public.posts FOR SELECT TO authenticated
@@ -1316,58 +1652,83 @@ CREATE POLICY "posts_select" ON public.posts FOR SELECT TO authenticated
     OR public.is_staff()
     OR (
       moderation_status IN ('approved', 'pending_review')
+      AND NOT public.is_blocked_between(user_id, auth.uid())
       AND (visibility = 'public' OR public.are_connected(user_id, auth.uid()))
     )
   );
 CREATE POLICY "posts_insert" ON public.posts FOR INSERT TO authenticated
   WITH CHECK (
     user_id = auth.uid()
+    AND public.can_interact()
     AND coalesce((SELECT (restrictions ->> 'cannotPost')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
-    AND (SELECT status FROM public.profiles WHERE id = auth.uid()) NOT IN ('suspended', 'blocked')
   );
 CREATE POLICY "posts_update" ON public.posts FOR UPDATE TO authenticated
-  USING (user_id = auth.uid() OR public.is_moderator());
+  USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 CREATE POLICY "posts_delete" ON public.posts FOR DELETE TO authenticated
-  USING (user_id = auth.uid() OR public.is_moderator());
+  USING (user_id = auth.uid());
 
--- enquetes
-CREATE POLICY "polls_select" ON public.post_polls FOR SELECT TO authenticated USING (true);
+-- enquetes, curtidas e comentários seguem a visibilidade do post
+-- (o EXISTS em posts aplica a política posts_select de quem consulta)
+CREATE POLICY "polls_select" ON public.post_polls FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id));
 CREATE POLICY "polls_insert" ON public.post_polls FOR INSERT TO authenticated
   WITH CHECK (EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.user_id = auth.uid()));
-CREATE POLICY "poll_votes_select" ON public.post_poll_votes FOR SELECT TO authenticated USING (true);
+CREATE POLICY "poll_votes_select" ON public.post_poll_votes FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.post_polls pp WHERE pp.id = poll_id));
 CREATE POLICY "poll_votes_insert" ON public.post_poll_votes FOR INSERT TO authenticated
-  WITH CHECK (user_id = auth.uid());
+  WITH CHECK (
+    user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.post_polls pp
+      WHERE pp.id = poll_id AND pp.options @> jsonb_build_array(jsonb_build_object('id', option_id))
+    )
+  );
 
--- curtidas, salvos, comentários
-CREATE POLICY "likes_select" ON public.post_likes FOR SELECT TO authenticated USING (true);
-CREATE POLICY "likes_insert" ON public.post_likes FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "likes_select" ON public.post_likes FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.user_id = auth.uid()));
+CREATE POLICY "likes_insert" ON public.post_likes FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid() AND EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id));
 CREATE POLICY "likes_delete" ON public.post_likes FOR DELETE TO authenticated USING (user_id = auth.uid());
 
 CREATE POLICY "saves_select" ON public.post_saves FOR SELECT TO authenticated USING (user_id = auth.uid());
-CREATE POLICY "saves_insert" ON public.post_saves FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "saves_insert" ON public.post_saves FOR INSERT TO authenticated
+  WITH CHECK (user_id = auth.uid() AND EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id));
 CREATE POLICY "saves_delete" ON public.post_saves FOR DELETE TO authenticated USING (user_id = auth.uid());
 
-CREATE POLICY "comments_select" ON public.post_comments FOR SELECT TO authenticated USING (true);
-CREATE POLICY "comments_insert" ON public.post_comments FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "comments_select" ON public.post_comments FOR SELECT TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id)
+    AND (user_id = auth.uid() OR public.is_staff() OR NOT public.is_blocked_between(user_id, auth.uid()))
+  );
+CREATE POLICY "comments_insert" ON public.post_comments FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = auth.uid()
+    AND public.can_interact()
+    AND coalesce((SELECT (restrictions ->> 'cannotPost')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
+    AND EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.moderation_status <> 'removed')
+  );
 CREATE POLICY "comments_delete" ON public.post_comments FOR DELETE TO authenticated
   USING (
     user_id = auth.uid()
-    OR public.is_moderator()
     OR EXISTS (SELECT 1 FROM public.posts p WHERE p.id = post_id AND p.user_id = auth.uid())
   );
 
 -- álbuns e cofres
 CREATE POLICY "albums_select" ON public.albums FOR SELECT TO authenticated
   USING (
-    visibility = 'public'
-    OR visibility = 'private_vault'  -- capa/título do cofre são visíveis; itens não
-    OR user_id = auth.uid()
+    user_id = auth.uid()
     OR public.is_staff()
-    OR (visibility = 'connections_only' AND public.are_connected(user_id, auth.uid()))
+    OR (
+      NOT public.is_blocked_between(user_id, auth.uid())
+      AND (
+        visibility = 'public'
+        OR visibility = 'private_vault'  -- capa/título do cofre são visíveis; itens não
+        OR (visibility = 'connections_only' AND public.are_connected(user_id, auth.uid()))
+      )
+    )
   );
 CREATE POLICY "albums_write" ON public.albums FOR ALL TO authenticated
-  USING (user_id = auth.uid() OR public.is_moderator())
-  WITH CHECK (user_id = auth.uid() OR public.is_moderator());
+  USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
 CREATE POLICY "album_items_select" ON public.album_items FOR SELECT TO authenticated
   USING (
@@ -1386,9 +1747,11 @@ CREATE POLICY "album_items_select" ON public.album_items FOR SELECT TO authentic
     )
   );
 CREATE POLICY "album_items_write" ON public.album_items FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND (a.user_id = auth.uid() OR public.is_moderator())))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND (a.user_id = auth.uid() OR public.is_moderator())));
+  USING (EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND a.user_id = auth.uid()))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND a.user_id = auth.uid()));
 
+-- Recusa e revogação ficam registradas como 'revoked': quem pediu não consegue
+-- apagar a própria linha para pedir de novo (só cancelar enquanto está pendente).
 CREATE POLICY "album_permissions_select" ON public.album_permissions FOR SELECT TO authenticated
   USING (
     user_id = auth.uid()
@@ -1397,16 +1760,24 @@ CREATE POLICY "album_permissions_select" ON public.album_permissions FOR SELECT 
   );
 CREATE POLICY "album_permissions_request" ON public.album_permissions FOR INSERT TO authenticated
   WITH CHECK (
-    user_id = auth.uid() AND status = 'pending'
+    user_id = auth.uid() AND status = 'pending' AND granted_at IS NULL
+    AND public.can_interact()
     AND coalesce((SELECT (restrictions ->> 'cannotRequestVault')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
-    AND EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND a.user_id <> auth.uid() AND a.visibility = 'private_vault')
+    AND EXISTS (
+      SELECT 1 FROM public.albums a
+      WHERE a.id = album_id AND a.user_id <> auth.uid() AND a.visibility = 'private_vault'
+        AND NOT public.is_blocked_between(a.user_id, auth.uid())
+    )
   );
 CREATE POLICY "album_permissions_owner_update" ON public.album_permissions FOR UPDATE TO authenticated
   USING (EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND a.user_id = auth.uid()))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND a.user_id = auth.uid()));
+  WITH CHECK (
+    status IN ('granted', 'revoked')
+    AND EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND a.user_id = auth.uid())
+  );
 CREATE POLICY "album_permissions_delete" ON public.album_permissions FOR DELETE TO authenticated
   USING (
-    user_id = auth.uid()
+    (user_id = auth.uid() AND status = 'pending')
     OR EXISTS (SELECT 1 FROM public.albums a WHERE a.id = album_id AND a.user_id = auth.uid())
   );
 
@@ -1421,21 +1792,32 @@ CREATE POLICY "conv_participants_update_own" ON public.conversation_participants
 CREATE POLICY "conv_participants_leave" ON public.conversation_participants FOR DELETE TO authenticated
   USING (user_id = auth.uid());
 
--- Moderação NÃO lê mensagens livremente: o acesso a evidências passará por
--- uma função auditada vinculada a uma denúncia (etapa do painel admin).
+-- Moderação NÃO lê mensagens livremente: o acesso a evidências passa pela
+-- função auditada admin_report_evidence, vinculada a uma denúncia.
+-- Mensagens não podem ser editadas nem apagadas: preservam a evidência em caso de assédio.
 CREATE POLICY "messages_select" ON public.messages FOR SELECT TO authenticated
   USING (public.is_conversation_participant(conversation_id, auth.uid()));
 -- Portão protetivo: enquanto o pedido não for aceito, só quem iniciou pode
--- escrever, e sem mídia.
+-- escrever, uma única mensagem de texto. Bloqueio entre os participantes impede o envio.
 CREATE POLICY "messages_insert" ON public.messages FOR INSERT TO authenticated
   WITH CHECK (
     sender_id = auth.uid()
+    AND status = 'sent'
     AND public.is_conversation_participant(conversation_id, auth.uid())
+    AND public.can_interact()
     AND coalesce((SELECT (restrictions ->> 'cannotMessage')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
+    AND NOT EXISTS (
+      SELECT 1 FROM public.conversation_participants cp
+      WHERE cp.conversation_id = messages.conversation_id AND cp.user_id <> auth.uid()
+        AND public.is_blocked_between(cp.user_id, auth.uid())
+    )
     AND EXISTS (
       SELECT 1 FROM public.conversations c
       WHERE c.id = conversation_id
-        AND (NOT c.is_pending_request OR (c.created_by = auth.uid() AND media_url IS NULL))
+        AND (
+          NOT c.is_pending_request
+          OR (c.created_by = auth.uid() AND media_url IS NULL AND public.conversation_message_count(c.id) = 0)
+        )
     )
   );
 
@@ -1445,66 +1827,62 @@ CREATE POLICY "notifications_update" ON public.notifications FOR UPDATE TO authe
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 CREATE POLICY "notifications_delete" ON public.notifications FOR DELETE TO authenticated USING (user_id = auth.uid());
 
--- denúncias
+-- denúncias (andamento só pela RPC admin_resolve_report)
 CREATE POLICY "reports_insert" ON public.moderation_reports FOR INSERT TO authenticated
-  WITH CHECK (reporter_user_id = auth.uid() AND status = 'pending' AND reviewed_by IS NULL);
+  WITH CHECK (
+    reporter_user_id = auth.uid() AND reporter_user_id <> reported_user_id
+    AND status = 'pending' AND reviewed_by IS NULL AND resolution_note IS NULL AND resolved_at IS NULL
+  );
 CREATE POLICY "reports_select" ON public.moderation_reports FOR SELECT TO authenticated
   USING (reporter_user_id = auth.uid() OR public.is_staff());
-CREATE POLICY "reports_update" ON public.moderation_reports FOR UPDATE TO authenticated
-  USING (public.is_moderator()) WITH CHECK (public.is_moderator());
 
--- administração
+-- administração: papéis, notas e auditoria só mudam pelas RPCs (que registram no livro)
 CREATE POLICY "admin_users_select" ON public.admin_users FOR SELECT TO authenticated
   USING (user_id = auth.uid() OR public.is_superadmin());
-CREATE POLICY "admin_users_manage" ON public.admin_users FOR ALL TO authenticated
-  USING (public.is_superadmin()) WITH CHECK (public.is_superadmin());
 
 CREATE POLICY "admin_notes_select" ON public.admin_user_notes FOR SELECT TO authenticated USING (public.is_staff());
-CREATE POLICY "admin_notes_insert" ON public.admin_user_notes FOR INSERT TO authenticated
-  WITH CHECK (public.is_moderator() AND admin_id = auth.uid());
 
 CREATE POLICY "audit_select" ON public.admin_audit_logs FOR SELECT TO authenticated USING (public.is_staff());
-CREATE POLICY "audit_insert" ON public.admin_audit_logs FOR INSERT TO authenticated
-  WITH CHECK (public.is_staff() AND admin_id = auth.uid() AND admin_role = public.admin_role_of(auth.uid()));
-
 
 -- stories
 CREATE POLICY "stories_select" ON public.stories FOR SELECT TO authenticated
   USING (
     user_id = auth.uid()
     OR public.is_staff()
-    OR (expires_at > now() AND (audience = 'all' OR public.are_connected(user_id, auth.uid())))
+    OR (
+      expires_at > now()
+      AND NOT public.is_blocked_between(user_id, auth.uid())
+      AND (audience = 'all' OR public.are_connected(user_id, auth.uid()))
+    )
   );
 CREATE POLICY "stories_insert" ON public.stories FOR INSERT TO authenticated
   WITH CHECK (
     user_id = auth.uid()
     AND expires_at <= now() + INTERVAL '25 hours'
+    AND public.can_interact()
     AND coalesce((SELECT (restrictions ->> 'cannotPost')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
-    AND (SELECT status FROM public.profiles WHERE id = auth.uid()) NOT IN ('suspended', 'blocked')
   );
 CREATE POLICY "stories_delete" ON public.stories FOR DELETE TO authenticated
-  USING (user_id = auth.uid() OR public.is_moderator());
+  USING (user_id = auth.uid());
 
 CREATE POLICY "story_views_select" ON public.story_views FOR SELECT TO authenticated
   USING (viewer_id = auth.uid() OR EXISTS (SELECT 1 FROM public.stories s WHERE s.id = story_id AND s.user_id = auth.uid()));
 CREATE POLICY "story_views_insert" ON public.story_views FOR INSERT TO authenticated
-  WITH CHECK (viewer_id = auth.uid());
+  WITH CHECK (viewer_id = auth.uid() AND EXISTS (SELECT 1 FROM public.stories s WHERE s.id = story_id));
 
--- eventos
+-- eventos (status e destaque só pela RPC admin_review_event)
 CREATE POLICY "events_select" ON public.events FOR SELECT TO authenticated
   USING (status = 'approved' OR created_by = auth.uid() OR public.is_staff());
 CREATE POLICY "events_insert" ON public.events FOR INSERT TO authenticated
-  WITH CHECK (
-    created_by = auth.uid()
-    AND (SELECT status FROM public.profiles WHERE id = auth.uid()) NOT IN ('suspended', 'blocked')
-  );
+  WITH CHECK (created_by = auth.uid() AND public.can_interact());
 CREATE POLICY "events_update" ON public.events FOR UPDATE TO authenticated
-  USING (created_by = auth.uid() OR public.is_moderator())
-  WITH CHECK (created_by = auth.uid() OR public.is_moderator());
+  USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
 CREATE POLICY "events_delete" ON public.events FOR DELETE TO authenticated
-  USING (created_by = auth.uid() OR public.is_moderator());
+  USING (created_by = auth.uid());
 
-CREATE POLICY "event_attendees_select" ON public.event_attendees FOR SELECT TO authenticated USING (true);
+-- Presença em evento é informação sensível: cada um vê só a sua (os totais ficam no evento)
+CREATE POLICY "event_attendees_select" ON public.event_attendees FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.is_staff());
 CREATE POLICY "event_attendees_write" ON public.event_attendees FOR ALL TO authenticated
   USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid() AND EXISTS (SELECT 1 FROM public.events e WHERE e.id = event_id AND e.status = 'approved'));
@@ -1539,25 +1917,42 @@ DROP POLICY IF EXISTS "vybe_vault_read" ON storage.objects;
 DROP POLICY IF EXISTS "vybe_vault_insert" ON storage.objects;
 DROP POLICY IF EXISTS "vybe_vault_delete" ON storage.objects;
 
-CREATE POLICY "vybe_public_media_read" ON storage.objects FOR SELECT
-  USING (bucket_id = 'public-media');
+-- O download pelo link público não passa por RLS. Esta política controla a LISTAGEM:
+-- cada um lista só a própria pasta (antes, qualquer visitante listava o bucket inteiro).
+CREATE POLICY "vybe_public_media_read" ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'public-media' AND (storage.foldername(name))[1] = auth.uid()::text);
 CREATE POLICY "vybe_public_media_insert" ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'public-media' AND (storage.foldername(name))[1] = auth.uid()::text);
 CREATE POLICY "vybe_public_media_update" ON storage.objects FOR UPDATE TO authenticated
-  USING (bucket_id = 'public-media' AND (storage.foldername(name))[1] = auth.uid()::text);
+  USING (bucket_id = 'public-media' AND (storage.foldername(name))[1] = auth.uid()::text)
+  WITH CHECK (bucket_id = 'public-media' AND (storage.foldername(name))[1] = auth.uid()::text);
 CREATE POLICY "vybe_public_media_delete" ON storage.objects FOR DELETE TO authenticated
   USING (bucket_id = 'public-media' AND (storage.foldername(name))[1] = auth.uid()::text);
 
+-- Cofre: o dono; quem tem acesso liberado (item não removido pela moderação e sem
+-- bloqueio entre os dois); moderação somente para itens com denúncia em aberto.
 CREATE POLICY "vybe_vault_read" ON storage.objects FOR SELECT TO authenticated
   USING (
     bucket_id = 'private-vaults' AND (
-      (storage.foldername(name))[1] = auth.uid()::text
-      OR public.is_moderator()
+      (storage.foldername(objects.name))[1] = auth.uid()::text
       OR EXISTS (
-        SELECT 1 FROM public.albums a
-        WHERE a.id::text = (storage.foldername(name))[2]
-          AND a.user_id::text = (storage.foldername(name))[1]
+        SELECT 1 FROM public.album_items i
+        JOIN public.albums a ON a.id = i.album_id
+        WHERE i.storage_path = objects.name
+          AND a.visibility = 'private_vault'
+          AND a.user_id::text = (storage.foldername(objects.name))[1]
+          AND i.moderation_status IN ('approved', 'pending_review')
           AND public.has_vault_access(a.id, auth.uid())
+          AND NOT public.is_blocked_between(a.user_id, auth.uid())
+      )
+      OR (
+        public.is_moderator()
+        AND EXISTS (
+          SELECT 1 FROM public.album_items i
+          JOIN public.moderation_reports r
+            ON r.target_type = 'media' AND r.target_id = i.id::text AND r.status IN ('pending', 'under_review')
+          WHERE i.storage_path = objects.name
+        )
       )
     )
   );

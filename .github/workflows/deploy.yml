@@ -3,6 +3,9 @@ name: Deploy Vybelog to GitHub Pages
 on:
   push:
     branches: ["vybe.main"]
+  # Pull Requests só validam (tipos, testes de segurança do banco e build); não publicam
+  pull_request:
+    branches: ["vybe.main"]
   workflow_dispatch:
 
 permissions:
@@ -11,7 +14,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.ref) || 'pages' }}
   cancel-in-progress: false
 
 jobs:
@@ -33,6 +36,13 @@ jobs:
       - name: Type check
         run: npm run lint
 
+      # Executa supabase/setup.sql num Postgres em memória e tenta os ataques conhecidos
+      # (conexão forjada, entrar em conversa alheia, ler cofre, notificação falsa...).
+      - name: Security tests (RLS do Supabase)
+        run: |
+          npm install --no-save @electric-sql/pglite@0.2.17
+          npm run test:db
+
       # A URL do projeto e a chave publishable do Supabase são públicas por design (vão para o navegador).
       # Para trocar de projeto sem editar este arquivo, crie variáveis em Settings > Secrets and variables > Actions > Variables.
       - name: Build Vite application
@@ -42,14 +52,17 @@ jobs:
         run: npm run build
 
       - name: Setup GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Upload Pages Artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
 
   deploy:
+    if: github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
