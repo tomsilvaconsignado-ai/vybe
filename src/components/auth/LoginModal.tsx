@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import logoUrl from '../../assets/logo.png';
 import { X, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export const LoginModal: React.FC = () => {
@@ -54,14 +55,10 @@ export const LoginModal: React.FC = () => {
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
-            <Lock className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-white">Entrar no Vybelog</h3>
-            <p className="text-xs text-zinc-400">Sua conexão liberal segura e privativa</p>
-          </div>
+        <div className="flex flex-col items-center text-center mb-6">
+          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-20 h-20 rounded-2xl mb-3 select-none" />
+          <h3 className="text-xl font-bold text-white">Entrar no Vybelog</h3>
+          <p className="text-xs text-zinc-400">Sua conexão liberal segura e privativa</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">

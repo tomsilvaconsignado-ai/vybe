@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { KeyRound } from 'lucide-react';
+import logoUrl from '../../assets/logo.png';
 
 // Exibido quando o usuário volta pelo link de "Esqueci a senha" enviado por e-mail
 export const ResetPasswordModal: React.FC = () => {
@@ -29,14 +29,10 @@ export const ResetPasswordModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
-            <KeyRound className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-white">Definir nova senha</h3>
-            <p className="text-xs text-zinc-400">Escolha uma senha com pelo menos 8 caracteres.</p>
-          </div>
+        <div className="flex flex-col items-center text-center mb-6">
+          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-20 h-20 rounded-2xl mb-3 select-none" />
+          <h3 className="text-xl font-bold text-white">Definir nova senha</h3>
+          <p className="text-xs text-zinc-400">Escolha uma senha com pelo menos 8 caracteres.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
