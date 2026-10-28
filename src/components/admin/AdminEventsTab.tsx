@@ -3,6 +3,7 @@ import { CalendarHeart, Check, X, Star } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { VybeEvent } from '../../types';
 import { EVENT_CATEGORY_LABELS, fetchEventsForReview, formatEventDate, reviewEvent } from '../../lib/events';
+import { notify, askText } from '../common/Feedback';
 
 const STATUS_STYLES: Record<VybeEvent['status'], string> = {
   pending: 'bg-amber-950 text-amber-300 border-amber-800',
@@ -26,14 +27,14 @@ export const AdminEventsTab: React.FC = () => {
   const act = async (ev: VybeEvent, status: 'approved' | 'rejected', featured = false) => {
     const note = status === 'approved'
       ? (featured ? 'Evento aprovado com destaque.' : 'Evento aprovado pela moderação.')
-      : prompt('Motivo da recusa (o organizador verá esta mensagem):')?.trim();
+      : (await askText({ title: 'Recusar evento', message: 'Motivo da recusa (o organizador verá esta mensagem):', confirmLabel: 'Recusar', danger: true, multiline: true }))?.trim();
     if (!note || note.length < 5) {
-      if (status === 'rejected') alert('Informe o motivo (mínimo 5 caracteres).');
+      if (status === 'rejected') notify('Informe o motivo (mínimo 5 caracteres).');
       return;
     }
     const error = await reviewEvent(ev.id, status, featured, note);
     if (error) {
-      alert(`Ação não realizada: ${error}`);
+      notify(`Ação não realizada: ${error}`);
       return;
     }
     await Promise.all([load(), refreshAdminData(), refreshEvents()]);

@@ -66,6 +66,7 @@ import { requestVaultAccess, grantVaultAccess, removeVaultAccess } from '../lib/
 import { fetchStoryGroups } from '../lib/stories';
 import { fetchEvents, fetchActiveAds, setEventRsvp } from '../lib/events';
 import type { EvidenceMessage } from '../lib/admin';
+import { notify } from '../components/common/Feedback';
 
 // Dados enviados ao Supabase Auth no cadastro; o gatilho handle_new_user cria o perfil a partir deles
 export interface SignUpMetadata {
@@ -444,7 +445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (authLinkError) {
-      alert(authLinkError);
+      notify(authLinkError);
       setAuthModalType('login');
     }
 
@@ -508,7 +509,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Protected Admin Mode Switcher
   const setIsAdminMode = (active: boolean) => {
     if (active && !isAuthorizedAdmin) {
-      alert('Acesso negado: sua conta não possui papel administrativo.');
+      notify('Acesso negado: sua conta não possui papel administrativo.');
       return;
     }
     setIsAdminModeInternal(active);
@@ -575,7 +576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveOwnProfile(currentUser.id, updated).then(error => {
       if (error) {
         console.error('[Vybelog] Falha ao salvar perfil:', error);
-        alert('Não foi possível salvar as alterações do perfil. Tente novamente.');
+        notify('Não foi possível salvar as alterações do perfil. Tente novamente.');
       }
     });
   };
@@ -600,7 +601,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const reportFailure = (action: string, error: string) => {
     console.error(`[Vybelog] Falha ao ${action}:`, error);
-    alert(`Não foi possível ${action}. Tente novamente.`);
+    notify(`Não foi possível ${action}. Tente novamente.`);
   };
 
   const toggleLikePost = async (postId: string) => {
@@ -683,16 +684,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     if (outgoingConnectionRequests.includes(userId)) {
-      alert('Sua solicitação de conexão já foi enviada e aguarda resposta.');
+      notify('Pedido de conexão já enviado. Aguarde a resposta.', 'info');
       return;
     }
     const error = await sendConnectionRequest(currentUser.id, userId);
     if (error) {
-      alert(error);
+      notify(error);
       return;
     }
     setOutgoingConnectionRequests(prev => [...prev, userId]);
-    alert('Solicitação de conexão enviada com respeito mútuo!');
+    notify('Pedido de conexão enviado', 'success');
   };
 
   const acceptConnection = async (userId: string) => {
@@ -729,10 +730,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const requestAlbumAccess = async (albumId: string, _ownerUserId: string) => {
     const error = await requestVaultAccess(currentUser.id, albumId);
     if (error) {
-      alert(error);
+      notify(error);
       return false;
     }
-    alert('Pedido de acesso enviado. O dono do cofre será notificado e decidirá se libera.');
+    notify('Pedido de acesso enviado. O dono do cofre será notificado e decidirá se libera.');
     return true;
   };
 
@@ -788,7 +789,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
     const error = await setCommunityMembership(currentUser.id, communityId, join);
     if (error) {
-      alert(error);
+      notify(error);
       setCommunities(await fetchCommunities(currentUser.id));
     }
   };
@@ -813,7 +814,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!content.trim() && !mediaUrl) return;
     const error = await insertMessage(currentUser.id, conversationId, content.trim(), mediaUrl);
     if (error) {
-      alert(error);
+      notify(error);
       return;
     }
     // A mensagem chega também pelo Realtime; recarregar garante consistência se o Realtime falhar
@@ -872,7 +873,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
     setReportModalTarget(null);
-    alert('Denúncia recebida pela Equipe de Segurança & Moderação do Vybelog. Investigaremos o caso com rigor e discrição.');
+    notify('Denúncia recebida pela Equipe de Segurança & Moderação do Vybelog. Investigaremos o caso com rigor e discrição.');
     return true;
   };
 
@@ -913,7 +914,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const runAdminAction = async (action: () => Promise<string | null>): Promise<boolean> => {
     const error = await action();
     if (error) {
-      alert(`Ação não realizada: ${error}`);
+      notify(`Ação não realizada: ${error}`);
       return false;
     }
     await refreshAdminData();

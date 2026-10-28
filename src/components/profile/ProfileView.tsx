@@ -34,6 +34,7 @@ import { fetchUserPosts } from '../../lib/social';
 import { PostCard } from '../feed/PostCard';
 import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibility';
 import { MediaAlbum, Post } from '../../types';
+import { notify, askConfirm } from '../common/Feedback';
 
 export const ProfileView: React.FC = () => {
   const { 
@@ -163,7 +164,7 @@ export const ProfileView: React.FC = () => {
             {!isSelf && (
               <button
                 onClick={async () => {
-                  if (confirm(`Bloquear ${profile.displayName}? Vocês deixam de se seguir e de ser conexões, a pessoa não verá mais seu perfil, posts e stories e não poderá enviar mensagens nem pedir acesso aos seus cofres. Ela não é avisada. Você pode desbloquear em Configurações.`)) {
+                  if (await askConfirm({ title: `Bloquear ${profile.displayName}?`, message: "Vocês deixam de se seguir e de ser conexões. A pessoa não verá mais seu perfil, posts e stories, nem poderá enviar mensagens ou pedir acesso aos seus cofres. Ela não é avisada. Você pode desbloquear em Configurações.", confirmLabel: "Bloquear", danger: true })) {
                     await blockUser(profile.id);
                   }
                 }}
@@ -209,7 +210,7 @@ export const ProfileView: React.FC = () => {
                     <span>Editar Perfil</span>
                   </button>
                   <button
-                    onClick={() => alert('Link seguro do seu perfil copiado!')}
+                    onClick={() => notify('Link seguro do seu perfil copiado!')}
                     className="p-2 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
                     title="Compartilhar"
                   >
@@ -239,14 +240,21 @@ export const ProfileView: React.FC = () => {
 
                   <button
                     onClick={() => requestConnection(profile.id)}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800 hover:text-white cursor-pointer"
+                    disabled={isConnected || outgoingConnectionRequests.includes(profile.id)}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${
+                      incomingConnectionRequests.includes(profile.id)
+                        ? "bg-gradient-to-r from-purple-600 to-rose-600 text-white border-transparent cursor-pointer"
+                        : isConnected || outgoingConnectionRequests.includes(profile.id)
+                          ? "bg-zinc-900/60 text-zinc-500 border-zinc-800 cursor-default"
+                          : "bg-zinc-900 text-zinc-200 border-zinc-700 hover:text-white active:scale-95 cursor-pointer"
+                    }`}
                   >
                     {isConnected
                       ? 'Conectado(a)'
                       : incomingConnectionRequests.includes(profile.id)
                         ? 'Aceitar conexão'
                         : outgoingConnectionRequests.includes(profile.id)
-                          ? 'Pedido enviado'
+                          ? 'Solicitado'
                           : 'Conectar'}
                   </button>
                 </>

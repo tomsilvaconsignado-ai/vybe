@@ -16,6 +16,7 @@ import {
   Ban
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
+import { askConfirm } from '../common/Feedback';
 
 export const MessagesView: React.FC = () => {
   const { 
@@ -256,7 +257,7 @@ export const MessagesView: React.FC = () => {
                 </button>
                 <button
                   onClick={async () => {
-                    if (confirm(`Bloquear ${otherParticipant.displayName}? A pessoa não poderá mais enviar mensagens nem ver seu perfil. A conversa continua guardada caso você queira denunciá-la depois.`)) {
+                    if (await askConfirm({ title: `Bloquear ${otherParticipant.displayName}?`, message: "A pessoa não poderá mais enviar mensagens nem ver seu perfil. A conversa continua guardada caso você queira denunciá-la depois.", confirmLabel: "Bloquear", danger: true })) {
                       await blockUser(otherParticipant.id);
                     }
                   }}

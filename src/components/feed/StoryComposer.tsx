@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Image, Users, Globe } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { publishStory } from '../../lib/stories';
+import { notify } from '../common/Feedback';
 
 const MAX_MB = 20;
 
@@ -20,7 +21,7 @@ export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     e.target.value = '';
     if (!picked) return;
     if (picked.size > MAX_MB * 1024 * 1024) {
-      alert(`O arquivo deve ter no máximo ${MAX_MB} MB.`);
+      notify(`O arquivo deve ter no máximo ${MAX_MB} MB.`);
       return;
     }
     setFile(picked);
@@ -33,7 +34,7 @@ export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     const error = await publishStory(currentUser.id, file, caption, audience);
     setPublishing(false);
     if (error) {
-      alert(`Não foi possível publicar: ${error}`);
+      notify(`Não foi possível publicar: ${error}`);
       return;
     }
     await refreshStories();

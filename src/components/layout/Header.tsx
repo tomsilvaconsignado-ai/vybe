@@ -77,7 +77,7 @@ export const Header: React.FC = () => {
                 <span className="font-extrabold text-xl sm:text-2xl tracking-wide sm:tracking-wider text-white group-hover:text-purple-300 transition-colors">
                   Vybelog
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                <span className="hidden sm:inline text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
                   +18
                 </span>
               </div>
@@ -126,15 +126,16 @@ export const Header: React.FC = () => {
           {isLoggedIn && isAuthorizedAdmin && (
             <button
               onClick={() => setIsAdminMode(!isAdminMode)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
+              className={`p-2 sm:px-3.5 sm:py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
                 isAdminMode 
                   ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-black border-amber-400 shadow-lg shadow-amber-950/40' 
                   : 'bg-amber-950/40 text-amber-300 border-amber-500/50 hover:bg-amber-900/50 hover:text-white'
               }`}
               title="Alternar entre Portal Social e Painel Administrativo"
+              aria-label={isAdminMode ? "Voltar ao Portal Social" : "Abrir Painel Administrativo"}
             >
               <ShieldCheck className="w-4 h-4 text-amber-300" />
-              <span>
+              <span className="hidden sm:inline">
                 {isAdminMode ? 'Voltar ao Portal Social' : 'Painel Administrativo'}
               </span>
             </button>

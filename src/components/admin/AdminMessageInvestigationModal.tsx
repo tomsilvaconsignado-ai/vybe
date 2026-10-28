@@ -11,6 +11,7 @@ import {
   KeyRound
 } from 'lucide-react';
 import { ModerationReport } from '../../types';
+import { notify } from '../common/Feedback';
 
 interface AdminMessageInvestigationModalProps {
   report: ModerationReport | null;
@@ -30,7 +31,7 @@ export const AdminMessageInvestigationModal: React.FC<AdminMessageInvestigationM
   const handleAuthorizeInspection = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!justification.trim() || justification.trim().length < 10) {
-      alert('A justificativa deve conter no mínimo 10 caracteres fundamentando o motivo legal/operacional da auditoria.');
+      notify('A justificativa deve conter no mínimo 10 caracteres fundamentando o motivo legal/operacional da auditoria.');
       return;
     }
 
@@ -38,7 +39,7 @@ export const AdminMessageInvestigationModal: React.FC<AdminMessageInvestigationM
     try {
       const { messages, error } = await adminInvestigateMessage(report.id, justification.trim());
       if (error) {
-        alert(`Acesso não liberado: ${error}`);
+        notify(`Acesso não liberado: ${error}`);
         return;
       }
       setIsUnlocked(true);

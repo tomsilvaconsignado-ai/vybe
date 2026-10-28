@@ -36,6 +36,7 @@ import {
 import { ModerationReport, AdminUserRecord, AdminMediaRecord } from '../../types';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminMessageInvestigationModal } from './AdminMessageInvestigationModal';
+import { notify, askText } from '../common/Feedback';
 
 export const AdminPortal: React.FC = () => {
   const { 
@@ -520,7 +521,7 @@ export const AdminPortal: React.FC = () => {
                       <button
                         onClick={() => {
                           if (resolutionNote.trim().length < 5) {
-                            alert('Informe a justificativa (mínimo 5 caracteres).');
+                            notify('Informe a justificativa (mínimo 5 caracteres).');
                             return;
                           }
                           adminResolveReport(selectedReport.id, 'resolved', resolutionNote.trim()).then(ok => ok && setResolutionNote(''));
@@ -739,8 +740,8 @@ export const AdminPortal: React.FC = () => {
                   <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
                     {m.status !== 'approved' && (
                       <button
-                        onClick={() => {
-                          const r = prompt('Justificativa para aprovação:');
+                        onClick={async () => {
+                          const r = await askText({ title: 'Aprovar mídia', message: 'Justificativa para aprovação:', confirmLabel: 'Aprovar' });
                           if (r) adminModerateMedia(m.id, 'approved', r);
                         }}
                         className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 rounded-lg text-[11px] font-bold cursor-pointer"
@@ -751,8 +752,8 @@ export const AdminPortal: React.FC = () => {
 
                     {m.status !== 'removed' && (
                       <button
-                        onClick={() => {
-                          const r = prompt('Justificativa para remoção (registrada em log):');
+                        onClick={async () => {
+                          const r = await askText({ title: 'Remover mídia', message: 'Justificativa para remoção (registrada em log):', confirmLabel: 'Remover', danger: true });
                           if (r) adminModerateMedia(m.id, 'removed', r);
                         }}
                         className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600/50 text-rose-300 rounded-lg text-[11px] font-bold cursor-pointer"

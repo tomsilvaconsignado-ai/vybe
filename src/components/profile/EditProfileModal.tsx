@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { X, Save, User, MapPin, Sparkles, Shield, Camera } from 'lucide-react';
 import { LocationPrivacy } from '../../types';
 import { uploadPublicMedia } from '../../lib/supabase';
+import { notify } from '../common/Feedback';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     e.target.value = '';
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      alert('A imagem deve ter no máximo 10 MB.');
+      notify('A imagem deve ter no máximo 10 MB.');
       return;
     }
     setUploading(kind);
@@ -39,7 +40,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     const { publicUrl, error } = await uploadPublicMedia(file, `${currentUser.id}/profile/${kind}-${Date.now()}.${extension}`);
     setUploading(null);
     if (error || !publicUrl) {
-      alert('Não foi possível enviar a imagem. Tente novamente.');
+      notify('Não foi possível enviar a imagem. Tente novamente.');
       return;
     }
     if (kind === 'avatar') setAvatarUrl(publicUrl);

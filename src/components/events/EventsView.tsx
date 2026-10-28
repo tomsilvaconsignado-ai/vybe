@@ -6,6 +6,7 @@ import { EventCard, EventRsvpButtons } from './EventCard';
 import { SubmitEventModal } from './SubmitEventModal';
 import { AdSlot } from '../ads/AdSlot';
 import { EVENT_CATEGORY_LABELS, deleteEvent, formatEventDate } from '../../lib/events';
+import { notify, askConfirm } from '../common/Feedback';
 
 type Filter = 'upcoming' | 'city' | 'going' | 'mine';
 
@@ -121,9 +122,9 @@ export const EventsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!confirm('Excluir este evento?')) return;
+                    if (!(await askConfirm({ title: 'Excluir evento?', message: 'O evento sai da agenda para todos.', confirmLabel: 'Excluir', danger: true }))) return;
                     const error = await deleteEvent(detail.id);
-                    if (error) alert(`Não foi possível excluir: ${error}`);
+                    if (error) notify(`Não foi possível excluir: ${error}`);
                     setOpenEvent(null);
                     refreshEvents();
                   }}

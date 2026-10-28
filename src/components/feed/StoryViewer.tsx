@@ -3,6 +3,7 @@ import { X, Eye, Trash2, Users } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { StoryGroup } from '../../types';
 import { deleteStory, fetchStoryViewers, markStoryViewed } from '../../lib/stories';
+import { notify, askConfirm } from '../common/Feedback';
 
 interface StoryViewerProps {
   groups: StoryGroup[];
@@ -85,9 +86,9 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({ groups, startGroupInde
   if (!group || !story) return null;
 
   const handleDelete = async () => {
-    if (!confirm('Apagar este story?')) return;
+    if (!(await askConfirm({ title: 'Apagar story?', message: 'Ele deixa de aparecer para todos.', confirmLabel: 'Apagar', danger: true }))) return;
     const error = await deleteStory(story.id);
-    if (error) alert(`Não foi possível apagar: ${error}`);
+    if (error) notify(`Não foi possível apagar: ${error}`);
     await refreshStories();
     onClose();
   };
