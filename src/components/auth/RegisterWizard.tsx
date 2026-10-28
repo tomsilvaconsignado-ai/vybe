@@ -179,7 +179,7 @@ export const RegisterWizard: React.FC = () => {
 
   if (confirmationSentTo) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
         <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-8 shadow-2xl text-center space-y-4 my-auto">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
             <ShieldCheck className="w-7 h-7 text-emerald-400" />
@@ -202,7 +202,7 @@ export const RegisterWizard: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="max-w-xl w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-auto">
         
         {/* Close Button */}

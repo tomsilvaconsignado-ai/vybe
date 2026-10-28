@@ -34,7 +34,7 @@ export const MobileNav: React.FC = () => {
   ];
 
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09070f]/95 backdrop-blur-xl border-t border-purple-900/30 px-2 py-2">
+    <nav aria-label="Navegação principal" className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09070f]/95 backdrop-blur-xl border-t border-purple-900/30 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-around">
         {tabs.map(tab => {
           const Icon = tab.icon;
@@ -46,25 +46,27 @@ export const MobileNav: React.FC = () => {
                 setIsAdminMode(false);
                 setActiveTab(tab.id);
               }}
-              className={`flex flex-col items-center justify-center p-1.5 rounded-xl relative transition-all cursor-pointer ${
+              aria-current={isActive ? 'page' : undefined}
+              className={`flex-1 min-h-[52px] flex flex-col items-center justify-center rounded-xl relative transition-colors cursor-pointer active:bg-purple-950/40 ${
                 isActive 
                   ? 'text-fuchsia-400 font-semibold' 
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
               <div className="relative">
-                <Icon className={`w-5 h-5 ${isActive ? 'scale-110' : ''}`} />
-                {tab.badge && tab.badge > 0 && (
-                  <span className="absolute -top-1 -right-2 bg-rose-500 text-white text-[9px] font-bold px-1 rounded-full border border-[#09070f]">
-                    {tab.badge}
+                <Icon className="w-6 h-6" strokeWidth={isActive ? 2.4 : 1.8} />
+                {!!tab.badge && tab.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-bold px-1 rounded-full border-2 border-[#09070f] flex items-center justify-center">
+                    {tab.badge > 99 ? '99+' : tab.badge}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] mt-0.5">{tab.label}</span>
+              <span className="text-[11px] mt-0.5">{tab.label}</span>
+              {isActive && <span className="absolute top-0 w-8 h-0.5 rounded-full bg-fuchsia-400" />}
             </button>
           );
         })}
       </div>
-    </div>
+    </nav>
   );
 };

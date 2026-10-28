@@ -37,7 +37,7 @@ export const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ onClose, onC
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
       <form onSubmit={handleSubmit} className="max-w-md w-full bg-[#130d22] border border-purple-800/40 rounded-3xl p-6 shadow-2xl relative space-y-4">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-full hover:bg-zinc-800 cursor-pointer" aria-label="Fechar">
           <X className="w-5 h-5" />

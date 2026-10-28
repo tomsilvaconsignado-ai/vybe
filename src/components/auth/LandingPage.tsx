@@ -32,7 +32,7 @@ export const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#08060c] text-zinc-100 flex flex-col selection:bg-purple-600 selection:text-white">
+    <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col selection:bg-purple-600 selection:text-white">
       
       {/* Top Banner Warning +18 */}
       <div className="bg-gradient-to-r from-purple-950/80 via-rose-950/80 to-purple-950/80 border-b border-rose-900/40 py-2 px-4 text-center text-xs font-semibold text-rose-300 flex items-center justify-center gap-2">
@@ -41,7 +41,7 @@ export const LandingPage: React.FC = () => {
       </div>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden flex-1 flex items-center min-h-[calc(100vh-7rem)] px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
+      <section className="relative overflow-hidden flex-1 flex items-center min-h-[calc(100dvh-7rem)] px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
         {/* Fundo: preto profundo com brilhos rosé e roxo da identidade */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#120a1f] via-[#08060c] to-[#1a0d12] pointer-events-none" />
         <div className="absolute -top-32 -left-32 w-[520px] h-[520px] bg-purple-700/25 rounded-full blur-[160px] pointer-events-none" />

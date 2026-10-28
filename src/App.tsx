@@ -56,7 +56,7 @@ const AppContent: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#08060c] flex items-center justify-center">
+      <div className="min-h-dvh bg-[#08060c] flex items-center justify-center">
         <div className="w-10 h-10 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
       </div>
     );
@@ -64,7 +64,7 @@ const AppContent: React.FC = () => {
 
   if (passwordRecoveryMode) {
     return (
-      <div className="min-h-screen bg-[#08060c]">
+      <div className="min-h-dvh bg-[#08060c]">
         <ResetPasswordModal />
       </div>
     );
@@ -73,7 +73,7 @@ const AppContent: React.FC = () => {
   // Sessão válida mas sem perfil no banco (ex.: cadastro feito antes de rodar supabase/setup.sql)
   if (profileMissing) {
     return (
-      <div className="min-h-screen bg-[#08060c] flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-[#08060c] flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-8 text-center space-y-4">
           <h2 className="text-xl font-bold text-white">Não encontramos seu perfil</h2>
           <p className="text-xs text-zinc-400">
@@ -94,7 +94,7 @@ const AppContent: React.FC = () => {
   // If not authenticated, show modern landing page
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#08060c] text-zinc-100 flex flex-col font-sans">
+      <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col font-sans">
         <Header />
         <main className="flex-1">
           <LandingPage />
@@ -110,7 +110,7 @@ const AppContent: React.FC = () => {
   // If Admin Portal mode is toggled
   if (isAdminMode) {
     return (
-      <div className="min-h-screen bg-[#08060c] text-zinc-100 flex flex-col font-sans">
+      <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col font-sans">
         <Header />
         <main className="flex-1 pb-16">
           <Suspense fallback={<ViewLoading />}><AdminPortal /></Suspense>
@@ -155,12 +155,12 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#08060c] text-zinc-100 flex flex-col font-sans">
+    <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col font-sans">
       <Header />
       
       <div className="flex-1 max-w-[1440px] w-full mx-auto flex">
         <Sidebar />
-        <main className="flex-1 pb-20 lg:pb-10 min-w-0">
+        <main className="flex-1 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-10 min-w-0">
           <Suspense fallback={<ViewLoading />}>{renderMainView()}</Suspense>
         </main>
         {/* Coluna de destaques (eventos, publicidade, sugestões) nas telas sociais */}

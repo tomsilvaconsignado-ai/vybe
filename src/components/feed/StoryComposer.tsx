@@ -41,7 +41,7 @@ export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+    <div className="modal-overlay fixed inset-0 z-[70] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-[#130d22] border border-purple-800/40 rounded-3xl p-5 space-y-4 relative">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 text-zinc-400 hover:text-white cursor-pointer" aria-label="Fechar">
           <X className="w-5 h-5" />

@@ -74,10 +74,10 @@ export const MessagesView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto py-6 px-4">
+    <div className="max-w-6xl mx-auto md:py-6 md:px-4">
       
       {/* Container */}
-      <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl overflow-hidden shadow-2xl h-[78vh] flex flex-col md:flex-row">
+      <div className="bg-[#120d20] md:border border-purple-900/30 md:rounded-3xl overflow-hidden shadow-2xl h-[calc(100dvh-9.6rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:h-[78vh] flex flex-col md:flex-row">
         
         {/* Left Side: Conversations & Requests Drawer */}
         <div className={`w-full md:w-80 shrink-0 border-r border-purple-900/30 flex flex-col bg-[#0e0918] ${
@@ -367,6 +367,7 @@ export const MessagesView: React.FC = () => {
                 disabled={inputLocked}
                 value={inputText}
                 onChange={e => setInputText(e.target.value)}
+                enterKeyHint="send"
                 className="flex-1 px-4 py-2.5 bg-zinc-900/90 border border-purple-900/40 rounded-full text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
               />
 

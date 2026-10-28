@@ -565,6 +565,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.auth.signOut();
     setIsAdminModeInternal(false);
     setActiveTab('feed');
+    // Continua no Vybelog, na tela de login
+    setAuthModalType('login');
   };
 
   const updateCurrentUser = (updated: Partial<UserProfile>) => {
