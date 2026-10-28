@@ -30,7 +30,7 @@ export const ResetPasswordModal: React.FC = () => {
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl">
         <div className="flex flex-col items-center text-center mb-6">
-          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-20 h-20 rounded-2xl mb-3 select-none" />
+          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-20 h-20 rounded-full ring-1 ring-purple-400/30 mb-3 select-none" />
           <h3 className="text-xl font-bold text-white">Definir nova senha</h3>
           <p className="text-xs text-zinc-400">Escolha uma senha com pelo menos 8 caracteres.</p>
         </div>

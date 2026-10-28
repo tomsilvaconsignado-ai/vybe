@@ -15,7 +15,7 @@ export const AgeGateModal: React.FC = () => {
         <div className="absolute -top-16 -left-16 w-32 h-32 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-16 -right-16 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        <img src={logoUrl} alt="Vybelog" className="w-24 h-24 mx-auto mb-3 rounded-full shadow-xl shadow-amber-900/30" />
+        <img src={logoUrl} alt="Vybelog" className="w-24 h-24 mx-auto mb-3 rounded-full shadow-xl shadow-purple-900/40" />
         <span className="inline-block mb-3 text-xs font-black tracking-widest px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
           +18
         </span>

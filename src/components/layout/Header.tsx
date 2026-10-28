@@ -70,7 +70,7 @@ export const Header: React.FC = () => {
             <img
               src={logoUrl}
               alt=""
-              className="w-11 h-11 rounded-full shadow-lg shadow-amber-900/30 group-hover:scale-105 transition-transform"
+              className="w-11 h-11 rounded-full shadow-lg shadow-purple-900/40 group-hover:scale-105 transition-transform"
             />
             <div>
               <div className="flex items-center gap-1.5">

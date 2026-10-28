@@ -33,7 +33,7 @@ export const IntroSplash: React.FC = () => {
       onClick={() => setVisible(false)}
       className={`fixed inset-0 z-[10000] bg-[#0b031b] flex items-center justify-center transition-opacity duration-300 ${leaving ? 'opacity-0' : 'opacity-100'}`}
     >
-      <img src={logoFullUrl} alt="Vybelog" className="intro-logo w-64 sm:w-80 select-none" draggable={false} />
+      <img src={logoFullUrl} alt="Vybelog" className="intro-logo w-56 sm:w-72 rounded-full select-none" draggable={false} />
     </div>
   );
 };
