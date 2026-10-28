@@ -56,7 +56,7 @@ export const LoginModal: React.FC = () => {
         </button>
 
         <div className="flex flex-col items-center text-center mb-6">
-          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-20 h-20 rounded-2xl mb-3 select-none" />
+          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-20 h-20 rounded-full ring-1 ring-purple-400/30 mb-3 select-none" />
           <h3 className="text-xl font-bold text-white">Entrar no Vybelog</h3>
           <p className="text-xs text-zinc-400">Sua conexão liberal segura e privativa</p>
         </div>

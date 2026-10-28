@@ -42,16 +42,10 @@ export const LandingPage: React.FC = () => {
 
       {/* Hero Section */}
       <section className="relative overflow-hidden flex-1 flex items-center min-h-[calc(100vh-7rem)] px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
-        {/* Fundo: preto profundo com brilhos dourado e roxo da identidade */}
+        {/* Fundo: preto profundo com brilhos rosé e roxo da identidade */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#120a1f] via-[#08060c] to-[#1a0d12] pointer-events-none" />
         <div className="absolute -top-32 -left-32 w-[520px] h-[520px] bg-purple-700/25 rounded-full blur-[160px] pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-[480px] h-[480px] bg-amber-600/15 rounded-full blur-[150px] pointer-events-none" />
-        <img
-          src={logoUrl}
-          alt=""
-          aria-hidden="true"
-          className="absolute -right-24 top-1/2 -translate-y-1/2 w-[640px] max-w-none opacity-[0.06] pointer-events-none select-none hidden lg:block"
-        />
+        <div className="absolute bottom-0 right-0 w-[480px] h-[480px] bg-rose-600/15 rounded-full blur-[150px] pointer-events-none" />
 
         <div className="relative z-10 w-full max-w-7xl mx-auto grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
 
@@ -61,13 +55,13 @@ export const LandingPage: React.FC = () => {
               src={logoFullUrl}
               alt="Vybelog"
               draggable={false}
-              className="brand-logo mx-auto lg:mx-0 w-44 sm:w-52 rounded-3xl select-none"
+              className="brand-logo mx-auto w-44 sm:w-52 rounded-full ring-1 ring-purple-400/30 select-none"
             />
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-white leading-[1.15]">
               Conecte-se com <strong className="font-extrabold">casais</strong> e{' '}
               <strong className="font-extrabold">solteiros</strong> em uma{' '}
-              <strong className="font-extrabold bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 bg-clip-text text-transparent">
+              <strong className="font-extrabold bg-gradient-to-r from-orange-300 via-rose-400 to-purple-400 bg-clip-text text-transparent">
                 rede social adulta
               </strong>{' '}
               feita para a sua privacidade
@@ -78,7 +72,7 @@ export const LandingPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openRegister(null)}
-                className="font-bold text-amber-400 hover:text-amber-300 hover:underline cursor-pointer"
+                className="font-bold text-rose-300 hover:text-rose-200 hover:underline cursor-pointer"
               >
                 Cadastre-se grátis
               </button>
@@ -87,7 +81,7 @@ export const LandingPage: React.FC = () => {
 
             <div className="pt-2 grid grid-cols-3 gap-2 sm:gap-4 max-w-lg mx-auto lg:mx-0 text-left">
               <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                <Lock className="w-4 h-4 text-rose-400 shrink-0" />
                 <span className="text-[11px] text-zinc-400">Cofres com chave privativa</span>
               </div>
               <div className="flex items-center gap-2">
@@ -108,7 +102,7 @@ export const LandingPage: React.FC = () => {
                 e.preventDefault();
                 openRegister(profileType || null);
               }}
-              className="mx-auto w-full max-w-md rounded-3xl p-6 sm:p-8 bg-white/[0.06] border border-amber-500/20 backdrop-blur-xl shadow-2xl shadow-black/50"
+              className="mx-auto w-full max-w-md rounded-3xl p-6 sm:p-8 bg-white/[0.06] border border-purple-500/20 backdrop-blur-xl shadow-2xl shadow-black/50"
             >
               <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-6">
                 Quero criar meu perfil:
@@ -122,7 +116,7 @@ export const LandingPage: React.FC = () => {
                   id="landing-profile-type"
                   value={profileType}
                   onChange={(e) => setProfileType(e.target.value as ProfileType | '')}
-                  className="w-full appearance-none rounded-xl bg-[#0d0a17] border border-zinc-700 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/30 outline-none px-4 py-4 pr-10 text-base text-white cursor-pointer"
+                  className="w-full appearance-none rounded-xl bg-[#0d0a17] border border-zinc-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 outline-none px-4 py-4 pr-10 text-base text-white cursor-pointer"
                 >
                   <option value="" disabled>Selecione seu perfil</option>
                   {PROFILE_OPTIONS.map(opt => (
@@ -134,7 +128,7 @@ export const LandingPage: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full py-4 rounded-xl font-extrabold text-lg text-[#1a0f05] bg-gradient-to-r from-amber-300 via-amber-500 to-orange-500 hover:from-amber-200 hover:to-orange-400 shadow-xl shadow-amber-900/40 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-4 rounded-xl font-extrabold text-lg text-white bg-gradient-to-r from-orange-400 via-rose-500 to-purple-600 hover:from-orange-300 hover:to-purple-500 shadow-xl shadow-purple-950/50 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Criar minha conta grátis!</span>
                 <ArrowRight className="w-5 h-5" />
@@ -144,7 +138,7 @@ export const LandingPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setAuthModalType('login')}
-                  className="text-sm font-semibold text-zinc-200 underline underline-offset-4 hover:text-amber-300 cursor-pointer"
+                  className="text-sm font-semibold text-zinc-200 underline underline-offset-4 hover:text-rose-300 cursor-pointer"
                 >
                   Já tenho cadastro
                 </button>
