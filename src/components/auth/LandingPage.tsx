@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import logoUrl from '../../assets/logo.png';
+import introVideo from '../../assets/vybelog-intro.mp4';
+import introPoster from '../../assets/vybelog-intro-poster.jpg';
 import { ProfileType } from '../../types';
 import {
   ShieldCheck,
@@ -56,11 +58,18 @@ export const LandingPage: React.FC = () => {
 
           {/* Coluna esquerda: chamada principal */}
           <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-            <img
-              src={logoUrl}
-              alt="Vybelog"
-              className="w-24 h-24 sm:w-28 sm:h-28 mx-auto lg:mx-0 rounded-full shadow-2xl shadow-amber-900/40"
-            />
+            <div className="mx-auto lg:mx-0 w-40 sm:w-44 rounded-3xl overflow-hidden ring-1 ring-amber-500/20 shadow-2xl shadow-purple-950/50 bg-[#0d0a17]">
+              <video
+                src={introVideo}
+                poster={introPoster}
+                autoPlay
+                muted
+                loop
+                playsInline
+                aria-label="Animação da marca Vybelog"
+                className="w-full aspect-[3/4] object-cover"
+              />
+            </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-white leading-[1.15]">
               Conecte-se com <strong className="font-extrabold">casais</strong> e{' '}
