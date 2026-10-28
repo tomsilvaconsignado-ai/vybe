@@ -7,7 +7,6 @@ import {
   MapPin, 
   EyeOff, 
   Download, 
-  Trash2, 
   FileText, 
   Bell, 
   CheckCircle2,
@@ -200,26 +199,25 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Section 5: Delete Account */}
-        <div className="p-6 bg-rose-950/20 border border-rose-900/30 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h4 className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
-              <Trash2 className="w-4 h-4" />
-              Excluir Conta Permanentemente
-            </h4>
-            <p className="text-[11px] text-zinc-400">
-              Remove imediatamente seu perfil, fotos públicas, cofres criptografados e histórico de mensagens.
-            </p>
-          </div>
+      </div>
+
+      {/* Exclusão de conta: discreta e recolhida, mas sempre disponível (LGPD art. 18, VI) */}
+      <details className="mt-10 text-center group">
+        <summary className="list-none inline-block text-[11px] text-zinc-600 hover:text-zinc-400 cursor-pointer select-none">
+          Outras opções da conta
+        </summary>
+        <div className="mt-3 space-y-2">
+          <p className="text-[11px] text-zinc-500 max-w-md mx-auto">
+            A exclusão remove definitivamente seu perfil, fotos, cofres e mensagens.
+          </p>
           <button
             onClick={handleDeleteAccount}
-            className="px-4 py-2 rounded-xl bg-rose-600/30 hover:bg-rose-600/50 border border-rose-500/50 text-rose-200 text-xs font-bold cursor-pointer transition-colors shrink-0"
+            className="text-[11px] text-zinc-500 hover:text-rose-400 underline underline-offset-2 cursor-pointer transition-colors"
           >
-            Excluir Minha Conta
+            Excluir conta
           </button>
         </div>
-
-      </div>
+      </details>
 
     </div>
   );
