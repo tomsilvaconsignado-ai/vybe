@@ -133,7 +133,7 @@ export const AlbumViewerModal: React.FC<AlbumViewerModalProps> = ({ album, isOwn
         <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center p-4" onClick={() => setViewIndex(null)}>
           <div className="relative max-w-4xl w-full flex items-center justify-center" onClick={e => e.stopPropagation()}>
             {current.type === 'video' ? (
-              <video src={current.url} controls className="max-h-[80vh] rounded-2xl" />
+              <video src={current.url} controls controlsList="nodownload noremoteplayback" disablePictureInPicture className="max-h-[80vh] rounded-2xl" />
             ) : (
               <img src={current.url} alt={current.caption ?? ''} className="max-h-[80vh] max-w-full rounded-2xl object-contain" />
             )}

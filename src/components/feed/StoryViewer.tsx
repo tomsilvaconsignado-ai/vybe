@@ -142,6 +142,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({ groups, startGroupInde
             src={story.mediaUrl}
             autoPlay
             playsInline
+            disablePictureInPicture
             className="w-full h-full object-contain"
             onTimeUpdate={e => setProgress((e.currentTarget.currentTime / (e.currentTarget.duration || 1)) * 100)}
             onEnded={next}

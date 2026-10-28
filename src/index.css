@@ -15,6 +15,38 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Proteção de mídia (ver components/layout/MediaProtection.tsx) */
+img,
+video {
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none; /* iOS: sem menu "Salvar imagem" no toque longo */
+  user-select: none;
+}
+
+.media-shield img,
+.media-shield video {
+  filter: blur(28px);
+  transition: filter 0.05s;
+}
+
+.media-watermark {
+  background-repeat: repeat;
+  opacity: 0.045;
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  body::after {
+    content: 'Impressão desativada para proteger a privacidade dos membros do Vybelog.';
+    visibility: visible;
+    display: block;
+    padding: 48px;
+    color: #000;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

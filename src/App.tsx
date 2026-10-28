@@ -14,6 +14,7 @@ import { TermsPrivacyModal } from './components/modals/TermsPrivacyModal';
 import { LandingPage } from './components/auth/LandingPage';
 import { LoginModal } from './components/auth/LoginModal';
 import { ResetPasswordModal } from './components/auth/ResetPasswordModal';
+import { MediaProtection } from './components/layout/MediaProtection';
 
 // Tela inicial carrega junto; as demais são baixadas sob demanda (pacote inicial menor)
 import { FeedView } from './components/feed/FeedView';
@@ -166,7 +167,8 @@ const AppContent: React.FC = () => {
       </div>
 
       <MobileNav />
-      
+      <MediaProtection />
+
       {/* Global Modals */}
       <ReportModal />
       <TermsPrivacyModal />
