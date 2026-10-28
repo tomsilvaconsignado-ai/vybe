@@ -211,9 +211,22 @@ Em **Authentication** > **Emails** > **Templates**, cole o HTML de cada arquivo 
 | Modelo no Supabase | Arquivo |
 |---|---|
 | Confirm signup | `confirmar-cadastro.html` |
-| Reset Password | `redefinir-senha.html` |
-| Change Email Address | `alterar-email.html` |
+| Invite user | `convidar-usuario.html` |
 | Magic Link | `link-de-acesso.html` |
+| Change Email Address | `alterar-email.html` |
+| Reset Password | `redefinir-senha.html` |
+| Reauthentication | `reautenticacao.html` |
+
+Em **Security notifications** (mesma página), ative cada aviso e cole o modelo:
+
+| Aviso no Supabase | Arquivo |
+|---|---|
+| Password changed | `aviso-senha-alterada.html` |
+| Email address changed | `aviso-email-alterado.html` |
+| MFA method added | `aviso-mfa-adicionado.html` |
+| MFA method removed | `aviso-mfa-removido.html` |
+
+Os avisos de telefone e de identidade vinculada não se aplicam: o app não usa login por telefone nem por redes sociais.
 
 ### 3. Notificações por e-mail (próxima etapa)
 Curtidas, comentários, pedidos de conexão e de cofre já geram linhas na tabela `notifications`. Enviá-las por e-mail exige uma Edge Function acionada por Database Webhook, usando a API do mesmo provedor de e-mail.
