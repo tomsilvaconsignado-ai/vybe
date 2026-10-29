@@ -111,6 +111,7 @@ interface AppContextType {
   savePartners: (partners: NonNullable<UserProfile['partners']>) => Promise<string | null>;
   changeUsername: (username: string) => Promise<string | null>;
   changeEmail: (email: string) => Promise<string | null>;
+  verifyPassword: (password: string, captchaToken?: string | null) => Promise<string | null>;
 
   // Navigation
   activeTab: string;
@@ -616,6 +617,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return error ? translateAuthError(error.message) : null;
   };
 
+  // Área restrita do perfil: confirma a senha de quem já está logado (protege o celular desbloqueado)
+  const verifyPassword = async (password: string, captchaToken?: string | null): Promise<string | null> => {
+    const email = session?.user.email;
+    if (!email) return 'Sessão expirada. Entre novamente.';
+    const { error } = await supabase.auth.signInWithPassword({ email, password, options: { captchaToken: captchaToken ?? undefined } });
+    if (!error) return null;
+    return error.message.toLowerCase().includes('invalid login credentials') ? 'Senha incorreta.' : translateAuthError(error.message);
+  };
+
   // Posts fora do feed (ex.: abertos pelo perfil) ficam neste cache para as ações funcionarem neles também
   const findPost = (postId: string) => posts.find(p => p.id === postId) ?? postCache[postId];
 
@@ -1003,6 +1013,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         savePartners,
         changeUsername,
         changeEmail,
+        verifyPassword,
         activeTab,
         setActiveTab,
         selectedProfileId,
