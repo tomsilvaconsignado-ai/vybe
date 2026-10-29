@@ -9,7 +9,8 @@ import {
   Users, 
   CheckCheck,
   Lock,
-  EyeOff
+  EyeOff,
+  UserPlus
 } from 'lucide-react';
 
 export const NotificationsView: React.FC = () => {
@@ -20,7 +21,9 @@ export const NotificationsView: React.FC = () => {
     setSelectedProfileId,
     setActiveTab,
     currentUser,
-    updateCurrentUser
+    updateCurrentUser,
+    following,
+    toggleFollow
   } = useApp();
 
   const getIcon = (type: string) => {
@@ -35,6 +38,8 @@ export const NotificationsView: React.FC = () => {
         return <Users className="w-4 h-4 text-purple-400" />;
       case 'system_safety':
         return <ShieldCheck className="w-4 h-4 text-emerald-400" />;
+      case 'follow':
+        return <UserPlus className="w-4 h-4 text-fuchsia-400" />;
       default:
         return <Bell className="w-4 h-4 text-purple-400" />;
     }
@@ -137,6 +142,22 @@ export const NotificationsView: React.FC = () => {
                   : n.message}
               </p>
             </div>
+
+            {n.type === 'follow' && n.actor?.id && (
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  markNotificationAsRead(n.id);
+                  toggleFollow(n.actor.id);
+                }}
+                className={`self-center px-3.5 py-1.5 rounded-lg text-xs font-bold shrink-0 cursor-pointer transition-colors ${
+                  following.includes(n.actor.id) ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-gradient-to-r from-purple-600 to-rose-600 text-white'
+                }`}
+              >
+                {following.includes(n.actor.id) ? 'Seguindo' : 'Seguir de volta'}
+              </button>
+            )}
 
             {!n.read && (
               <span className="w-2 h-2 rounded-full bg-fuchsia-500 mt-2 shrink-0" />

@@ -40,22 +40,31 @@ export async function fetchProfiles(excludeUserId: string): Promise<UserProfile[
     console.error('[Vybelog] Falha ao carregar perfis:', error.message);
     return [];
   }
-  return data.map(row => {
-    const profile = mapProfileRow(row);
-    // Perfis de terceiros exibem a localização conforme a privacidade escolhida
-    if (row.location_privacy !== 'city') {
-      profile.city = formatLocation(row.city, row.state, row.location_privacy);
-      profile.state = '';
-    }
-    // No modo discreto o banco só guarda o dia da atividade; não exibe "há X h"
-    profile.lastActive = row.discreet_mode_enabled ? 'Modo discreto' : formatRelativeTime(row.last_active_at);
-    // Só o tipo de cada álbum (para o selo de cofre); o conteúdo é carregado no perfil
-    profile.albums = (row.albums ?? []).map((a: { id: string; visibility: UserProfile['albums'][number]['visibility'] }) => ({
-      id: a.id, userId: row.id, title: '', description: '', coverUrl: '', visibility: a.visibility,
-      mediaCount: 0, allowedUserIds: [], pendingRequestUserIds: [], items: [], createdAt: ''
-    }));
-    return profile;
-  });
+  return data.map(mapOtherProfile);
+}
+
+// Perfil avulso (ex.: aberto pela lista de seguidores e fora dos 200 carregados na descoberta)
+export async function fetchProfileById(id: string): Promise<UserProfile | null> {
+  const { data, error } = await supabase.from('profiles').select(PROFILE_SELECT).eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  return mapOtherProfile(data);
+}
+
+function mapOtherProfile(row: any): UserProfile {
+  const profile = mapProfileRow(row);
+  // Perfis de terceiros exibem a localização conforme a privacidade escolhida
+  if (row.location_privacy !== 'city') {
+    profile.city = formatLocation(row.city, row.state, row.location_privacy);
+    profile.state = '';
+  }
+  // No modo discreto o banco só guarda o dia da atividade; não exibe "há X h"
+  profile.lastActive = row.discreet_mode_enabled ? 'Modo discreto' : formatRelativeTime(row.last_active_at);
+  // Só o tipo de cada álbum (para o selo de cofre); o conteúdo é carregado no perfil
+  profile.albums = (row.albums ?? []).map((a: { id: string; visibility: UserProfile['albums'][number]['visibility'] }) => ({
+    id: a.id, userId: row.id, title: '', description: '', coverUrl: '', visibility: a.visibility,
+    mediaCount: 0, allowedUserIds: [], pendingRequestUserIds: [], items: [], createdAt: ''
+  }));
+  return profile;
 }
 
 // ----------------- SEGUIR E CONEXÕES ----------------- //
@@ -90,6 +99,57 @@ export async function setFollow(me: string, target: string, follow: boolean) {
     ? await supabase.from('follows').insert({ follower_id: me, following_id: target })
     : await supabase.from('follows').delete().eq('follower_id', me).eq('following_id', target);
   return error?.message ?? null;
+}
+
+// ----------------- LISTAS DE SEGUIDORES / SEGUINDO ----------------- //
+
+export type FollowListKind = 'followers' | 'following';
+
+export interface FollowListEntry {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+  profileType: UserProfile['profileType'];
+  isVerified: boolean;
+}
+
+const toFollowEntry = (row: any): FollowListEntry => ({
+  id: row.id,
+  username: row.username,
+  displayName: row.display_name,
+  avatarUrl: avatarOrDefault(row.avatar_url, row.display_name),
+  profileType: row.profile_type,
+  isVerified: row.is_verified
+});
+
+// As próprias listas vêm direto da tabela; as de outros perfis, pela RPC follow_list
+// (que esconde bloqueados e quem está no modo discreto). Sem a RPC no banco, só as próprias funcionam.
+export async function fetchFollowList(me: string, target: string, kind: FollowListKind): Promise<{ entries: FollowListEntry[]; unavailable: boolean }> {
+  const { data, error } = await supabase.rpc('follow_list', { target, list_kind: kind });
+  if (!error) return { entries: (data ?? []).map(toFollowEntry), unavailable: false };
+  if (error.code !== 'PGRST202' || target !== me) {
+    if (error.code !== 'PGRST202') console.error('[Vybelog] Falha ao carregar lista:', error.message);
+    return { entries: [], unavailable: error.code === 'PGRST202' };
+  }
+
+  const [mine, other] = kind === 'followers' ? ['following_id', 'follower_id'] : ['follower_id', 'following_id'];
+  const { data: rows } = await supabase.from('follows').select(other).eq(mine, me).order('created_at', { ascending: false });
+  const ids = (rows ?? []).map((r: any) => r[other] as string);
+  if (ids.length === 0) return { entries: [], unavailable: false };
+  const { data: people } = await supabase
+    .from('profiles')
+    .select('id, username, display_name, avatar_url, profile_type, is_verified')
+    .in('id', ids);
+  const byId = new Map((people ?? []).map(p => [p.id, toFollowEntry(p)]));
+  return { entries: ids.map(id => byId.get(id)).filter((e): e is FollowListEntry => Boolean(e)), unavailable: false };
+}
+
+// Remover alguém dos meus seguidores (sem bloquear). Retorna 'unavailable' se o banco ainda não permite.
+export async function removeFollower(me: string, follower: string): Promise<string | null> {
+  const { data, error } = await supabase.from('follows').delete().eq('follower_id', follower).eq('following_id', me).select('follower_id');
+  if (error) return error.message;
+  return data && data.length > 0 ? null : 'unavailable';
 }
 
 export async function sendConnectionRequest(me: string, target: string) {

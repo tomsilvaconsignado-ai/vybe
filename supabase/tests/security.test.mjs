@@ -258,5 +258,32 @@ await expectOk('B ativa modo discreto', ids.b, `UPDATE profiles SET discreet_mod
 r = await db.query(`SELECT last_active_at = date_trunc('day', last_active_at) AS rounded FROM profiles WHERE id = $1`, [ids.b]);
 r.rows[0].rounded ? ok('última atividade guardada só com o dia') : bad('horário exato exposto');
 
+console.log('\nSeguidores e seguindo');
+await db.query(`DELETE FROM follows WHERE follower_id = $1 OR following_id = $1`, [ids.mod]);
+await expectOk('moderador segue A', ids.mod, `INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)`, [ids.mod, ids.a]);
+await expectOk('moderador deixa de seguir A', ids.mod, `DELETE FROM follows WHERE follower_id = $1 AND following_id = $2`, [ids.mod, ids.a]);
+await expectOk('moderador segue A de novo', ids.mod, `INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)`, [ids.mod, ids.a]);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND actor_id = $2 AND type = 'follow'`, [ids.a, ids.mod]);
+r.rows[0].n === 1 ? ok('A recebe um só aviso de novo seguidor (sem spam ao seguir de novo)') : bad('avisos de seguidor: ' + r.rows[0].n);
+r = await as(ids.a, `SELECT id FROM public.follow_list($1, 'followers')`, [ids.a]);
+r.rows.some(x => x.id === ids.mod) ? ok('A vê os próprios seguidores') : bad('A não vê os próprios seguidores');
+r = await as(ids.v, `SELECT id FROM public.follow_list($1, 'followers')`, [ids.a]);
+r.rows.some(x => x.id === ids.mod) ? ok('vítima vê os seguidores de A') : bad('lista de seguidores de terceiros vazia');
+r = await as(ids.v, `SELECT id FROM public.follow_list($1, 'following')`, [ids.mod]);
+r.rows.some(x => x.id === ids.a) ? ok('vítima vê quem o moderador segue') : bad('lista de seguindo de terceiros vazia');
+await db.query(`UPDATE profiles SET discreet_mode_enabled = true WHERE id = $1`, [ids.mod]);
+r = await as(ids.v, `SELECT id FROM public.follow_list($1, 'followers')`, [ids.a]);
+!r.rows.some(x => x.id === ids.mod) ? ok('quem está no modo discreto some das listas de terceiros') : bad('modo discreto exposto na lista');
+r = await as(ids.a, `SELECT id FROM public.follow_list($1, 'followers')`, [ids.a]);
+r.rows.some(x => x.id === ids.mod) ? ok('o dono ainda vê o seguidor em modo discreto') : bad('dono não vê seguidor discreto');
+await db.query(`UPDATE profiles SET discreet_mode_enabled = false WHERE id = $1`, [ids.mod]);
+r = await as(ids.b, `SELECT id FROM public.follow_list($1, 'followers')`, [ids.v]);
+r.rows.length === 0 ? ok('bloqueado não vê as listas de quem o bloqueou') : bad('lista vazou após bloqueio');
+await expectFail('lista com tipo inválido é recusada', ids.v, `SELECT * FROM public.follow_list($1, 'tudo')`, [ids.a]);
+await expectFail('visitante sem login não lê listas', null, `SELECT * FROM public.follow_list($1, 'followers')`, [ids.a]);
+await expectFail('vítima não remove seguidor de outra pessoa', ids.v, `DELETE FROM follows WHERE follower_id = $1 AND following_id = $2`, [ids.mod, ids.a]);
+r = await expectOk('A remove o moderador dos seguidores', ids.a, `DELETE FROM follows WHERE follower_id = $1 AND following_id = $2`, [ids.mod, ids.a]);
+r?.affectedRows === 1 ? ok('seguidor removido') : bad('remoção de seguidor não apagou a linha');
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

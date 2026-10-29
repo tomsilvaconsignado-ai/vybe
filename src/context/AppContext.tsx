@@ -35,6 +35,7 @@ import {
   insertComment,
   insertPollVote,
   setFollow,
+  removeFollower as removeFollowerRow,
   sendConnectionRequest,
   acceptConnectionRequest,
   fetchCommunities,
@@ -152,6 +153,7 @@ interface AppContextType {
   outgoingConnectionRequests: string[]; // a quem eu pedi conexão
   refreshSocialData: () => Promise<void>;
   toggleFollow: (userId: string) => void;
+  removeFollower: (userId: string) => Promise<string | null>;
   requestConnection: (userId: string) => void;
   acceptConnection: (userId: string) => void;
 
@@ -712,14 +714,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Contadores de seguidores/seguindo acompanham a ação na hora, como no Instagram
+  const bumpFollowCounts = (userId: string, delta: number) => {
+    setCurrentUser(prev => ({ ...prev, followingCount: Math.max(prev.followingCount + delta, 0) }));
+    setProfiles(prev => prev.map(p => (p.id === userId ? { ...p, followersCount: Math.max(p.followersCount + delta, 0) } : p)));
+  };
+
   const toggleFollow = async (userId: string) => {
     const follow = !following.includes(userId);
     setFollowing(prev => follow ? [...prev, userId] : prev.filter(id => id !== userId));
+    bumpFollowCounts(userId, follow ? 1 : -1);
     const error = await setFollow(currentUser.id, userId, follow);
     if (error) {
       reportFailure(follow ? 'seguir o perfil' : 'deixar de seguir', error);
+      bumpFollowCounts(userId, follow ? -1 : 1);
       applySocialGraph(await fetchSocialGraph(currentUser.id));
     }
+  };
+
+  const removeFollower = async (userId: string): Promise<string | null> => {
+    const error = await removeFollowerRow(currentUser.id, userId);
+    if (error === 'unavailable') return 'Remover seguidores estará disponível em breve.';
+    if (error) return 'Não foi possível remover o seguidor. Tente novamente.';
+    setCurrentUser(prev => ({ ...prev, followersCount: Math.max(prev.followersCount - 1, 0) }));
+    setProfiles(prev => prev.map(p => (p.id === userId ? { ...p, followingCount: Math.max(p.followingCount - 1, 0) } : p)));
+    return null;
   };
 
   const requestConnection = async (userId: string) => {
@@ -1049,6 +1068,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         outgoingConnectionRequests,
         refreshSocialData,
         toggleFollow,
+        removeFollower,
         requestConnection,
         acceptConnection,
         requestAlbumAccess,

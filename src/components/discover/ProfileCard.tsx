@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { calculateCompatibility } from '../../utils/compatibility';
+import { PROFILE_TYPE_OPTIONS } from '../../lib/profileOptions';
 
 interface ProfileCardProps {
   profile: UserProfile;
@@ -63,7 +64,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
                 {profile.displayName}
               </h3>
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/40">
-                {profile.profileType === 'couple' ? 'Casal Liberal' : profile.profileType === 'single_female' ? 'Mulher Solteira' : 'Homem Solteiro'}
+                {PROFILE_TYPE_OPTIONS.find(o => o.id === profile.profileType)?.label ?? 'Perfil'}
               </span>
               <span className="text-xs text-zinc-400">
                 {profile.age} anos
