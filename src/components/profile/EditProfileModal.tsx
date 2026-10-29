@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { X, Save, Camera, Plus, Trash2, Lock, Check, SlidersHorizontal, UserRound } from 'lucide-react';
 import { CompatibilityPreferences, JointPartner, LocationPrivacy, PreferenceExtras, ProfileType } from '../../types';
@@ -12,8 +12,9 @@ import {
   EXTRA_QUESTIONS
 } from '../../lib/profileOptions';
 import { notify } from '../common/Feedback';
+import { Captcha, CaptchaHandle, captchaEnabled } from '../auth/Captcha';
 
-export type EditProfileTab = 'data' | 'preferences';
+export type EditProfileTab = 'data' | 'preferences' | 'account';
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ const Section: React.FC<{ title: string; hint?: string; children: React.ReactNod
 const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
 
 export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, initialTab = 'data' }) => {
-  const { currentUser, updateCurrentUser, savePreferences, savePartners, changeUsername, changeEmail, updatePassword } = useApp();
+  const { currentUser, updateCurrentUser, savePreferences, savePartners, changeUsername, changeEmail, updatePassword, verifyPassword } = useApp();
   const prefs = currentUser.compatibilityPrefs;
 
   const [tab, setTab] = useState<EditProfileTab>(initialTab);
@@ -95,6 +96,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [accountBusy, setAccountBusy] = useState<'username' | 'email' | 'password' | null>(null);
+
+  // Área restrita: os dados de acesso só aparecem depois de confirmar a senha (vale até fechar a janela)
+  const [accountUnlocked, setAccountUnlocked] = useState(false);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlockError, setUnlockError] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captcha = useRef<CaptchaHandle>(null);
 
   if (!isOpen) return null;
 
@@ -267,6 +276,26 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
     setConfirmPassword('');
   };
 
+  const handleUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUnlockError('');
+    if (captchaEnabled && !captchaToken) {
+      setUnlockError('Aguarde a verificação de segurança terminar e tente de novo.');
+      return;
+    }
+    const token = captchaToken;
+    captcha.current?.reset();
+    setUnlocking(true);
+    const error = await verifyPassword(unlockPassword, token);
+    setUnlocking(false);
+    setUnlockPassword('');
+    if (error) {
+      setUnlockError(error);
+      return;
+    }
+    setAccountUnlocked(true);
+  };
+
   const birthdate = currentUser.birthdate ? currentUser.birthdate.split('-').reverse().join('/') : '—';
 
   return (
@@ -282,10 +311,11 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
             <X className="w-5 h-5" />
           </button>
           <h3 className="text-xl font-bold text-white mb-3">Editar perfil</h3>
-          <div className="grid grid-cols-2 gap-1 p-1 bg-zinc-900/70 rounded-2xl">
+          <div className="grid grid-cols-3 gap-1 p-1 bg-zinc-900/70 rounded-2xl">
             {([
               { id: 'data', label: 'Meus dados', icon: UserRound },
-              { id: 'preferences', label: 'Preferências', icon: SlidersHorizontal }
+              { id: 'preferences', label: 'Preferências', icon: SlidersHorizontal },
+              { id: 'account', label: 'Conta', icon: Lock }
             ] as const).map(t => (
               <button
                 key={t.id}
@@ -297,14 +327,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
               >
                 <t.icon className="w-3.5 h-3.5" />
                 {t.label}
-                {t.id === 'preferences' && <span className="font-normal opacity-70">(opcional)</span>}
+                {t.id === 'preferences' && <span className="hidden sm:inline font-normal opacity-70">(opcional)</span>}
               </button>
             ))}
           </div>
         </div>
 
         <div className="px-6 sm:px-8 py-5 space-y-2 divide-y divide-purple-950/40 [&>section]:pb-5">
-          {tab === 'data' ? (
+          {tab === 'data' && (
             <>
               <Section title="Fotos">
                 <div className="grid grid-cols-2 gap-3">
@@ -507,82 +537,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 </div>
               </Section>
 
-              <Section title="Conta" hint="Estes dados não aparecem para outros membros.">
-                <div>
-                  <label className={labelClass}>Nome de usuário</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">@</span>
-                      <input
-                        type="text"
-                        maxLength={30}
-                        value={newUsername}
-                        onChange={e => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                        className={`${inputClass} pl-7`}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleUsername}
-                      disabled={newUsername === currentUser.username || newUsername.length < 3 || accountBusy !== null}
-                      className="px-3 rounded-xl text-xs font-bold bg-zinc-800 text-white disabled:opacity-40 cursor-pointer"
-                    >
-                      {accountBusy === 'username' ? '...' : 'Trocar'}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-zinc-500 mt-1">Pode ser trocado uma vez a cada 7 dias.</p>
-                </div>
-
-                <div>
-                  <label className={labelClass}>E-mail de acesso</label>
-                  <p className="text-xs text-zinc-200 mb-1.5 break-all">{currentUser.email || '—'}</p>
-                  <div className="flex gap-2">
-                    <input
-                      type="email"
-                      autoComplete="email"
-                      placeholder="Novo e-mail"
-                      value={newEmail}
-                      onChange={e => setNewEmail(e.target.value)}
-                      className={`${inputClass} flex-1`}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleEmail}
-                      disabled={!newEmail.trim() || accountBusy !== null}
-                      className="px-3 rounded-xl text-xs font-bold bg-zinc-800 text-white disabled:opacity-40 cursor-pointer"
-                    >
-                      {accountBusy === 'email' ? '...' : 'Trocar'}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-zinc-500 mt-1">Enviamos um link de confirmação; o e-mail só muda depois do clique.</p>
-                </div>
-
-                <div>
-                  <label className={labelClass}>Nova senha</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input type="password" autoComplete="new-password" placeholder="Nova senha" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={inputClass} />
-                    <input type="password" autoComplete="new-password" placeholder="Repita a senha" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass} />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handlePassword}
-                    disabled={!newPassword || accountBusy !== null}
-                    className="mt-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-800 text-white disabled:opacity-40 cursor-pointer"
-                  >
-                    {accountBusy === 'password' ? 'Alterando...' : 'Alterar senha'}
-                  </button>
-                </div>
-
-                <div className="flex items-start gap-2 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-                  <Lock className="w-3.5 h-3.5 text-zinc-500 mt-0.5 shrink-0" />
-                  <p className="text-[11px] text-zinc-400">
-                    Data de nascimento: <strong className="text-zinc-200">{birthdate}</strong>. Ela não pode ser alterada, pois garante que
-                    todos no Vybelog são maiores de 18 anos. Se estiver errada, fale com a equipe.
-                  </p>
-                </div>
-              </Section>
             </>
-          ) : (
+          )}
+          {tab === 'preferences' && (
             <>
               <div className="pb-4">
                 <p className="text-xs text-zinc-400">
@@ -680,10 +637,117 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
               </Section>
             </>
           )}
+          {tab === 'account' && (accountUnlocked ? (
+            <section className="space-y-3">
+              <p className="text-[11px] text-zinc-500">Estes dados não aparecem para outros membros.</p>
+                <div>
+                  <label className={labelClass}>Nome de usuário</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">@</span>
+                      <input
+                        type="text"
+                        maxLength={30}
+                        value={newUsername}
+                        onChange={e => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                        className={`${inputClass} pl-7`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleUsername}
+                      disabled={newUsername === currentUser.username || newUsername.length < 3 || accountBusy !== null}
+                      className="px-3 rounded-xl text-xs font-bold bg-zinc-800 text-white disabled:opacity-40 cursor-pointer"
+                    >
+                      {accountBusy === 'username' ? '...' : 'Trocar'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">Pode ser trocado uma vez a cada 7 dias.</p>
+                </div>
+
+                <div>
+                  <label className={labelClass}>E-mail de acesso</label>
+                  <p className="text-xs text-zinc-200 mb-1.5 break-all">{currentUser.email || '—'}</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      placeholder="Novo e-mail"
+                      value={newEmail}
+                      onChange={e => setNewEmail(e.target.value)}
+                      className={`${inputClass} flex-1`}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleEmail}
+                      disabled={!newEmail.trim() || accountBusy !== null}
+                      className="px-3 rounded-xl text-xs font-bold bg-zinc-800 text-white disabled:opacity-40 cursor-pointer"
+                    >
+                      {accountBusy === 'email' ? '...' : 'Trocar'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">Enviamos um link de confirmação; o e-mail só muda depois do clique.</p>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Nova senha</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="password" autoComplete="new-password" placeholder="Nova senha" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={inputClass} />
+                    <input type="password" autoComplete="new-password" placeholder="Repita a senha" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePassword}
+                    disabled={!newPassword || accountBusy !== null}
+                    className="mt-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-zinc-800 text-white disabled:opacity-40 cursor-pointer"
+                  >
+                    {accountBusy === 'password' ? 'Alterando...' : 'Alterar senha'}
+                  </button>
+                </div>
+
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                  <Lock className="w-3.5 h-3.5 text-zinc-500 mt-0.5 shrink-0" />
+                  <p className="text-[11px] text-zinc-400">
+                    Data de nascimento: <strong className="text-zinc-200">{birthdate}</strong>. Ela não pode ser alterada, pois garante que
+                    todos no Vybelog são maiores de 18 anos. Se estiver errada, fale com a equipe.
+                  </p>
+                </div>
+            </section>
+          ) : (
+            <form onSubmit={handleUnlock} className="space-y-4 py-4">
+              <div className="flex flex-col items-center text-center gap-2">
+                <div className="w-12 h-12 rounded-2xl bg-purple-950/70 border border-purple-700/40 flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-purple-300" />
+                </div>
+                <h4 className="text-sm font-bold text-white">Área restrita</h4>
+                <p className="text-xs text-zinc-400 max-w-xs">
+                  Usuário, e-mail, senha e data de nascimento ficam protegidos. Confirme sua senha para ver e alterar.
+                </p>
+              </div>
+              <input
+                type="password"
+                autoComplete="current-password"
+                placeholder="Sua senha atual"
+                value={unlockPassword}
+                onChange={e => setUnlockPassword(e.target.value)}
+                className={inputClass}
+                required
+              />
+              <Captcha ref={captcha} onToken={setCaptchaToken} />
+              {unlockError && <p className="text-xs text-rose-400">{unlockError}</p>}
+              <button
+                type="submit"
+                disabled={!unlockPassword || unlocking}
+                className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 disabled:opacity-50 cursor-pointer"
+              >
+                {unlocking ? 'Verificando...' : 'Desbloquear'}
+              </button>
+            </form>
+          ))}
         </div>
 
-        {/* Rodapé fixo: salva as duas abas de uma vez */}
-        <div className="sticky bottom-0 bg-[#130d22]/95 backdrop-blur rounded-b-3xl px-6 sm:px-8 py-4 border-t border-purple-950/60 flex items-center justify-end gap-3">
+        {/* Rodapé fixo: salva "Meus dados" e "Preferências" de uma vez (a aba Conta tem botões próprios) */}
+        <div className={`${tab === 'account' ? 'hidden' : 'flex'} sticky bottom-0 bg-[#130d22]/95 backdrop-blur rounded-b-3xl px-6 sm:px-8 py-4 border-t border-purple-950/60 items-center justify-end gap-3`}>
           <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white cursor-pointer">
             Cancelar
           </button>
