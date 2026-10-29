@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { CompatibilityPreferences, UserProfile } from '../types';
+import { CompatibilityPreferences, JointPartner, UserProfile } from '../types';
 
 export type AdminRole = 'superadmin' | 'moderator' | 'support' | 'auditor';
 
@@ -101,7 +101,8 @@ export function mapProfileRow(row: any): UserProfile {
       discretionLevel: prefs.discretion_level,
       groupReadiness: prefs.group_readiness,
       personalLimits: prefs.personal_limits,
-      lifestyleTags: prefs.lifestyle_tags
+      lifestyleTags: prefs.lifestyle_tags,
+      extras: prefs.extras ?? {}
     } : DEFAULT_PREFS,
     albums: [],
     interests: row.interests ?? [],
@@ -114,7 +115,7 @@ export function mapProfileRow(row: any): UserProfile {
 export async function fetchOwnProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('*, joint_partners(*), compatibility_preferences(*), profile_private(email, city, state)')
+    .select('*, joint_partners(*), compatibility_preferences(*), profile_private(email, city, state, birthdate)')
     .eq('id', userId)
     .maybeSingle();
 
@@ -130,6 +131,7 @@ export async function fetchOwnProfile(userId: string): Promise<UserProfile | nul
     profile.city = priv.city ?? '';
     profile.state = priv.state ?? '';
   }
+  profile.birthdate = priv?.birthdate ?? undefined;
   return profile;
 }
 
@@ -147,6 +149,7 @@ export async function fetchAdminRole(userId: string): Promise<AdminRole | null> 
 // Campos que o próprio usuário pode alterar (os demais são protegidos no banco)
 const EDITABLE_COLUMNS: Partial<Record<keyof UserProfile, string>> = {
   displayName: 'display_name',
+  profileType: 'profile_type',
   bio: 'bio',
   locationPrivacy: 'location_privacy',
   avatarUrl: 'avatar_url',
@@ -178,4 +181,53 @@ export async function saveOwnProfile(userId: string, updates: Partial<UserProfil
   const { error } = await supabase.from('profiles').update(row).eq('id', userId);
   if (error?.message.includes('links externos')) return 'Envie a foto pelo app; links externos não são aceitos.';
   return error ? error.message : null;
+}
+
+// Preferências de compatibilidade (cadastro + aba opcional do perfil)
+export async function saveOwnPreferences(userId: string, prefs: CompatibilityPreferences): Promise<string | null> {
+  const { error } = await supabase.from('compatibility_preferences').upsert({
+    profile_id: userId,
+    objectives: prefs.objectives,
+    interested_in: prefs.interestedIn,
+    age_range_min: prefs.ageRange[0],
+    age_range_max: prefs.ageRange[1],
+    max_distance_km: prefs.maxDistanceKm,
+    meeting_preference: prefs.meetingPreference,
+    pace_preference: prefs.pacePreference,
+    discretion_level: prefs.discretionLevel,
+    group_readiness: prefs.groupReadiness,
+    personal_limits: prefs.personalLimits,
+    lifestyle_tags: prefs.lifestyleTags,
+    extras: prefs.extras ?? {},
+    updated_at: new Date().toISOString()
+  });
+  return error ? error.message : null;
+}
+
+// Parceiros do perfil conjunto: atualiza os existentes, cria os novos (id vazio) e apaga os removidos
+export async function saveOwnPartners(userId: string, partners: JointPartner[], previous: JointPartner[]): Promise<string | null> {
+  const keptIds = new Set(partners.filter(p => p.id).map(p => p.id));
+  const removed = previous.filter(p => !keptIds.has(p.id)).map(p => p.id);
+  if (removed.length > 0) {
+    const { error } = await supabase.from('joint_partners').delete().in('id', removed).eq('profile_id', userId);
+    if (error) return error.message;
+  }
+  for (const p of partners) {
+    const row = { name: p.name.trim(), age: p.age, gender: p.gender, orientation: p.orientation || null };
+    const { error } = p.id
+      ? await supabase.from('joint_partners').update(row).eq('id', p.id).eq('profile_id', userId)
+      : await supabase.from('joint_partners').insert({ ...row, profile_id: userId, consent_confirmed: p.consentConfirmed });
+    if (error) return error.message;
+  }
+  return null;
+}
+
+// O @usuário só muda pela RPC (formato, nomes reservados e intervalo de 7 dias são checados no banco)
+export async function changeOwnUsername(username: string): Promise<{ username: string | null; error: string | null }> {
+  const { data, error } = await supabase.rpc('change_username', { new_username: username });
+  if (error) {
+    if (error.code === 'PGRST202') return { username: null, error: 'A troca de @usuário ainda não está disponível. Tente mais tarde.' };
+    return { username: null, error: error.message };
+  }
+  return { username: data as string, error: null };
 }

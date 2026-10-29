@@ -161,7 +161,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
       {/* Mídia: toque duplo curte, arrastar troca de foto */}
       {hasMedia && (
         <div
-          className="relative aspect-square sm:aspect-[4/5] max-h-[640px] w-full bg-black overflow-hidden group"
+          className="relative aspect-[9/16] w-full max-w-[min(100%,calc(85svh*9/16))] mx-auto bg-black overflow-hidden group"
           onClick={handleMediaTap}
           onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
           onTouchEnd={e => {

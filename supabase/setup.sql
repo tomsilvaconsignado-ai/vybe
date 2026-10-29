@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 );
 CREATE INDEX IF NOT EXISTS idx_profiles_city_state ON public.profiles(city, state);
 CREATE INDEX IF NOT EXISTS idx_profiles_status ON public.profiles(status);
+-- Troca do @usuário pela RPC change_username (no máximo uma vez a cada 7 dias)
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username_changed_at TIMESTAMPTZ;
 
 -- Dados sensíveis: apenas o próprio usuário e a moderação podem ler
 CREATE TABLE IF NOT EXISTS public.profile_private (
@@ -146,6 +148,12 @@ CREATE TABLE IF NOT EXISTS public.compatibility_preferences (
   lifestyle_tags TEXT[] NOT NULL DEFAULT '{}',
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Respostas da aba opcional de preferências do perfil (perguntas que o cadastro não faz)
+ALTER TABLE public.compatibility_preferences ADD COLUMN IF NOT EXISTS extras JSONB NOT NULL DEFAULT '{}';
+DO $$ BEGIN
+  ALTER TABLE public.compatibility_preferences ADD CONSTRAINT compatibility_extras_shape
+    CHECK (jsonb_typeof(extras) = 'object' AND octet_length(extras::text) < 4000);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- Seguir (unilateral)
 CREATE TABLE IF NOT EXISTS public.follows (
@@ -704,6 +712,21 @@ CREATE TRIGGER on_auth_user_verified
   AFTER INSERT OR UPDATE OF email_confirmed_at ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.grant_primary_admin();
 
+-- Troca de e-mail (confirmada pelo link do Supabase): mantém a cópia de profile_private igual
+CREATE OR REPLACE FUNCTION public.sync_private_email()
+RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  UPDATE public.profile_private SET email = NEW.email WHERE user_id = NEW.id AND email IS DISTINCT FROM NEW.email;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_email_changed ON auth.users;
+CREATE TRIGGER on_auth_email_changed
+  AFTER UPDATE OF email ON auth.users
+  FOR EACH ROW WHEN (NEW.email IS NOT NULL) EXECUTE FUNCTION public.sync_private_email();
+
 -- Caso o superadmin já tenha se cadastrado e confirmado antes deste script
 INSERT INTO public.admin_users (user_id, email, role)
 SELECT u.id, lower(u.email), 'superadmin'
@@ -722,6 +745,7 @@ BEGIN
   IF current_user = 'authenticated' THEN
     NEW.id := OLD.id;
     NEW.username := OLD.username;
+    NEW.username_changed_at := OLD.username_changed_at;
     NEW.age := OLD.age;  -- definida pela data de nascimento no cadastro
     NEW.is_verified := OLD.is_verified;
     NEW.verified_badge_type := OLD.verified_badge_type;
@@ -1189,6 +1213,32 @@ BEGIN
   FROM public.conversation_participants other
   WHERE other.conversation_id = mine.conversation_id
     AND mine.user_id = auth.uid() AND other.user_id = target;
+END;
+$$;
+
+-- Troca do @usuário: mesmo formato do cadastro, sem nomes que imitem a equipe
+CREATE OR REPLACE FUNCTION public.change_username(new_username TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v TEXT := lower(trim(coalesce(new_username, ''))); last_change TIMESTAMPTZ;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Não autenticado.'; END IF;
+  IF v !~ '^[a-z0-9_]{3,30}$' THEN
+    RAISE EXCEPTION 'Use de 3 a 30 caracteres: letras sem acento, números ou _.';
+  END IF;
+  IF v ~ '^(admin|adm_|vybe|suporte|support|moderac|moderador|staff|equipe|oficial|sistema|root)' THEN
+    RAISE EXCEPTION 'Este nome de usuário é reservado.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND username = v) THEN RETURN v; END IF;
+  SELECT username_changed_at INTO last_change FROM public.profiles WHERE id = auth.uid();
+  IF last_change > now() - INTERVAL '7 days' THEN
+    RAISE EXCEPTION 'Você já trocou o nome de usuário nos últimos 7 dias.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.profiles WHERE username = v) THEN
+    RAISE EXCEPTION 'Este nome de usuário já está em uso.';
+  END IF;
+  UPDATE public.profiles SET username = v, username_changed_at = now() WHERE id = auth.uid();
+  RETURN v;
 END;
 $$;
 
@@ -1680,6 +1730,7 @@ GRANT EXECUTE ON FUNCTION public.start_conversation(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_message_request(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.decline_message_request(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.block_user(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.change_username(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_conversation_read(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;

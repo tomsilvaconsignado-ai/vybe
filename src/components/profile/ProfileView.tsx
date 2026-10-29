@@ -25,7 +25,7 @@ import {
   MessageCircle,
   Ban
 } from 'lucide-react';
-import { EditProfileModal } from './EditProfileModal';
+import { EditProfileModal, EditProfileTab } from './EditProfileModal';
 import { AlbumPermissionsModal } from './AlbumPermissionsModal';
 import { AlbumViewerModal } from './AlbumViewerModal';
 import { CreateAlbumModal } from './CreateAlbumModal';
@@ -62,7 +62,7 @@ export const ProfileView: React.FC = () => {
   const profile = isSelf ? currentUser : profiles.find(p => p.id === selectedProfileId) || currentUser;
 
   const [activeTab, setActiveTab] = useState<'vault' | 'public' | 'posts'>('posts');
-  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editTab, setEditTab] = useState<EditProfileTab | null>(null);
   const [managingAlbum, setManagingAlbum] = useState<MediaAlbum | null>(null);
   const [viewingAlbumId, setViewingAlbumId] = useState<string | null>(null);
   const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
@@ -203,11 +203,18 @@ export const ProfileView: React.FC = () => {
               {isSelf ? (
                 <>
                   <button
-                    onClick={() => setIsEditOpen(true)}
+                    onClick={() => setEditTab('data')}
                     className="px-4 py-2 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white flex items-center gap-2 cursor-pointer transition-colors"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>Editar Perfil</span>
+                  </button>
+                  <button
+                    onClick={() => setEditTab('preferences')}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>Preferências</span>
                   </button>
                   <button
                     onClick={() => notify('Link seguro do seu perfil copiado!')}
@@ -598,7 +605,7 @@ export const ProfileView: React.FC = () => {
                   key={p.id}
                   type="button"
                   onClick={() => setOpenPostId(p.id)}
-                  className="relative aspect-square bg-zinc-950 overflow-hidden group cursor-pointer sm:rounded-xl"
+                  className="relative aspect-[3/4] bg-zinc-950 overflow-hidden group cursor-pointer sm:rounded-xl"
                   aria-label="Abrir publicação"
                 >
                   {p.mediaUrls.length > 0 ? (
@@ -636,7 +643,7 @@ export const ProfileView: React.FC = () => {
       )}
 
       {/* Edit Profile Modal */}
-      <EditProfileModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} />
+      {editTab && <EditProfileModal isOpen initialTab={editTab} onClose={() => setEditTab(null)} />}
 
       {/* Album Permissions Modal */}
       {managingAlbum && (

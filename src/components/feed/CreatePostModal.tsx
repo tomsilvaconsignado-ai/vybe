@@ -3,6 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { uploadPublicMedia } from '../../lib/supabase';
 import { X, Image, Sparkles, Send, Plus, BarChart2 } from 'lucide-react';
 import { notify } from '../common/Feedback';
+import { fitToFrame, FrameMode, MediaProcessingError } from '../../lib/media';
+import { FrameModeToggle } from './FrameModeToggle';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -16,6 +18,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(['Vybelog', 'VidaLiberal']);
   const [isUploading, setIsUploading] = useState(false);
+  const [frameMode, setFrameMode] = useState<FrameMode>('fill');
   const [isPublishing, setIsPublishing] = useState(false);
 
   // Poll state
@@ -36,9 +39,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         notify(`"${file.name}" excede o limite de 20 MB.`);
         continue;
       }
-      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const path = `${currentUser.id}/posts/${crypto.randomUUID()}.${extension}`;
-      const { publicUrl, error } = await uploadPublicMedia(file, path);
+      let framed: File;
+      try {
+        framed = await fitToFrame(file, frameMode);
+      } catch (err) {
+        notify(err instanceof MediaProcessingError ? err.message : `Não foi possível processar "${file.name}".`);
+        continue;
+      }
+      const path = `${currentUser.id}/posts/${crypto.randomUUID()}.jpg`;
+      const { publicUrl, error } = await uploadPublicMedia(framed, path);
       if (error || !publicUrl) {
         notify(error?.message.startsWith('Não foi possível processar') ? error.message : `Não foi possível enviar "${file.name}". Tente novamente.`);
         continue;
@@ -120,7 +129,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
           {mediaUrls.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-2">
               {mediaUrls.map((url, i) => (
-                <div key={i} className="relative w-20 h-20 rounded-xl overflow-hidden shrink-0 border border-purple-500/40">
+                <div key={i} className="relative w-14 aspect-[9/16] rounded-xl overflow-hidden shrink-0 border border-purple-500/40">
                   <img src={url} alt="Upload" className="w-full h-full object-cover" />
                   <button
                     type="button"
@@ -134,15 +143,17 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             </div>
           )}
 
+          <FrameModeToggle value={frameMode} onChange={setFrameMode} disabled={isUploading} />
+
           {/* Upload from device */}
           <label className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-purple-700/50 text-xs font-semibold text-purple-200 hover:bg-purple-950/40 cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
             <Image className="w-4 h-4" />
             {isUploading ? 'Enviando foto...' : 'Enviar foto do dispositivo'}
-            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" onChange={handleUploadFiles} />
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={handleUploadFiles} />
           </label>
 
           <p className="text-[11px] text-zinc-500">
-            Removemos automaticamente a localização GPS e outros dados escondidos das fotos antes do envio.
+            As fotos ficam no formato de tela cheia do celular (1080 × 1920). Removemos automaticamente a localização GPS e outros dados escondidos antes do envio.
           </p>
 
           {/* Tags */}

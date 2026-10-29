@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ProfileType, LocationPrivacy } from '../../types';
 import { defaultAvatar } from '../../lib/profiles';
+import { INTEREST_OPTIONS, OBJECTIVE_OPTIONS } from '../../lib/profileOptions';
 import { notify } from '../common/Feedback';
 import { Captcha, CaptchaHandle, captchaEnabled } from './Captcha';
 
@@ -73,19 +74,8 @@ export const RegisterWizard: React.FC = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [wantsSelfieVerification, setWantsSelfieVerification] = useState(true);
 
-  const interestOptions = [
-    'Gastronomia', 'Vinho', 'Viagens', 'Festas Privadas', 'Clubes Liberais',
-    'Praia', 'Cinema de Arte', 'Música Eletrônica', 'Jazz & Blues', 'BDSM Suave',
-    'Poliamor', 'Conversa Filosófica', 'Saúde & Fitness'
-  ];
-
-  const objectiveOptions = [
-    { id: 'conhecer_casais', label: 'Conhecer outros casais' },
-    { id: 'amizades', label: 'Fazer amizades no meio liberal' },
-    { id: 'conhecer_terceira_pessoa', label: 'Conhecer uma terceira pessoa' },
-    { id: 'jantares_sociais', label: 'Participar de jantares e eventos sociais' },
-    { id: 'conversar_primeiro', label: 'Conversar com calma antes de encontros' }
-  ];
+  const interestOptions = INTEREST_OPTIONS;
+  const objectiveOptions = OBJECTIVE_OPTIONS;
 
   const toggleInterest = (tag: string) => {
     setSelectedInterests(prev => 

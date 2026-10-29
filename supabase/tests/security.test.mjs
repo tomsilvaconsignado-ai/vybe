@@ -232,6 +232,27 @@ await db.query(`UPDATE profiles SET restrictions = '{}' WHERE id = $1`, [ids.a])
 await expectFail('link de ingresso javascript: é recusado', ids.a, `INSERT INTO events (created_by, title, starts_at, venue_name, city, ticket_url) VALUES ($1, 'festa', now() + interval '1 day', 'Clube', 'Campinas', 'javascript:alert(1)')`, [ids.a]);
 await expectOk('sem restrição, publica normalmente', ids.a, `INSERT INTO events (created_by, title, starts_at, venue_name, city) VALUES ($1, 'festa', now() + interval '1 day', 'Clube', 'Campinas')`, [ids.a]);
 
+console.log('\nDados do perfil');
+await expectOk('A troca o próprio @usuário pela RPC', ids.a, `SELECT public.change_username('Alice_Nova')`);
+r = await db.query(`SELECT username FROM profiles WHERE id = $1`, [ids.a]);
+r.rows[0].username === 'alice_nova' ? ok('@usuário salvo em minúsculas') : bad('@usuário: ' + r.rows[0].username);
+await expectFail('A não troca de novo antes de 7 dias', ids.a, `SELECT public.change_username('alice3')`);
+await expectFail('B não usa um @usuário já ocupado', ids.b, `SELECT public.change_username('alice_nova')`);
+await expectFail('B não usa nome que imita a equipe', ids.b, `SELECT public.change_username('suporte_vybelog')`);
+await expectFail('B não usa caracteres fora do padrão', ids.b, `SELECT public.change_username('bruno<script>')`);
+await expectOk('A tenta liberar a própria troca editando a data (ignorado)', ids.a, `UPDATE profiles SET username_changed_at = NULL, username = 'hack' WHERE id = $1`, [ids.a]);
+r = await db.query(`SELECT username, username_changed_at IS NOT NULL AS locked FROM profiles WHERE id = $1`, [ids.a]);
+r.rows[0].username === 'alice_nova' && r.rows[0].locked ? ok('@usuário e trava de 7 dias protegidos contra UPDATE direto') : bad('proteção do @usuário: ' + JSON.stringify(r.rows[0]));
+await db.query(`UPDATE auth.users SET email = 'nova@x.com' WHERE id = $1`, [ids.b]);
+r = await db.query(`SELECT email FROM profile_private WHERE user_id = $1`, [ids.b]);
+r.rows[0].email === 'nova@x.com' ? ok('troca de e-mail confirmada chega em profile_private') : bad('e-mail não sincronizado: ' + r.rows[0].email);
+await expectOk('A salva respostas opcionais de preferências', ids.a, `UPDATE compatibility_preferences SET extras = '{"experience":"beginner"}' WHERE profile_id = $1`, [ids.a]);
+await expectFail('respostas opcionais não aceitam lista no lugar de objeto', ids.a, `UPDATE compatibility_preferences SET extras = '[1,2]' WHERE profile_id = $1`, [ids.a]);
+await expectFail('respostas opcionais têm tamanho limitado', ids.a, `UPDATE compatibility_preferences SET extras = jsonb_build_object('x', repeat(md5(random()::text), 400)) WHERE profile_id = $1`, [ids.a]);
+await expectOk('A edita os dados do parceiro', ids.a, `INSERT INTO joint_partners (profile_id, name, age, gender) VALUES ($1, 'Par', 30, 'Feminino')`, [ids.a]);
+await expectFail('A não cadastra parceiro menor de idade', ids.a, `INSERT INTO joint_partners (profile_id, name, age, gender) VALUES ($1, 'Par', 17, 'Feminino')`, [ids.a]);
+await expectFail('B não cria parceiro no perfil de A', ids.b, `INSERT INTO joint_partners (profile_id, name, age, gender) VALUES ($1, 'Intruso', 30, 'Masculino')`, [ids.a]);
+
 console.log('\nModo discreto');
 await expectOk('B ativa modo discreto', ids.b, `UPDATE profiles SET discreet_mode_enabled = true, last_active_at = now() WHERE id = $1`, [ids.b]);
 r = await db.query(`SELECT last_active_at = date_trunc('day', last_active_at) AS rounded FROM profiles WHERE id = $1`, [ids.b]);
