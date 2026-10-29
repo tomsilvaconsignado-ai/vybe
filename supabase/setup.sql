@@ -1072,6 +1072,18 @@ BEGIN
         'Conexão aceita', actor_name || ' aceitou sua conexão.', NEW.addressee_id::text);
     END IF;
 
+  ELSIF TG_TABLE_NAME = 'follows' THEN
+    -- Seguir/deixar de seguir várias vezes não enche a caixa de avisos: um por pessoa a cada 24 h
+    IF NOT EXISTS (
+      SELECT 1 FROM public.notifications
+      WHERE user_id = NEW.following_id AND actor_id = NEW.follower_id AND type = 'follow'
+        AND created_at > now() - INTERVAL '24 hours'
+    ) THEN
+      SELECT display_name INTO actor_name FROM public.profiles WHERE id = NEW.follower_id;
+      PERFORM public.notify(NEW.following_id, NEW.follower_id, 'follow', 'Novo seguidor',
+        actor_name || ' começou a seguir você.', NEW.follower_id::text);
+    END IF;
+
   ELSIF TG_TABLE_NAME = 'album_permissions' THEN
     SELECT user_id INTO owner FROM public.albums WHERE id = NEW.album_id;
     IF TG_OP = 'INSERT' THEN
@@ -1096,6 +1108,9 @@ CREATE TRIGGER notify_post_comments AFTER INSERT ON public.post_comments
   FOR EACH ROW EXECUTE FUNCTION public.notify_on_activity();
 DROP TRIGGER IF EXISTS notify_connections ON public.connections;
 CREATE TRIGGER notify_connections AFTER INSERT OR UPDATE ON public.connections
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_activity();
+DROP TRIGGER IF EXISTS notify_follows ON public.follows;
+CREATE TRIGGER notify_follows AFTER INSERT ON public.follows
   FOR EACH ROW EXECUTE FUNCTION public.notify_on_activity();
 DROP TRIGGER IF EXISTS notify_album_permissions ON public.album_permissions;
 CREATE TRIGGER notify_album_permissions AFTER INSERT OR UPDATE ON public.album_permissions
@@ -1239,6 +1254,33 @@ BEGIN
   END IF;
   UPDATE public.profiles SET username = v, username_changed_at = now() WHERE id = auth.uid();
   RETURN v;
+END;
+$$;
+
+-- Listas de seguidores / seguindo (como no Instagram). A tabela follows só mostra as
+-- próprias relações; esta função expõe as de outro perfil sem revelar quem não deve
+-- aparecer: perfis bloqueados (pela moderação ou entre as pessoas) e quem usa o modo
+-- discreto ficam de fora das listas de terceiros.
+CREATE OR REPLACE FUNCTION public.follow_list(target UUID, list_kind TEXT)
+RETURNS TABLE (id UUID, username TEXT, display_name TEXT, avatar_url TEXT, profile_type profile_type_enum, is_verified BOOLEAN)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Não autenticado.'; END IF;
+  IF list_kind NOT IN ('followers', 'following') THEN RAISE EXCEPTION 'Lista inválida.'; END IF;
+  IF target <> auth.uid() AND (public.is_blocked_between(target, auth.uid())
+     OR EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = target AND status = 'blocked')) THEN
+    RETURN;
+  END IF;
+  RETURN QUERY
+  SELECT p.id, p.username::text, p.display_name::text, p.avatar_url, p.profile_type, p.is_verified
+  FROM public.follows f
+  JOIN public.profiles p ON p.id = CASE WHEN list_kind = 'followers' THEN f.follower_id ELSE f.following_id END
+  WHERE (CASE WHEN list_kind = 'followers' THEN f.following_id ELSE f.follower_id END) = target
+    AND p.status <> 'blocked'
+    AND (p.id = auth.uid() OR NOT public.is_blocked_between(p.id, auth.uid()))
+    AND (target = auth.uid() OR p.id = auth.uid() OR NOT p.discreet_mode_enabled)
+  ORDER BY f.created_at DESC
+  LIMIT 1000;
 END;
 $$;
 
@@ -1731,6 +1773,7 @@ GRANT EXECUTE ON FUNCTION public.accept_message_request(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.decline_message_request(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.block_user(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.change_username(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.follow_list(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_conversation_read(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;
@@ -1791,7 +1834,9 @@ CREATE POLICY "follows_select" ON public.follows FOR SELECT TO authenticated
   USING (follower_id = auth.uid() OR following_id = auth.uid() OR public.is_staff());
 CREATE POLICY "follows_insert" ON public.follows FOR INSERT TO authenticated
   WITH CHECK (follower_id = auth.uid() AND public.can_interact() AND NOT public.is_blocked_between(follower_id, following_id));
-CREATE POLICY "follows_delete" ON public.follows FOR DELETE TO authenticated USING (follower_id = auth.uid());
+-- Quem segue pode deixar de seguir; quem é seguido pode remover o seguidor (como no Instagram)
+CREATE POLICY "follows_delete" ON public.follows FOR DELETE TO authenticated
+  USING (follower_id = auth.uid() OR following_id = auth.uid());
 
 -- connections (aceitar só muda pending -> accepted; os participantes são fixos, ver protect_relationship_keys)
 CREATE POLICY "connections_select" ON public.connections FOR SELECT TO authenticated

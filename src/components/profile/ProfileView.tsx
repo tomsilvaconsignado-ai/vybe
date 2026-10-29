@@ -30,10 +30,12 @@ import { AlbumPermissionsModal } from './AlbumPermissionsModal';
 import { AlbumViewerModal } from './AlbumViewerModal';
 import { CreateAlbumModal } from './CreateAlbumModal';
 import { fetchAlbums } from '../../lib/albums';
-import { fetchUserPosts } from '../../lib/social';
+import { fetchUserPosts, fetchProfileById, FollowListKind } from '../../lib/social';
+import { FollowListModal } from './FollowListModal';
+import { PROFILE_TYPE_OPTIONS } from '../../lib/profileOptions';
 import { PostCard } from '../feed/PostCard';
 import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibility';
-import { MediaAlbum, Post } from '../../types';
+import { MediaAlbum, Post, UserProfile } from '../../types';
 import { notify, askConfirm } from '../common/Feedback';
 
 export const ProfileView: React.FC = () => {
@@ -59,7 +61,27 @@ export const ProfileView: React.FC = () => {
   } = useApp();
 
   const isSelf = !selectedProfileId || selectedProfileId === currentUser.id;
-  const profile = isSelf ? currentUser : profiles.find(p => p.id === selectedProfileId) || currentUser;
+  // Perfis fora dos carregados na descoberta (ex.: abertos por uma lista de seguidores) vêm do banco
+  const [remoteProfile, setRemoteProfile] = useState<UserProfile | null>(null);
+  const loadedProfile = isSelf ? currentUser : profiles.find(p => p.id === selectedProfileId) ?? (remoteProfile?.id === selectedProfileId ? remoteProfile : null);
+  const profile = loadedProfile ?? currentUser;
+  const [followList, setFollowList] = useState<FollowListKind | null>(null);
+
+  useEffect(() => {
+    setFollowList(null);
+    if (isSelf || !selectedProfileId || profiles.some(p => p.id === selectedProfileId)) return;
+    let cancelled = false;
+    fetchProfileById(selectedProfileId).then(found => {
+      if (cancelled) return;
+      if (found) setRemoteProfile(found);
+      else {
+        notify('Este perfil não está disponível.');
+        setSelectedProfileId(null);
+      }
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProfileId]);
 
   const [activeTab, setActiveTab] = useState<'vault' | 'public' | 'posts'>('posts');
   const [editTab, setEditTab] = useState<EditProfileTab | null>(null);
@@ -110,6 +132,14 @@ export const ProfileView: React.FC = () => {
   const isConnected = connections.includes(profile.id);
   const compat = !isSelf ? getCompatibility(profile) : null;
   const userPosts = posts.filter(p => p.userId === profile.id);
+
+  if (!loadedProfile) {
+    return (
+      <div className="py-24 flex justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" aria-label="Carregando perfil" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4">
@@ -277,7 +307,7 @@ export const ProfileView: React.FC = () => {
                 <span className="text-sm font-normal text-zinc-400">({profile.age} anos)</span>
               </h2>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/40 w-max mx-auto sm:mx-0 capitalize">
-                {profile.profileType === 'couple' ? 'Casal Liberal' : profile.profileType === 'single_female' ? 'Mulher Solteira' : 'Homem Solteiro'}
+                {PROFILE_TYPE_OPTIONS.find(o => o.id === profile.profileType)?.label ?? 'Perfil'}
               </span>
             </div>
 
@@ -290,6 +320,27 @@ export const ProfileView: React.FC = () => {
               </span>
               <span>•</span>
               <span className="text-emerald-400 font-medium">{profile.lastActive}</span>
+            </div>
+
+            {/* Contadores (como no Instagram): seguidores e seguindo abrem as listas */}
+            <div className="grid grid-cols-4 sm:flex sm:gap-8 py-3 my-1 border-y border-purple-900/20 text-center sm:text-left">
+              {([
+                { label: 'publicações', value: profilePosts.length },
+                { label: 'seguidores', value: profile.followersCount, list: 'followers' },
+                { label: 'seguindo', value: profile.followingCount, list: 'following' },
+                { label: 'conexões', value: profile.connectionsCount }
+              ] as { label: string; value: number; list?: FollowListKind }[]).map(stat => (
+                <button
+                  key={stat.label}
+                  type="button"
+                  disabled={!stat.list}
+                  onClick={() => stat.list && setFollowList(stat.list)}
+                  className={`flex flex-col sm:flex-row sm:items-baseline sm:gap-1 items-center ${stat.list ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                >
+                  <span className="text-base font-extrabold text-white">{stat.value}</span>
+                  <span className="text-[11px] sm:text-xs text-zinc-400">{stat.label}</span>
+                </button>
+              ))}
             </div>
 
             {profile.statusText && (
@@ -384,26 +435,6 @@ export const ProfileView: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* Followers / Connections Stats */}
-          <div className="flex items-center justify-around sm:justify-start sm:gap-8 pt-5 border-t border-purple-900/20 mt-5 text-center sm:text-left">
-            <div>
-              <span className="text-base font-extrabold text-white block">{profile.followersCount}</span>
-              <span className="text-[11px] text-zinc-400">Seguidores</span>
-            </div>
-            <div>
-              <span className="text-base font-extrabold text-white block">{profile.followingCount}</span>
-              <span className="text-[11px] text-zinc-400">Seguindo</span>
-            </div>
-            <div>
-              <span className="text-base font-extrabold text-white block">{profile.connectionsCount}</span>
-              <span className="text-[11px] text-zinc-400">Conexões Mútuas</span>
-            </div>
-            <div>
-              <span className="text-base font-extrabold text-purple-400 block">{albums.length}</span>
-              <span className="text-[11px] text-zinc-400">Álbuns & Cofres</span>
-            </div>
-          </div>
 
         </div>
       </div>
@@ -644,6 +675,17 @@ export const ProfileView: React.FC = () => {
 
       {/* Edit Profile Modal */}
       {editTab && <EditProfileModal isOpen initialTab={editTab} onClose={() => setEditTab(null)} />}
+
+      {followList && (
+        <FollowListModal
+          profileId={profile.id}
+          username={profile.username}
+          followersCount={profile.followersCount}
+          followingCount={profile.followingCount}
+          initialKind={followList}
+          onClose={() => setFollowList(null)}
+        />
+      )}
 
       {/* Album Permissions Modal */}
       {managingAlbum && (

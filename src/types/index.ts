@@ -212,7 +212,8 @@ export interface NotificationItem {
     | 'vault_access_request' 
     | 'vault_access_granted' 
     | 'system_safety' 
-    | 'community_invite';
+    | 'community_invite'
+    | 'follow';
   title: string;
   message: string;
   referenceId?: string;
