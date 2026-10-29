@@ -20,6 +20,9 @@ export interface JointPartner {
   bio?: string;
 }
 
+// Respostas da aba opcional de preferências: id da pergunta -> opção (ou opções) escolhidas
+export type PreferenceExtras = Record<string, string | string[]>;
+
 export interface CompatibilityPreferences {
   objectives: string[];              // e.g. ['conhecer_casais', 'amizades', 'conhecer_terceira_pessoa']
   interestedIn: ('couples' | 'singles_female' | 'singles_male' | 'all')[];
@@ -31,6 +34,7 @@ export interface CompatibilityPreferences {
   groupReadiness: 'open' | 'curious' | 'only_duo';
   personalLimits: string[];          // e.g. ['Sem fotos sem consentimento', 'Respeito ao não', 'Discrição no trabalho']
   lifestyleTags: string[];           // e.g. ['BDSM leve', 'Vinho & Jantar', 'Baladas liberais', 'Praia', 'Resort liberal']
+  extras?: PreferenceExtras;          // respostas da aba opcional de preferências do perfil
 }
 
 export interface MediaItem {
@@ -70,6 +74,7 @@ export interface UserProfile {
   locationPrivacy: LocationPrivacy;
   approximateDistanceKm?: number;
   age: number;                        // Primary age or average
+  birthdate?: string;                 // só no perfil do próprio usuário (AAAA-MM-DD)
   gender?: string;
   orientation?: string;
   bio: string;

@@ -19,7 +19,7 @@ import {
 } from '../types';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, authRedirectUrl, authLinkError, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
-import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile } from '../lib/profiles';
+import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile, saveOwnPreferences, saveOwnPartners, changeOwnUsername } from '../lib/profiles';
 import { calculateCompatibility, CompatibilityBreakdown } from '../utils/compatibility';
 import { fetchCompatibilityMap } from '../lib/compatibility';
 import {
@@ -106,7 +106,11 @@ interface AppContextType {
   passwordRecoveryMode: boolean;
   updatePassword: (newPassword: string) => Promise<string | null>;
   logout: () => Promise<void>;
-  updateCurrentUser: (updated: Partial<UserProfile>) => void;
+  updateCurrentUser: (updated: Partial<UserProfile>) => Promise<string | null>;
+  savePreferences: (prefs: UserProfile['compatibilityPrefs']) => Promise<string | null>;
+  savePartners: (partners: NonNullable<UserProfile['partners']>) => Promise<string | null>;
+  changeUsername: (username: string) => Promise<string | null>;
+  changeEmail: (email: string) => Promise<string | null>;
 
   // Navigation
   activeTab: string;
@@ -425,7 +429,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [profile, role] = await Promise.all([fetchOwnProfile(userId), fetchAdminRole(userId)]);
 
     if (profile) {
-      setCurrentUser({ ...profile, email: profile.email || nextSession.user.email || '' });
+      // O e-mail de login (Auth) é a fonte da verdade; a cópia em profile_private pode estar atrasada
+      setCurrentUser({ ...profile, email: nextSession.user.email || profile.email || '' });
     } else {
       console.error('[Vybelog] Sessão sem perfil correspondente. O script supabase/setup.sql foi executado?');
       setCurrentUser(GUEST_USER);
@@ -570,15 +575,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAuthModalType('login');
   };
 
-  const updateCurrentUser = (updated: Partial<UserProfile>) => {
+  const updateCurrentUser = async (updated: Partial<UserProfile>): Promise<string | null> => {
     setCurrentUser(prev => ({ ...prev, ...updated }));
-    if (!currentUser.id) return;
-    saveOwnProfile(currentUser.id, updated).then(error => {
-      if (error) {
-        console.error('[Vybelog] Falha ao salvar perfil:', error);
-        notify('Não foi possível salvar as alterações do perfil. Tente novamente.');
-      }
-    });
+    if (!currentUser.id) return null;
+    const error = await saveOwnProfile(currentUser.id, updated);
+    if (error) {
+      console.error('[Vybelog] Falha ao salvar perfil:', error);
+      notify('Não foi possível salvar as alterações do perfil. Tente novamente.');
+    }
+    return error;
+  };
+
+  const savePreferences = async (prefs: UserProfile['compatibilityPrefs']): Promise<string | null> => {
+    const error = await saveOwnPreferences(currentUser.id, prefs);
+    if (error) return error;
+    setCurrentUser(prev => ({ ...prev, compatibilityPrefs: prefs }));
+    // Os scores mudam com as novas respostas
+    fetchCompatibilityMap(profiles.map(p => p.id)).then(setCompatibilityMap);
+    return null;
+  };
+
+  const savePartners = async (partners: NonNullable<UserProfile['partners']>): Promise<string | null> => {
+    const error = await saveOwnPartners(currentUser.id, partners, currentUser.partners ?? []);
+    // Recarrega para pegar os ids dos parceiros novos (e o estado real se algo falhou no meio)
+    const fresh = await fetchOwnProfile(currentUser.id);
+    if (fresh) setCurrentUser(prev => ({ ...prev, partners: fresh.partners }));
+    return error;
+  };
+
+  const changeUsername = async (username: string): Promise<string | null> => {
+    const { username: saved, error } = await changeOwnUsername(username);
+    if (error) return error;
+    setCurrentUser(prev => ({ ...prev, username: saved ?? prev.username }));
+    return null;
+  };
+
+  // O Supabase manda um link de confirmação; o e-mail só muda depois do clique
+  const changeEmail = async (email: string): Promise<string | null> => {
+    const { error } = await supabase.auth.updateUser({ email: email.trim() }, { emailRedirectTo: authRedirectUrl() });
+    return error ? translateAuthError(error.message) : null;
   };
 
   // Posts fora do feed (ex.: abertos pelo perfil) ficam neste cache para as ações funcionarem neles também
@@ -964,6 +999,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatePassword,
         logout,
         updateCurrentUser,
+        savePreferences,
+        savePartners,
+        changeUsername,
+        changeEmail,
         activeTab,
         setActiveTab,
         selectedProfileId,

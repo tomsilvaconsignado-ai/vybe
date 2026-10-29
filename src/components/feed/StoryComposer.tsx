@@ -3,18 +3,47 @@ import { X, Image, Users, Globe } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { publishStory } from '../../lib/stories';
 import { notify } from '../common/Feedback';
+import { fitToFrame, FrameMode, MediaProcessingError } from '../../lib/media';
+import { FrameModeToggle } from './FrameModeToggle';
 
 const MAX_MB = 20;
 
 export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { currentUser, refreshStories } = useApp();
+  const [source, setSource] = useState<File | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [frameMode, setFrameMode] = useState<FrameMode>('fill');
+  const [framing, setFraming] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [audience, setAudience] = useState<'all' | 'connections'>('all');
   const [publishing, setPublishing] = useState(false);
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+
+  // Fotos viram 1080x1920 já na prévia; vídeos vão como estão (o visualizador os encaixa em 9:16)
+  useEffect(() => {
+    if (!source) return;
+    if (source.type.startsWith('video/')) {
+      setFile(source);
+      setPreview(URL.createObjectURL(source));
+      return;
+    }
+    let cancelled = false;
+    setFraming(true);
+    fitToFrame(source, frameMode)
+      .then(framed => {
+        if (cancelled) return;
+        setFile(framed);
+        setPreview(URL.createObjectURL(framed));
+      })
+      .catch(err => {
+        if (cancelled) return;
+        notify(err instanceof MediaProcessingError ? err.message : 'Não foi possível processar a foto.');
+      })
+      .finally(() => { if (!cancelled) setFraming(false); });
+    return () => { cancelled = true; };
+  }, [source, frameMode]);
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = e.target.files?.[0];
@@ -24,8 +53,7 @@ export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       notify(`O arquivo deve ter no máximo ${MAX_MB} MB.`);
       return;
     }
-    setFile(picked);
-    setPreview(URL.createObjectURL(picked));
+    setSource(picked);
   };
 
   const handlePublish = async () => {
@@ -53,11 +81,11 @@ export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         </div>
 
         {preview ? (
-          <div className="relative aspect-[9/16] max-h-[50vh] mx-auto rounded-2xl overflow-hidden bg-black">
+          <div className="relative h-[50vh] aspect-[9/16] mx-auto rounded-2xl overflow-hidden bg-black">
             {file?.type.startsWith('video/') ? (
               <video src={preview} className="w-full h-full object-contain" autoPlay muted loop playsInline />
             ) : (
-              <img src={preview} alt="Prévia" className="w-full h-full object-contain" />
+              <img src={preview} alt="Prévia" className={`w-full h-full object-cover ${framing ? 'opacity-50' : ''}`} />
             )}
             <label className="absolute bottom-2 right-2 px-3 py-1.5 rounded-full bg-black/70 text-xs text-white cursor-pointer">
               Trocar
@@ -65,11 +93,15 @@ export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) =>
             </label>
           </div>
         ) : (
-          <label className="flex flex-col items-center justify-center gap-2 aspect-[9/16] max-h-[40vh] mx-auto w-full rounded-2xl border-2 border-dashed border-purple-700/50 text-purple-200 cursor-pointer hover:bg-purple-950/30">
+          <label className="flex flex-col items-center justify-center gap-2 h-[40vh] aspect-[9/16] mx-auto rounded-2xl border-2 border-dashed border-purple-700/50 text-purple-200 cursor-pointer hover:bg-purple-950/30">
             <Image className="w-8 h-8" />
             <span className="text-xs font-semibold">Escolher foto ou vídeo</span>
             <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4" className="hidden" onChange={handlePick} />
           </label>
+        )}
+
+        {source && !source.type.startsWith('video/') && (
+          <FrameModeToggle value={frameMode} onChange={setFrameMode} disabled={framing} />
         )}
 
         <input
@@ -103,7 +135,7 @@ export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) =>
         <button
           type="button"
           onClick={handlePublish}
-          disabled={!file || publishing}
+          disabled={!file || framing || publishing}
           className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 to-rose-600 disabled:opacity-50 cursor-pointer"
         >
           {publishing ? 'Publicando...' : 'Publicar story'}
