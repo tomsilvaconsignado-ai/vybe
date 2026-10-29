@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   X, 
@@ -20,11 +20,14 @@ import {
 import { ProfileType, LocationPrivacy } from '../../types';
 import { defaultAvatar } from '../../lib/profiles';
 import { notify } from '../common/Feedback';
+import { Captcha, CaptchaHandle, captchaEnabled } from './Captcha';
 
 export const RegisterWizard: React.FC = () => {
   const { setAuthModalType, register, setPrivacyTermsModalOpen, registerProfileType } = useApp();
   const [step, setStep] = useState(1);
   const [submitError, setSubmitError] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captcha = useRef<CaptchaHandle>(null);
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
 
   // Form State
@@ -136,6 +139,12 @@ export const RegisterWizard: React.FC = () => {
   };
 
   const handleFinishRegistration = async () => {
+    if (captchaEnabled && !captchaToken) {
+      setSubmitError('Aguarde a verificação de segurança terminar e tente de novo.');
+      return;
+    }
+    const token = captchaToken;
+    captcha.current?.reset();
     setIsVerifying(true);
     setSubmitError('');
 
@@ -168,7 +177,7 @@ export const RegisterWizard: React.FC = () => {
         personalLimits: [limitsText, 'Uso de preservativo', 'Sem fotos não consentidas'],
         lifestyleTags: selectedInterests.slice(0, 4)
       }
-    });
+    }, token);
 
     setIsVerifying(false);
     if (error) {
@@ -680,6 +689,7 @@ export const RegisterWizard: React.FC = () => {
               </label>
             </div>
 
+            <Captcha ref={captcha} onToken={setCaptchaToken} />
             {submitError && <p className="text-xs text-rose-400">{submitError}</p>}
           </div>
         )}

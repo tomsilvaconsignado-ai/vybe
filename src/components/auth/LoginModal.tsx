@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import logoUrl from '../../assets/logo.png';
+import { Captcha, CaptchaHandle, captchaEnabled } from './Captcha';
 import { X, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export const LoginModal: React.FC = () => {
@@ -10,13 +11,30 @@ export const LoginModal: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captcha = useRef<CaptchaHandle>(null);
+
+  // Cada token do CAPTCHA vale para uma única tentativa
+  const captchaReady = () => {
+    if (captchaEnabled && !captchaToken) {
+      setError('Aguarde a verificação de segurança terminar e tente de novo.');
+      return false;
+    }
+    return true;
+  };
+  const spendCaptcha = () => {
+    const token = captchaToken;
+    captcha.current?.reset();
+    return token;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError('');
     setInfo('');
-    const loginError = await login(email, password);
+    if (!captchaReady()) return;
+    setIsLoading(true);
+    const loginError = await login(email, password, spendCaptcha());
     if (loginError) setError(loginError);
     setIsLoading(false);
   };
@@ -28,7 +46,8 @@ export const LoginModal: React.FC = () => {
       setError('Informe seu e-mail no campo acima para receber o link de redefinição.');
       return;
     }
-    const resetError = await requestPasswordReset(email);
+    if (!captchaReady()) return;
+    const resetError = await requestPasswordReset(email, spendCaptcha());
     if (resetError) setError(resetError);
     else setInfo('Se houver uma conta com este e-mail, enviamos um link para redefinir a senha.');
   };
@@ -36,7 +55,8 @@ export const LoginModal: React.FC = () => {
   // Conta criada mas e-mail ainda não confirmado (link perdido ou vencido)
   const needsConfirmation = error.startsWith('Confirme seu e-mail');
   const handleResendConfirmation = async () => {
-    const resendError = await resendConfirmationEmail(email);
+    if (!captchaReady()) return;
+    const resendError = await resendConfirmationEmail(email, spendCaptcha());
     if (resendError) {
       setError(resendError);
       return;
@@ -101,6 +121,8 @@ export const LoginModal: React.FC = () => {
               />
             </div>
           </div>
+
+          <Captcha ref={captcha} onToken={setCaptchaToken} />
 
           {error && <p className="text-xs text-rose-400">{error}</p>}
           {needsConfirmation && (

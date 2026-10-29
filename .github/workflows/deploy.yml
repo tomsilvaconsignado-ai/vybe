@@ -49,6 +49,8 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || 'https://efztrffuovqxmkodpbkx.supabase.co' }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || 'sb_publishable_7Iwr2YQtik9YONyAIRmxCA_XyYFXcRA' }}
+          # CAPTCHA (Cloudflare Turnstile): sem a variável, o app funciona sem CAPTCHA
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
         run: npm run build
 
       - name: Setup GitHub Pages

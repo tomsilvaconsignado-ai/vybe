@@ -99,10 +99,10 @@ interface AppContextType {
   authLoading: boolean;
   isAgeConfirmed: boolean;
   confirmAge: () => void;
-  login: (email: string, password: string) => Promise<string | null>;
-  register: (email: string, password: string, metadata: SignUpMetadata) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
-  requestPasswordReset: (email: string) => Promise<string | null>;
-  resendConfirmationEmail: (email: string) => Promise<string | null>;
+  login: (email: string, password: string, captchaToken?: string | null) => Promise<string | null>;
+  register: (email: string, password: string, metadata: SignUpMetadata, captchaToken?: string | null) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
+  requestPasswordReset: (email: string, captchaToken?: string | null) => Promise<string | null>;
+  resendConfirmationEmail: (email: string, captchaToken?: string | null) => Promise<string | null>;
   passwordRecoveryMode: boolean;
   updatePassword: (newPassword: string) => Promise<string | null>;
   logout: () => Promise<void>;
@@ -520,19 +520,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('vybe_age_confirmed', 'true');
   };
 
-  const login = async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+  const login = async (email: string, password: string, captchaToken?: string | null): Promise<string | null> => {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password, options: { captchaToken: captchaToken ?? undefined } });
     if (error) return translateAuthError(error.message);
     setAuthModalType(null);
     setActiveTab('feed');
     return null;
   };
 
-  const register = async (email: string, password: string, metadata: SignUpMetadata) => {
+  const register = async (email: string, password: string, metadata: SignUpMetadata, captchaToken?: string | null) => {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: metadata, emailRedirectTo: authRedirectUrl() }
+      options: { data: metadata, emailRedirectTo: authRedirectUrl(), captchaToken: captchaToken ?? undefined }
     });
     if (error) return { error: translateAuthError(error.message), needsEmailConfirmation: false };
 
@@ -545,13 +545,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { error: null, needsEmailConfirmation };
   };
 
-  const resendConfirmationEmail = async (email: string): Promise<string | null> => {
-    const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: authRedirectUrl() } });
+  const resendConfirmationEmail = async (email: string, captchaToken?: string | null): Promise<string | null> => {
+    const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: authRedirectUrl(), captchaToken: captchaToken ?? undefined } });
     return error ? translateAuthError(error.message) : null;
   };
 
-  const requestPasswordReset = async (email: string): Promise<string | null> => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: authRedirectUrl() });
+  const requestPasswordReset = async (email: string, captchaToken?: string | null): Promise<string | null> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: authRedirectUrl(), captchaToken: captchaToken ?? undefined });
     return error ? translateAuthError(error.message) : null;
   };
 
