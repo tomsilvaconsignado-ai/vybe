@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, MapPin, Ticket, Star, Users, Check, X, EyeOff, Maximize2 } from 'lucide-react';
+import { CalendarDays, MapPin, Ticket, Star, Users, Check, X, EyeOff, Maximize2, MessageCircle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { EventRsvpStatus, VybeEvent } from '../../types';
 import { EVENT_CATEGORY_LABELS, formatEventDate } from '../../lib/events';
@@ -87,8 +87,13 @@ export const EventCard: React.FC<EventCardProps> = ({ event, compact, onOpen }) 
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] text-zinc-400 flex items-center gap-1">
-            <Users className="w-3 h-3" /> {event.goingCount} {event.goingCount === 1 ? 'vai' : 'vão'}
+          <p className="text-[11px] text-zinc-400 flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Users className="w-3 h-3" /> {event.goingCount} {event.goingCount === 1 ? 'vai' : 'vão'}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageCircle className="w-3 h-3" /> {event.commentsCount} {event.commentsCount === 1 ? 'comentário' : 'comentários'}
+            </span>
           </p>
           {event.myStatus && (
             <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${

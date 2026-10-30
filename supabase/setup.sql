@@ -482,6 +482,17 @@ ALTER TABLE public.event_attendees DROP CONSTRAINT IF EXISTS event_attendees_sta
 ALTER TABLE public.event_attendees ADD CONSTRAINT event_attendees_status_check
   CHECK (status IN ('going', 'interested', 'not_going', 'not_interested'));
 
+-- Comentários nos eventos da agenda (imutáveis; o autor, o organizador e a moderação podem apagar)
+CREATE TABLE IF NOT EXISTS public.event_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  content TEXT NOT NULL CHECK (length(trim(content)) BETWEEN 1 AND 1000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_event_comments_event ON public.event_comments(event_id, created_at);
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS comments_count INTEGER NOT NULL DEFAULT 0;
+
 -- Alcance da arte do evento: uma linha por pessoa que abriu, com o total de aberturas.
 -- Gravado só pela RPC record_event_view; lido só pela equipe (admin_event_stats).
 CREATE TABLE IF NOT EXISTS public.event_views (
@@ -1096,6 +1107,15 @@ BEGIN
         'Conexão aceita', actor_name || ' aceitou sua conexão.', NEW.addressee_id::text);
     END IF;
 
+  ELSIF TG_TABLE_NAME = 'event_comments' THEN
+    SELECT display_name INTO actor_name FROM public.profiles WHERE id = NEW.user_id;
+    SELECT created_by INTO owner FROM public.events WHERE id = NEW.event_id;
+    -- Evento de conta já excluída (created_by vazio) não tem a quem avisar
+    IF owner IS NOT NULL THEN
+      PERFORM public.notify(owner, NEW.user_id, 'event_comment', 'Comentário no seu evento',
+        actor_name || ' comentou: ' || left(NEW.content, 80), NEW.event_id::text);
+    END IF;
+
   ELSIF TG_TABLE_NAME = 'follows' THEN
     -- Seguir/deixar de seguir várias vezes não enche a caixa de avisos: um por pessoa a cada 24 h
     IF NOT EXISTS (
@@ -1132,6 +1152,9 @@ CREATE TRIGGER notify_post_comments AFTER INSERT ON public.post_comments
   FOR EACH ROW EXECUTE FUNCTION public.notify_on_activity();
 DROP TRIGGER IF EXISTS notify_connections ON public.connections;
 CREATE TRIGGER notify_connections AFTER INSERT OR UPDATE ON public.connections
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_activity();
+DROP TRIGGER IF EXISTS notify_event_comments ON public.event_comments;
+CREATE TRIGGER notify_event_comments AFTER INSERT ON public.event_comments
   FOR EACH ROW EXECUTE FUNCTION public.notify_on_activity();
 DROP TRIGGER IF EXISTS notify_follows ON public.follows;
 CREATE TRIGGER notify_follows AFTER INSERT ON public.follows
@@ -1795,9 +1818,25 @@ RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
     SET open_count = event_views.open_count + 1, last_opened_at = now();
 $$;
 
--- Alcance e interações por evento (somente a equipe)
+-- Contador de comentários do evento
+CREATE OR REPLACE FUNCTION public.count_event_comments()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE ev UUID := coalesce(NEW.event_id, OLD.event_id);
+BEGIN
+  UPDATE public.events SET comments_count = (SELECT count(*) FROM public.event_comments WHERE event_id = ev) WHERE id = ev;
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS count_event_comments ON public.event_comments;
+CREATE TRIGGER count_event_comments AFTER INSERT OR DELETE ON public.event_comments
+  FOR EACH ROW EXECUTE FUNCTION public.count_event_comments();
+
+-- Alcance e interações por evento (somente a equipe). "Interagiram" = pessoas que
+-- responderam (vou / não vou / sem interesse) ou comentaram.
+DROP FUNCTION IF EXISTS public.admin_event_stats();
 CREATE OR REPLACE FUNCTION public.admin_event_stats()
-RETURNS TABLE (event_id UUID, viewers BIGINT, opens BIGINT, going BIGINT, interested BIGINT, not_going BIGINT, not_interested BIGINT, interacted BIGINT)
+RETURNS TABLE (event_id UUID, viewers BIGINT, opens BIGINT, going BIGINT, interested BIGINT, not_going BIGINT, not_interested BIGINT, comments BIGINT, commenters BIGINT, interacted BIGINT)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
 #variable_conflict use_column
 BEGIN
@@ -1812,7 +1851,13 @@ BEGIN
     (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id AND a.status = 'interested'),
     (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id AND a.status = 'not_going'),
     (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id AND a.status = 'not_interested'),
-    (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id)
+    (SELECT count(*) FROM public.event_comments c WHERE c.event_id = e.id),
+    (SELECT count(DISTINCT c.user_id) FROM public.event_comments c WHERE c.event_id = e.id),
+    (SELECT count(*) FROM (
+      SELECT a.user_id FROM public.event_attendees a WHERE a.event_id = e.id
+      UNION
+      SELECT c.user_id FROM public.event_comments c WHERE c.event_id = e.id
+    ) people)
   FROM public.events e;
 END;
 $$;
@@ -1828,12 +1873,14 @@ BEGIN
       NEW.review_note := NULL;
       NEW.going_count := 0;
       NEW.interested_count := 0;
+      NEW.comments_count := 0;
     ELSE
       NEW.created_by := OLD.created_by;
       NEW.status := 'pending';  -- edição volta para análise
       NEW.is_featured := OLD.is_featured;
       NEW.going_count := OLD.going_count;
       NEW.interested_count := OLD.interested_count;
+      NEW.comments_count := OLD.comments_count;
     END IF;
   END IF;
   RETURN NEW;
@@ -1904,7 +1951,7 @@ BEGIN
     'user_blocks', 'communities', 'community_members', 'posts', 'post_polls', 'post_poll_votes', 'post_likes',
     'post_saves', 'post_comments', 'albums', 'album_items', 'album_permissions', 'conversations',
     'conversation_participants', 'messages', 'notifications', 'moderation_reports', 'admin_users',
-    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'event_views', 'ads', 'user_presence'
+    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'event_views', 'ads', 'user_presence', 'event_comments'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated', t);
@@ -2270,6 +2317,29 @@ CREATE POLICY "events_update" ON public.events FOR UPDATE TO authenticated
   USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
 CREATE POLICY "events_delete" ON public.events FOR DELETE TO authenticated
   USING (created_by = auth.uid());
+
+-- Comentários de eventos: visíveis onde o evento é visível, sem quem bloqueou/foi bloqueado.
+-- Comentar exige conta ativa, sem restrição de postar, em evento publicado.
+CREATE POLICY "event_comments_select" ON public.event_comments FOR SELECT TO authenticated
+  USING (
+    EXISTS (SELECT 1 FROM public.events e WHERE e.id = event_id
+            AND (e.status = 'approved' OR e.created_by = auth.uid() OR public.is_staff()))
+    AND (user_id = auth.uid() OR public.is_staff() OR NOT public.is_blocked_between(user_id, auth.uid()))
+  );
+CREATE POLICY "event_comments_insert" ON public.event_comments FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = auth.uid()
+    AND public.can_interact()
+    AND coalesce((SELECT (restrictions ->> 'cannotPost')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
+    AND EXISTS (SELECT 1 FROM public.events e WHERE e.id = event_id AND e.status = 'approved')
+    AND NOT EXISTS (SELECT 1 FROM public.events e WHERE e.id = event_id AND public.is_blocked_between(e.created_by, auth.uid()))
+  );
+CREATE POLICY "event_comments_delete" ON public.event_comments FOR DELETE TO authenticated
+  USING (
+    user_id = auth.uid()
+    OR EXISTS (SELECT 1 FROM public.events e WHERE e.id = event_id AND e.created_by = auth.uid())
+    OR public.is_moderator()
+  );
 
 -- Quem abriu a arte de cada evento: só a equipe lê; a gravação é pela RPC record_event_view
 CREATE POLICY "event_views_select" ON public.event_views FOR SELECT TO authenticated

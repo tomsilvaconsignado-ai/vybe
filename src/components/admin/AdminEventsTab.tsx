@@ -14,6 +14,7 @@ const EventReach: React.FC<{ stats?: EventStats }> = ({ stats }) => {
     { label: 'Vão', value: stats.going },
     { label: 'Não vão', value: stats.notGoing },
     { label: 'Sem interesse', value: stats.notInterested },
+    { label: 'Comentários', value: stats.comments },
     ...(stats.interested > 0 ? [{ label: 'Interesse (antigo)', value: stats.interested }] : [])
   ];
   return (
@@ -24,7 +25,7 @@ const EventReach: React.FC<{ stats?: EventStats }> = ({ stats }) => {
           <span className="font-normal text-zinc-500">({stats.opens} aberturas)</span>
         </span>
         <span className="flex items-center gap-1.5 text-white font-bold">
-          <MousePointerClick className="w-3.5 h-3.5 text-fuchsia-400" /> {stats.interacted} interagiram
+          <MousePointerClick className="w-3.5 h-3.5 text-fuchsia-400" /> {stats.interacted} interagiram (responderam ou comentaram)
           <span className="font-normal text-zinc-500">({rate}% de quem abriu)</span>
         </span>
       </div>

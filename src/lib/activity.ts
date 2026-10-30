@@ -101,7 +101,8 @@ export async function exportOwnData(me: string): Promise<Record<string, unknown>
     denuncias_feitas: supabase.from('moderation_reports').select('id, target_type, target_id, category, description, status, created_at').eq('reporter_user_id', me),
     stories: supabase.from('stories').select('*').eq('user_id', me),
     eventos_criados: supabase.from('events').select('*').eq('created_by', me),
-    presenca_em_eventos: supabase.from('event_attendees').select('*').eq('user_id', me)
+    presenca_em_eventos: supabase.from('event_attendees').select('*').eq('user_id', me),
+    comentarios_em_eventos: supabase.from('event_comments').select('*').eq('user_id', me)
   };
 
   const entries = await Promise.all(Object.entries(queries).map(async ([key, query]) => {

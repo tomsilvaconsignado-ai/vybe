@@ -214,7 +214,8 @@ export interface NotificationItem {
     | 'vault_access_granted' 
     | 'system_safety' 
     | 'community_invite'
-    | 'follow';
+    | 'follow'
+    | 'event_comment';
   title: string;
   message: string;
   referenceId?: string;
@@ -364,6 +365,7 @@ export interface VybeEvent {
   reviewNote?: string;
   goingCount: number;
   interestedCount: number;
+  commentsCount: number;
   myStatus?: EventRsvpStatus;
 }
 
@@ -383,4 +385,15 @@ export interface Ad {
   isActive: boolean;
   impressions: number;
   clicks: number;
+}
+
+export interface EventComment {
+  id: string;
+  eventId: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string;
+  content: string;
+  createdAt: string;
 }

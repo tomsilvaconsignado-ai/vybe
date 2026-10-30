@@ -33,6 +33,9 @@ export const NotificationsView: React.FC = () => {
         return <Key className="w-4 h-4 text-fuchsia-400" />;
       case 'like':
         return <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />;
+      case 'comment':
+      case 'event_comment':
+        return <MessageCircle className="w-4 h-4 text-sky-400" />;
       case 'connection_request':
       case 'connection_accepted':
         return <Users className="w-4 h-4 text-purple-400" />;
@@ -100,6 +103,8 @@ export const NotificationsView: React.FC = () => {
               markNotificationAsRead(n.id);
               if (n.type.includes('vault')) {
                 setActiveTab('profile');
+              } else if (n.type === 'event_comment') {
+                setActiveTab('events');
               } else if (n.actor?.id && n.actor.id !== 'sys') {
                 setSelectedProfileId(n.actor.id);
               }
