@@ -68,3 +68,13 @@ export async function fetchNearbyProfiles(maxKm: number): Promise<{ id: string; 
   }
   return ((data ?? []) as any[]).map(r => ({ id: r.profile_id, km: r.distance_km }));
 }
+
+// Mesma cidade / mesmo estado pelo cadastro (funciona sem GPS; respeita a privacidade de cada um)
+export async function fetchSameRegionProfiles(scope: 'city' | 'state'): Promise<{ id: string; match: 'city' | 'state' }[]> {
+  const { data, error } = await supabase.rpc('same_region_profiles', { scope });
+  if (error) {
+    if (!NOT_INSTALLED.includes(error.code ?? '')) console.error('[Vybelog] Falha na busca por região:', error.message);
+    return [];
+  }
+  return ((data ?? []) as any[]).map(r => ({ id: r.profile_id, match: r.match }));
+}

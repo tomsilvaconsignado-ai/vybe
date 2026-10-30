@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchNearbyProfiles } from '../../lib/geo';
+import { fetchNearbyProfiles, fetchSameRegionProfiles } from '../../lib/geo';
 import { notify } from '../common/Feedback';
 import { useApp } from '../../context/AppContext';
 import { ProfileCard } from './ProfileCard';
@@ -26,7 +26,10 @@ interface DiscoverViewProps {
 // Preferências da busca por distância ficam no aparelho (conveniência; nada sensível)
 const NEARBY_KEY = 'vybelog:nearby-only';
 const RADIUS_KEY = 'vybelog:nearby-radius';
+const MODE_KEY = 'vybelog:nearby-mode';
 const RADIUS_OPTIONS = [5, 10, 25, 50, 100, 300];
+type AreaMode = 'radius' | 'city' | 'state';
+interface AreaMatch { km?: number; match?: 'city' | 'state' }
 const readStored = (key: string) => {
   try { return localStorage.getItem(key); } catch { return null; }
 };
@@ -52,11 +55,23 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFiltersModal, setShowFiltersModal] = useState(false);
 
-  // Busca no banco quem está dentro do raio (inclusive quem não estava entre os perfis carregados)
-  const [nearby, setNearby] = useState<Map<string, number> | null>(null);
+  // Como "perto" é decidido: raio pelo GPS (mais a mesma cidade do cadastro), só a cidade ou só o estado
+  const [areaMode, setAreaMode] = useState<AreaMode>(() => {
+    const saved = readStored(MODE_KEY);
+    return saved === 'city' || saved === 'state' ? saved : 'radius';
+  });
+  const sharesCity = currentUser.locationPrivacy === 'city';
+  // Sem GPS o raio não funciona; sem mostrar a própria cidade, a busca por cidade também não
+  const effectiveMode: AreaMode =
+    areaMode === 'radius' && !hasLocation ? (sharesCity ? 'city' : 'state')
+    : areaMode === 'city' && !sharesCity ? 'state'
+    : areaMode;
+
+  // Resultado vem do banco (inclusive quem não estava entre os perfis carregados)
+  const [nearby, setNearby] = useState<Map<string, AreaMatch> | null>(null);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [locating, setLocating] = useState(false);
-  const nearbyActive = nearbyOnly && hasLocation === true && currentUser.locationPrivacy !== 'hidden';
+  const nearbyActive = nearbyOnly && currentUser.locationPrivacy !== 'hidden' && hasLocation !== null;
 
   useEffect(() => {
     if (!nearbyActive) {
@@ -65,15 +80,32 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
     }
     let cancelled = false;
     setNearbyLoading(true);
-    fetchNearbyProfiles(radiusKm).then(async results => {
+    (async () => {
+      const found = new Map<string, AreaMatch>();
+      if (effectiveMode === 'radius') {
+        // Raio em km + quem cadastrou a mesma cidade (cobre quem ainda não ativou o GPS)
+        const [byGps, byCity] = await Promise.all([
+          fetchNearbyProfiles(radiusKm),
+          sharesCity ? fetchSameRegionProfiles('city') : Promise.resolve([])
+        ]);
+        byCity.forEach(r => found.set(r.id, { match: 'city' }));
+        byGps.forEach(r => found.set(r.id, { ...found.get(r.id), km: r.km }));
+      } else {
+        (await fetchSameRegionProfiles(effectiveMode)).forEach(r => found.set(r.id, { match: r.match }));
+      }
       if (cancelled) return;
-      setNearby(new Map(results.map(r => [r.id, r.km])));
-      await ensureProfiles(results.map(r => r.id));
+      setNearby(found);
+      await ensureProfiles([...found.keys()]);
       if (!cancelled) setNearbyLoading(false);
-    });
+    })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nearbyActive, radiusKm]);
+  }, [nearbyActive, radiusKm, effectiveMode]);
+
+  const chooseMode = (mode: AreaMode) => {
+    setAreaMode(mode);
+    store(MODE_KEY, mode);
+  };
 
   const toggleNearby = (on: boolean) => {
     setNearbyOnly(on);
@@ -83,6 +115,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
   const chooseRadius = (km: number) => {
     setRadiusKm(km);
     store(RADIUS_KEY, String(km));
+    chooseMode('radius');
   };
   const handleEnableLocation = async () => {
     setLocating(true);
@@ -93,10 +126,18 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
       return;
     }
     toggleNearby(true);
+    chooseMode('radius');
   };
 
   // Distância de cada perfil: a da busca por raio ou a calculada para os perfis carregados
-  const distanceOf = (prof: { id: string; approximateDistanceKm?: number }) => nearby?.get(prof.id) ?? prof.approximateDistanceKm;
+  const distanceOf = (prof: { id: string; approximateDistanceKm?: number }) => nearby?.get(prof.id)?.km ?? prof.approximateDistanceKm;
+  // Sem distância, quem é da mesma cidade vem antes de quem é só do mesmo estado
+  const proximityRank = (prof: { id: string; approximateDistanceKm?: number }) => {
+    const km = distanceOf(prof);
+    if (km !== undefined) return km;
+    const match = nearby?.get(prof.id)?.match;
+    return match === 'city' ? 100_000 : match === 'state' ? 200_000 : Infinity;
+  };
 
   // Filter pipeline
   const filteredProfiles = profiles.filter(prof => {
@@ -137,7 +178,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
     }
     if (sortBy === 'distance') {
       // Quem não tem distância conhecida vai para o fim
-      return (distanceOf(a) ?? Infinity) - (distanceOf(b) ?? Infinity);
+      return proximityRank(a) - proximityRank(b);
     }
     return 0; // default recent
   });
@@ -241,61 +282,82 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
             <MapPin className="w-4 h-4 text-zinc-500 shrink-0" />
             Sua localização está oculta. Para ver quem está perto, escolha "Cidade" ou "Região aproximada" em Configurações.
           </p>
-        ) : hasLocation === false ? (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-            <div className="flex items-start gap-2.5">
-              <MapPin className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-white">Veja quem está perto de você</p>
-                <p className="text-[11px] text-zinc-400">
-                  Usamos só uma área aproximada (~2 km), nunca seu endereço. Os outros veem apenas a distância arredondada.
-                </p>
-              </div>
+        ) : hasLocation === null ? null : (
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+              <label className="flex items-center gap-2.5 cursor-pointer shrink-0">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={nearbyOnly}
+                  onClick={() => toggleNearby(!nearbyOnly)}
+                  className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${nearbyOnly ? 'bg-emerald-600' : 'bg-zinc-700'}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${nearbyOnly ? 'left-[22px]' : 'left-0.5'}`} />
+                </button>
+                <span className="text-xs font-bold text-white flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-rose-400" /> Só perto de mim
+                </span>
+              </label>
+              {!hasLocation && (
+                <button
+                  type="button"
+                  onClick={handleEnableLocation}
+                  disabled={locating}
+                  className="text-xs font-semibold text-fuchsia-300 hover:text-fuchsia-200 text-left disabled:opacity-50 cursor-pointer"
+                >
+                  {locating ? 'Localizando...' : 'Ativar GPS para buscar por km →'}
+                </button>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={handleEnableLocation}
-              disabled={locating}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-rose-600 shrink-0 disabled:opacity-50 cursor-pointer"
-            >
-              {locating ? 'Localizando...' : 'Usar minha localização'}
-            </button>
-          </div>
-        ) : hasLocation ? (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <label className="flex items-center gap-2.5 cursor-pointer shrink-0">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={nearbyOnly}
-                onClick={() => toggleNearby(!nearbyOnly)}
-                className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${nearbyOnly ? 'bg-emerald-600' : 'bg-zinc-700'}`}
-              >
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${nearbyOnly ? 'left-[22px]' : 'left-0.5'}`} />
-              </button>
-              <span className="text-xs font-bold text-white flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-rose-400" /> Só perto de mim
-              </span>
-            </label>
+
             {nearbyOnly && (
-              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-                {RADIUS_OPTIONS.map(km => (
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+                {hasLocation && RADIUS_OPTIONS.map(km => (
                   <button
                     key={km}
                     type="button"
                     onClick={() => chooseRadius(km)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer ${
-                      radiusKm === km ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white'
+                      effectiveMode === 'radius' && radiusKm === km ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white'
                     }`}
                   >
                     {km} km
                   </button>
                 ))}
+                {sharesCity && currentUser.city && (
+                  <button
+                    type="button"
+                    onClick={() => chooseMode('city')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer ${
+                      effectiveMode === 'city' ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white'
+                    }`}
+                  >
+                    Minha cidade · {currentUser.city}
+                  </button>
+                )}
+                {currentUser.state && (
+                  <button
+                    type="button"
+                    onClick={() => chooseMode('state')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer ${
+                      effectiveMode === 'state' ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white'
+                    }`}
+                  >
+                    Meu estado · {currentUser.state}
+                  </button>
+                )}
                 {nearbyLoading && <span className="text-[11px] text-zinc-500 shrink-0">buscando...</span>}
               </div>
             )}
+            {nearbyOnly && effectiveMode === 'radius' && sharesCity && (
+              <p className="text-[11px] text-zinc-500">Inclui também quem cadastrou {currentUser.city || 'a sua cidade'}, mesmo sem GPS.</p>
+            )}
+            {nearbyOnly && !sharesCity && (
+              <p className="text-[11px] text-zinc-500">Para buscar pela cidade, escolha "Mostrar Cidade" em Configurações.</p>
+            )}
           </div>
-        ) : null}
+        )}
       </div>
 
       {/* Advanced Filters Expandable Drawer */}
@@ -356,26 +418,37 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
             : 'space-y-4'
         }>
           {sortedProfiles.map(profile => (
-            <ProfileCard key={profile.id} profile={profile} viewMode={viewMode} />
+            <ProfileCard key={profile.id} profile={profile} viewMode={viewMode} regionMatch={nearby?.get(profile.id)?.match} />
           ))}
         </div>
       ) : (
         <div className="p-12 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
           <Users className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
           {nearbyActive && nearbyLoading ? (
-            <p className="text-xs text-zinc-400">Procurando pessoas em até {radiusKm} km...</p>
+            <p className="text-xs text-zinc-400">Procurando pessoas perto de você...</p>
           ) : (
             <>
               <h3 className="text-base font-bold text-white mb-1">
-                {nearbyActive ? `Ninguém em até ${radiusKm} km com esses filtros` : 'Nenhum perfil corresponde aos filtros'}
+                {!nearbyActive ? 'Nenhum perfil corresponde aos filtros'
+                  : effectiveMode === 'radius' ? `Ninguém em até ${radiusKm} km com esses filtros`
+                  : effectiveMode === 'city' ? `Ninguém de ${currentUser.city} com esses filtros`
+                  : `Ninguém de ${currentUser.state} com esses filtros`}
               </h3>
               <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4">
                 {nearbyActive
-                  ? 'Aumente o raio ou desligue "Só perto de mim" para ver pessoas de outras regiões.'
+                  ? 'Amplie a área ou desligue "Só perto de mim" para ver pessoas de outras regiões.'
                   : 'Tente desmarcar alguns filtros para descobrir mais pessoas.'}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
-                {nearbyActive && radiusKm < RADIUS_OPTIONS[RADIUS_OPTIONS.length - 1] && (
+                {nearbyActive && effectiveMode === 'city' && (
+                  <button
+                    onClick={() => chooseMode('state')}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-semibold cursor-pointer"
+                  >
+                    Ver todo o estado ({currentUser.state})
+                  </button>
+                )}
+                {nearbyActive && effectiveMode === 'radius' && radiusKm < RADIUS_OPTIONS[RADIUS_OPTIONS.length - 1] && (
                   <button
                     onClick={() => chooseRadius(RADIUS_OPTIONS.find(km => km > radiusKm) ?? radiusKm)}
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-semibold cursor-pointer"
