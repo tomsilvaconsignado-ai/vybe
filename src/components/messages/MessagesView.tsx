@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 import { askConfirm } from '../common/Feedback';
+import { OnlineDot, activityLabel } from '../common/OnlineDot';
 
 export const MessagesView: React.FC = () => {
   const { 
@@ -31,7 +32,9 @@ export const MessagesView: React.FC = () => {
     setSelectedProfileId,
     conversationMessages,
     loadConversationMessages,
-    blockUser
+    blockUser,
+    isOnline,
+    canSeeActivity
   } = useApp();
 
   const [inputText, setInputText] = useState('');
@@ -134,6 +137,7 @@ export const MessagesView: React.FC = () => {
                           alt={part.displayName}
                           className="w-12 h-12 rounded-full object-cover border border-purple-500/40"
                         />
+                        <OnlineDot userId={part.id} className="top-0 right-0" />
                         {part.isVerified && (
                           <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-purple-500 rounded-full flex items-center justify-center text-[8px] text-white">
                             ✓
@@ -223,18 +227,26 @@ export const MessagesView: React.FC = () => {
                   onClick={() => setSelectedProfileId(otherParticipant.id)}
                   className="flex items-center gap-2.5 cursor-pointer group"
                 >
-                  <img
-                    src={otherParticipant.avatarUrl}
-                    alt={otherParticipant.displayName}
-                    className="w-10 h-10 rounded-full object-cover border border-purple-500/40 group-hover:scale-105 transition-transform"
-                  />
+                  <div className="relative shrink-0">
+                    <img
+                      src={otherParticipant.avatarUrl}
+                      alt={otherParticipant.displayName}
+                      className="w-10 h-10 rounded-full object-cover border border-purple-500/40 group-hover:scale-105 transition-transform"
+                    />
+                    <OnlineDot userId={otherParticipant.id} className="bottom-0 right-0" />
+                  </div>
                   <div>
                     <h3 className="text-sm font-bold text-white group-hover:text-purple-300 transition-colors flex items-center gap-1.5">
                       <span>{otherParticipant.displayName}</span>
                       {otherParticipant.isVerified && <span className="text-purple-400 text-xs">✓</span>}
                     </h3>
                     <p className="text-[11px] text-zinc-400">
-                      @{otherParticipant.username} • {otherParticipant.lastActive}
+                      @{otherParticipant.username}
+                      {isOnline(otherParticipant.id) ? (
+                        <span className="text-emerald-400 font-semibold"> • Online agora</span>
+                      ) : otherParticipant.lastActive && canSeeActivity({}) ? (
+                        <> • {activityLabel(otherParticipant.lastActive)}</>
+                      ) : null}
                     </p>
                   </div>
                 </div>

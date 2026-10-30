@@ -32,6 +32,7 @@ import { CreateAlbumModal } from './CreateAlbumModal';
 import { fetchAlbums } from '../../lib/albums';
 import { fetchUserPosts, fetchProfileById, FollowListKind } from '../../lib/social';
 import { FollowListModal } from './FollowListModal';
+import { OnlineDot, activityLabel } from '../common/OnlineDot';
 import { PROFILE_TYPE_OPTIONS } from '../../lib/profileOptions';
 import { PostCard } from '../feed/PostCard';
 import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibility';
@@ -57,7 +58,9 @@ export const ProfileView: React.FC = () => {
     cachePosts,
     setReportModalTarget,
     blockUser,
-    getCompatibility
+    getCompatibility,
+    isOnline,
+    canSeeActivity
   } = useApp();
 
   const isSelf = !selectedProfileId || selectedProfileId === currentUser.id;
@@ -221,6 +224,7 @@ export const ProfileView: React.FC = () => {
                 alt={profile.displayName}
                 className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 border-[#120d20] shadow-2xl"
               />
+              {!isSelf && <OnlineDot userId={profile.id} size="lg" className="top-2 right-2 sm:top-3 sm:right-3" />}
               {profile.isVerified && (
                 <span className="absolute bottom-1 right-1 w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-[#120d20] shadow">
                   ✓
@@ -318,8 +322,19 @@ export const ProfileView: React.FC = () => {
                 <MapPin className="w-3.5 h-3.5 text-rose-400" />
                 {profile.locationPrivacy === 'hidden' ? 'Localização Oculta' : [profile.city, profile.state].filter(Boolean).join(', ')}
               </span>
-              <span>•</span>
-              <span className="text-emerald-400 font-medium">{profile.lastActive}</span>
+              {!isSelf && isOnline(profile.id) ? (
+                <>
+                  <span>•</span>
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Online agora
+                  </span>
+                </>
+              ) : !isSelf && profile.lastActive && canSeeActivity(profile) ? (
+                <>
+                  <span>•</span>
+                  <span className="text-zinc-400">{activityLabel(profile.lastActive)}</span>
+                </>
+              ) : null}
             </div>
 
             {/* Contadores (como no Instagram): seguidores e seguindo abrem as listas */}

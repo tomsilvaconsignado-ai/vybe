@@ -101,6 +101,15 @@ CREATE INDEX IF NOT EXISTS idx_profiles_city_state ON public.profiles(city, stat
 CREATE INDEX IF NOT EXISTS idx_profiles_status ON public.profiles(status);
 -- Troca do @usuário pela RPC change_username (no máximo uma vez a cada 7 dias)
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username_changed_at TIMESTAMPTZ;
+-- Status "online" (ligado por padrão). Quem desliga não aparece online e também não vê
+-- o status dos outros (regra aplicada na RPC online_users).
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS show_online_status BOOLEAN NOT NULL DEFAULT true;
+
+-- Último sinal de vida de cada sessão aberta. Ninguém lê direto: só pelas RPCs de presença.
+CREATE TABLE IF NOT EXISTS public.user_presence (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- Dados sensíveis: apenas o próprio usuário e a moderação podem ler
 CREATE TABLE IF NOT EXISTS public.profile_private (
@@ -778,8 +787,8 @@ BEGIN
       RAISE EXCEPTION 'Envie a foto pelo app; links externos não são aceitos.';
     END IF;
   END IF;
-  -- Modo discreto: os outros só sabem o dia da última atividade, não a hora
-  IF NEW.discreet_mode_enabled THEN
+  -- Modo discreto ou status online oculto: os outros só sabem o dia da última atividade, não a hora
+  IF NEW.discreet_mode_enabled OR NOT NEW.show_online_status THEN
     NEW.last_active_at := date_trunc('day', NEW.last_active_at);
   END IF;
   NEW.updated_at := now();
@@ -1244,6 +1253,30 @@ BEGIN
   WHERE other.conversation_id = mine.conversation_id
     AND mine.user_id = auth.uid() AND other.user_id = target;
 END;
+$$;
+
+-- Presença: o app chama touch_presence a cada minuto enquanto está aberto
+CREATE OR REPLACE FUNCTION public.touch_presence()
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.user_presence (user_id, last_seen_at)
+  SELECT auth.uid(), now() WHERE auth.uid() IS NOT NULL
+  ON CONFLICT (user_id) DO UPDATE SET last_seen_at = now();
+$$;
+
+-- Quem está online agora entre os perfis pedidos. Recíproco: quem escondeu o próprio
+-- status não recebe o de ninguém. Modo discreto, bloqueios e contas bloqueadas ficam de fora.
+CREATE OR REPLACE FUNCTION public.online_users(ids UUID[])
+RETURNS SETOF UUID LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT p.id
+  FROM public.profiles p
+  JOIN public.user_presence up ON up.user_id = p.id
+  WHERE p.id = ANY(ids)
+    AND auth.uid() IS NOT NULL
+    AND up.last_seen_at > now() - INTERVAL '3 minutes'
+    AND p.show_online_status AND NOT p.discreet_mode_enabled AND p.status <> 'blocked'
+    AND (p.id = auth.uid() OR NOT public.is_blocked_between(p.id, auth.uid()))
+    AND EXISTS (SELECT 1 FROM public.profiles me WHERE me.id = auth.uid() AND me.show_online_status)
+  LIMIT 500;
 $$;
 
 -- Troca do @usuário: mesmo formato do cadastro, sem nomes que imitem a equipe
@@ -1871,7 +1904,7 @@ BEGIN
     'user_blocks', 'communities', 'community_members', 'posts', 'post_polls', 'post_poll_votes', 'post_likes',
     'post_saves', 'post_comments', 'albums', 'album_items', 'album_permissions', 'conversations',
     'conversation_participants', 'messages', 'notifications', 'moderation_reports', 'admin_users',
-    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'event_views', 'ads'
+    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'event_views', 'ads', 'user_presence'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated', t);
@@ -1897,6 +1930,8 @@ GRANT EXECUTE ON FUNCTION public.decline_message_request(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.block_user(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.change_username(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.follow_list(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.touch_presence() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.online_users(UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_conversation_read(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;

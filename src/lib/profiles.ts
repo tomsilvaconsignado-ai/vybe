@@ -108,7 +108,8 @@ export function mapProfileRow(row: any): UserProfile {
     interests: row.interests ?? [],
     lastActive: 'Agora mesmo',
     statusText: row.status_text ?? undefined,
-    discreetModeEnabled: row.discreet_mode_enabled
+    discreetModeEnabled: row.discreet_mode_enabled,
+    showOnlineStatus: row.show_online_status ?? true
   };
 }
 
@@ -156,6 +157,7 @@ const EDITABLE_COLUMNS: Partial<Record<keyof UserProfile, string>> = {
   coverUrl: 'cover_url',
   statusText: 'status_text',
   discreetModeEnabled: 'discreet_mode_enabled',
+  showOnlineStatus: 'show_online_status',
   interests: 'interests',
   gender: 'gender',
   orientation: 'orientation'

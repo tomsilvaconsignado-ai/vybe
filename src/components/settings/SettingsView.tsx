@@ -106,6 +106,39 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
 
+        {/* Status online (ligado por padrão; recíproco) */}
+        <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+            <span>Status Online</span>
+          </h3>
+
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h4 className="text-xs font-bold text-zinc-200">Mostrar quando estou online</h4>
+              <p className="text-[11px] text-zinc-400">
+                Outros membros veem a bolinha verde e "Online agora" no seu perfil e nas conversas.
+                Se você desligar, ninguém verá seu status nem há quanto tempo você esteve ativo, e você
+                também deixará de ver se os outros estão online.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={currentUser.showOnlineStatus !== false}
+              onClick={() => updateCurrentUser({ showOnlineStatus: currentUser.showOnlineStatus === false })}
+              className={`relative w-12 h-7 rounded-full shrink-0 transition-colors cursor-pointer ${
+                currentUser.showOnlineStatus !== false ? 'bg-emerald-600' : 'bg-zinc-700'
+              }`}
+            >
+              <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${
+                currentUser.showOnlineStatus !== false ? 'left-6' : 'left-1'
+              }`} />
+              <span className="sr-only">Mostrar quando estou online</span>
+            </button>
+          </div>
+        </div>
+
         {/* Section 2: Notifications & Discreet Screen Mode */}
         <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
