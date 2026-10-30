@@ -23,10 +23,14 @@ export const SettingsView: React.FC = () => {
     setPrivacyTermsModalOpen,
     deleteAccount,
     blockedUsers,
-    unblockUser
+    unblockUser,
+    hasLocation,
+    enableLocation,
+    disableLocation
   } = useApp();
 
   const [exporting, setExporting] = useState(false);
+  const [locationBusy, setLocationBusy] = useState(false);
 
   const handleExportDataLGPD = async () => {
     setExporting(true);
@@ -86,9 +90,9 @@ export const SettingsView: React.FC = () => {
 
           <div className="grid sm:grid-cols-3 gap-3">
             {[
-              { id: 'city', title: 'Mostrar Cidade', desc: `${currentUser.city}, ${currentUser.state}` },
-              { id: 'approximate_region', title: 'Região Aproximada', desc: 'Mostra só o estado' },
-              { id: 'hidden', title: 'Ocultar Localização', desc: 'Não exibe distância' },
+              { id: 'city', title: 'Mostrar Cidade', desc: `${currentUser.city}, ${currentUser.state} · distância de ~2 km em ~2 km` },
+              { id: 'approximate_region', title: 'Região Aproximada', desc: 'Mostra só o estado · distância de 5 em 5 km' },
+              { id: 'hidden', title: 'Ocultar Localização', desc: 'Sem distância (e você não vê a dos outros)' },
             ].map(opt => (
               <button
                 key={opt.id}
@@ -103,6 +107,48 @@ export const SettingsView: React.FC = () => {
                 <div className="text-[10px] text-zinc-400">{opt.desc}</div>
               </button>
             ))}
+          </div>
+
+          {/* Localização para a busca por distância */}
+          <div className="pt-4 border-t border-purple-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-bold text-zinc-200">Busca por distância</h4>
+              <p className="text-[11px] text-zinc-400">
+                {hasLocation
+                  ? 'Ativada. Guardamos só uma área aproximada (~2 km), atualizada quando você abre o app.'
+                  : 'Desativada. Ative para ver a distância até as pessoas e usar o filtro "Só perto de mim".'}
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={locationBusy}
+                onClick={async () => {
+                  setLocationBusy(true);
+                  const error = await enableLocation();
+                  setLocationBusy(false);
+                  notify(error ?? 'Localização atualizada.', error ? 'error' : 'success');
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-700 hover:bg-purple-600 text-white disabled:opacity-50 cursor-pointer"
+              >
+                {locationBusy ? 'Localizando...' : hasLocation ? 'Atualizar' : 'Ativar'}
+              </button>
+              {hasLocation && (
+                <button
+                  type="button"
+                  disabled={locationBusy}
+                  onClick={async () => {
+                    setLocationBusy(true);
+                    const error = await disableLocation();
+                    setLocationBusy(false);
+                    notify(error ?? 'Localização apagada. Você não aparece mais nas buscas por distância.', error ? 'error' : 'success');
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-200 disabled:opacity-50 cursor-pointer"
+                >
+                  Desativar
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

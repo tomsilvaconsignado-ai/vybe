@@ -50,6 +50,14 @@ export async function fetchProfileById(id: string): Promise<UserProfile | null> 
   return mapOtherProfile(data);
 }
 
+// Vários perfis de uma vez (ex.: pessoas próximas que não estavam entre os carregados)
+export async function fetchProfilesByIds(ids: string[]): Promise<UserProfile[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from('profiles').select(PROFILE_SELECT).in('id', ids.slice(0, 300)).neq('status', 'blocked');
+  if (error || !data) return [];
+  return data.map(mapOtherProfile);
+}
+
 function mapOtherProfile(row: any): UserProfile {
   const profile = mapProfileRow(row);
   // Perfis de terceiros exibem a localização conforme a privacidade escolhida

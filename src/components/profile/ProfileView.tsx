@@ -428,9 +428,11 @@ export const ProfileView: React.FC = () => {
                 <span className="text-[11px] text-zinc-400 block">
                   {compat.sharedObjectives.length} objetivos mútuos
                 </span>
-                <span className="text-[11px] text-zinc-400 block">
-                  {compat.distanceKm} km de distância aproximada
-                </span>
+                {compat.distanceKm !== null && (
+                  <span className="text-[11px] text-zinc-400 block">
+                    ~{compat.distanceKm} km de distância
+                  </span>
+                )}
               </div>
             </div>
           )}

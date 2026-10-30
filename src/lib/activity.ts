@@ -102,7 +102,8 @@ export async function exportOwnData(me: string): Promise<Record<string, unknown>
     stories: supabase.from('stories').select('*').eq('user_id', me),
     eventos_criados: supabase.from('events').select('*').eq('created_by', me),
     presenca_em_eventos: supabase.from('event_attendees').select('*').eq('user_id', me),
-    comentarios_em_eventos: supabase.from('event_comments').select('*').eq('user_id', me)
+    comentarios_em_eventos: supabase.from('event_comments').select('*').eq('user_id', me),
+    localizacao_aproximada: supabase.from('user_geo').select('*').eq('user_id', me).maybeSingle()
   };
 
   const entries = await Promise.all(Object.entries(queries).map(async ([key, query]) => {

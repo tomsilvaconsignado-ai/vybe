@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { fetchNearbyProfiles } from '../../lib/geo';
+import { notify } from '../common/Feedback';
 import { useApp } from '../../context/AppContext';
 import { ProfileCard } from './ProfileCard';
 import { 
@@ -21,16 +23,80 @@ interface DiscoverViewProps {
   initialFilter?: 'all' | 'couples' | 'singles';
 }
 
+// Preferências da busca por distância ficam no aparelho (conveniência; nada sensível)
+const NEARBY_KEY = 'vybelog:nearby-only';
+const RADIUS_KEY = 'vybelog:nearby-radius';
+const RADIUS_OPTIONS = [5, 10, 25, 50, 100, 300];
+const readStored = (key: string) => {
+  try { return localStorage.getItem(key); } catch { return null; }
+};
+const store = (key: string, value: string) => {
+  try { localStorage.setItem(key, value); } catch { /* armazenamento indisponível */ }
+};
+
 export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all' }) => {
-  const { profiles, currentUser, getCompatibility, discoverSearch: searchQuery, setDiscoverSearch: setSearchQuery } = useApp();
+  const {
+    profiles, currentUser, getCompatibility, discoverSearch: searchQuery, setDiscoverSearch: setSearchQuery,
+    hasLocation, enableLocation, ensureProfiles
+  } = useApp();
   const [selectedType, setSelectedType] = useState<string>(
     initialFilter === 'couples' ? 'couple' : initialFilter === 'singles' ? 'singles' : 'all'
   );
-  const [maxDistance, setMaxDistance] = useState<number>(500);
   const [onlyVerified, setOnlyVerified] = useState<boolean>(false);
-  const [sortBy, setSortBy] = useState<'compatibility' | 'distance' | 'recent'>('compatibility');
+  const [nearbyOnly, setNearbyOnly] = useState<boolean>(() => readStored(NEARBY_KEY) === '1');
+  const [radiusKm, setRadiusKm] = useState<number>(() => {
+    const saved = Number(readStored(RADIUS_KEY));
+    return RADIUS_OPTIONS.includes(saved) ? saved : 25;
+  });
+  const [sortBy, setSortBy] = useState<'compatibility' | 'distance' | 'recent'>(() => (readStored(NEARBY_KEY) === '1' ? 'distance' : 'compatibility'));
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFiltersModal, setShowFiltersModal] = useState(false);
+
+  // Busca no banco quem está dentro do raio (inclusive quem não estava entre os perfis carregados)
+  const [nearby, setNearby] = useState<Map<string, number> | null>(null);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const nearbyActive = nearbyOnly && hasLocation === true && currentUser.locationPrivacy !== 'hidden';
+
+  useEffect(() => {
+    if (!nearbyActive) {
+      setNearby(null);
+      return;
+    }
+    let cancelled = false;
+    setNearbyLoading(true);
+    fetchNearbyProfiles(radiusKm).then(async results => {
+      if (cancelled) return;
+      setNearby(new Map(results.map(r => [r.id, r.km])));
+      await ensureProfiles(results.map(r => r.id));
+      if (!cancelled) setNearbyLoading(false);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nearbyActive, radiusKm]);
+
+  const toggleNearby = (on: boolean) => {
+    setNearbyOnly(on);
+    store(NEARBY_KEY, on ? '1' : '0');
+    setSortBy(on ? 'distance' : 'compatibility');
+  };
+  const chooseRadius = (km: number) => {
+    setRadiusKm(km);
+    store(RADIUS_KEY, String(km));
+  };
+  const handleEnableLocation = async () => {
+    setLocating(true);
+    const error = await enableLocation();
+    setLocating(false);
+    if (error) {
+      notify(error, 'error');
+      return;
+    }
+    toggleNearby(true);
+  };
+
+  // Distância de cada perfil: a da busca por raio ou a calculada para os perfis carregados
+  const distanceOf = (prof: { id: string; approximateDistanceKm?: number }) => nearby?.get(prof.id) ?? prof.approximateDistanceKm;
 
   // Filter pipeline
   const filteredProfiles = profiles.filter(prof => {
@@ -56,8 +122,8 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
     // Verified only
     if (onlyVerified && !prof.isVerified) return false;
 
-    // Distance
-    if ((prof.approximateDistanceKm ?? 0) > maxDistance) return false;
+    // Só perto de mim: apenas quem o banco encontrou dentro do raio
+    if (nearbyActive && nearby && !nearby.has(prof.id)) return false;
 
     return true;
   });
@@ -70,7 +136,8 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
       return compatB - compatA;
     }
     if (sortBy === 'distance') {
-      return (a.approximateDistanceKm ?? 0) - (b.approximateDistanceKm ?? 0);
+      // Quem não tem distância conhecida vai para o fim
+      return (distanceOf(a) ?? Infinity) - (distanceOf(b) ?? Infinity);
     }
     return 0; // default recent
   });
@@ -167,6 +234,70 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
         </div>
       </div>
 
+      {/* Perto de mim: busca por distância real */}
+      <div className="bg-[#120d20] border border-purple-900/30 rounded-2xl p-3.5 mb-6 shadow-lg">
+        {currentUser.locationPrivacy === 'hidden' ? (
+          <p className="text-xs text-zinc-400 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-zinc-500 shrink-0" />
+            Sua localização está oculta. Para ver quem está perto, escolha "Cidade" ou "Região aproximada" em Configurações.
+          </p>
+        ) : hasLocation === false ? (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <div className="flex items-start gap-2.5">
+              <MapPin className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-white">Veja quem está perto de você</p>
+                <p className="text-[11px] text-zinc-400">
+                  Usamos só uma área aproximada (~2 km), nunca seu endereço. Os outros veem apenas a distância arredondada.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleEnableLocation}
+              disabled={locating}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-rose-600 shrink-0 disabled:opacity-50 cursor-pointer"
+            >
+              {locating ? 'Localizando...' : 'Usar minha localização'}
+            </button>
+          </div>
+        ) : hasLocation ? (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <label className="flex items-center gap-2.5 cursor-pointer shrink-0">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={nearbyOnly}
+                onClick={() => toggleNearby(!nearbyOnly)}
+                className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${nearbyOnly ? 'bg-emerald-600' : 'bg-zinc-700'}`}
+              >
+                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${nearbyOnly ? 'left-[22px]' : 'left-0.5'}`} />
+              </button>
+              <span className="text-xs font-bold text-white flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-rose-400" /> Só perto de mim
+              </span>
+            </label>
+            {nearbyOnly && (
+              <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                {RADIUS_OPTIONS.map(km => (
+                  <button
+                    key={km}
+                    type="button"
+                    onClick={() => chooseRadius(km)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer ${
+                      radiusKm === km ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white'
+                    }`}
+                  >
+                    {km} km
+                  </button>
+                ))}
+                {nearbyLoading && <span className="text-[11px] text-zinc-500 shrink-0">buscando...</span>}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+
       {/* Advanced Filters Expandable Drawer */}
       {showFiltersModal && (
         <div className="bg-[#160f27] border border-purple-800/40 rounded-3xl p-5 mb-6 shadow-2xl animate-in fade-in space-y-4">
@@ -196,23 +327,6 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                 <option value="distance">Menor Distância Geográfica</option>
                 <option value="recent">Atividade Mais Recente</option>
               </select>
-            </div>
-
-            {/* Distance Slider */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-semibold text-zinc-300 mb-1.5">
-                <span>Distância Máxima:</span>
-                <span className="text-purple-400 font-bold">{maxDistance >= 500 ? 'Brasil todo' : `Até ${maxDistance} km`}</span>
-              </div>
-              <input
-                type="range"
-                min="10"
-                max="500"
-                step="10"
-                value={maxDistance}
-                onChange={e => setMaxDistance(Number(e.target.value))}
-                className="w-full accent-purple-500 cursor-pointer"
-              />
             </div>
 
             {/* Verified only checkbox */}
@@ -248,21 +362,40 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
       ) : (
         <div className="p-12 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
           <Users className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
-          <h3 className="text-base font-bold text-white mb-1">Nenhum perfil corresponde aos filtros</h3>
-          <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4">
-            Tente aumentar o raio de distância ou desmarcar alguns filtros para descobrir mais pessoas.
-          </p>
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setSelectedType('all');
-              setMaxDistance(500);
-              setOnlyVerified(false);
-            }}
-            className="px-4 py-2 rounded-xl bg-purple-950 text-purple-300 border border-purple-800/40 text-xs font-semibold hover:bg-purple-900/50 cursor-pointer"
-          >
-            Redefinir Filtros
-          </button>
+          {nearbyActive && nearbyLoading ? (
+            <p className="text-xs text-zinc-400">Procurando pessoas em até {radiusKm} km...</p>
+          ) : (
+            <>
+              <h3 className="text-base font-bold text-white mb-1">
+                {nearbyActive ? `Ninguém em até ${radiusKm} km com esses filtros` : 'Nenhum perfil corresponde aos filtros'}
+              </h3>
+              <p className="text-xs text-zinc-400 max-w-sm mx-auto mb-4">
+                {nearbyActive
+                  ? 'Aumente o raio ou desligue "Só perto de mim" para ver pessoas de outras regiões.'
+                  : 'Tente desmarcar alguns filtros para descobrir mais pessoas.'}
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {nearbyActive && radiusKm < RADIUS_OPTIONS[RADIUS_OPTIONS.length - 1] && (
+                  <button
+                    onClick={() => chooseRadius(RADIUS_OPTIONS.find(km => km > radiusKm) ?? radiusKm)}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-semibold cursor-pointer"
+                  >
+                    Aumentar para {RADIUS_OPTIONS.find(km => km > radiusKm)} km
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedType('all');
+                    setOnlyVerified(false);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-purple-950 text-purple-300 border border-purple-800/40 text-xs font-semibold hover:bg-purple-900/50 cursor-pointer"
+                >
+                  Redefinir Filtros
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

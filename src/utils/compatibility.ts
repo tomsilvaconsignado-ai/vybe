@@ -8,7 +8,7 @@ export interface CompatibilityBreakdown {
   sharedObjectives: string[];
   sharedInterests: string[];
   sharedLifestyleTags: string[];
-  distanceKm: number;
+  distanceKm: number | null;   // nula quando não há localização dos dois
   isMutualTargetMatch: boolean;
 }
 
@@ -128,7 +128,7 @@ export function calculateCompatibility(userA: UserProfile, userB: UserProfile): 
     sharedObjectives,
     sharedInterests,
     sharedLifestyleTags,
-    distanceKm,
+    distanceKm: userB.approximateDistanceKm ?? null,
     isMutualTargetMatch
   };
 }
