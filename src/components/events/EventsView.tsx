@@ -3,6 +3,7 @@ import { CalendarHeart, Plus, X, MapPin, CalendarDays, Ticket, Shirt, Users, Ext
 import { useApp } from '../../context/AppContext';
 import { VybeEvent } from '../../types';
 import { EventCard, EventRsvpButtons, RSVP_LABEL } from './EventCard';
+import { EventComments } from './EventComments';
 import { SubmitEventModal } from './SubmitEventModal';
 import { AdSlot } from '../ads/AdSlot';
 import { EVENT_CATEGORY_LABELS, deleteEvent, formatEventDate, recordEventView } from '../../lib/events';
@@ -183,6 +184,7 @@ export const EventsView: React.FC = () => {
                   <Trash2 className="w-3.5 h-3.5" /> Excluir evento
                 </button>
               )}
+              <EventComments event={detail} />
             </div>
           </div>
         </div>

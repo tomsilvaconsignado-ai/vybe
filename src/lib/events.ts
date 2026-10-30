@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
-import { DEFAULT_COVER } from './profiles';
-import { Ad, AdPlacement, EventCategory, EventRsvpStatus, VybeEvent } from '../types';
+import { DEFAULT_COVER, avatarOrDefault } from './profiles';
+import { Ad, AdPlacement, EventCategory, EventComment, EventRsvpStatus, VybeEvent } from '../types';
 
 export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
   festa: 'Festa',
@@ -37,6 +37,7 @@ function mapEvent(row: any, myStatus?: EventRsvpStatus): VybeEvent {
     reviewNote: row.review_note ?? undefined,
     goingCount: row.going_count,
     interestedCount: row.interested_count,
+    commentsCount: row.comments_count ?? 0,
     myStatus
   };
 }
@@ -215,6 +216,8 @@ export interface EventStats {
   interested: number;
   notGoing: number;
   notInterested: number;
+  comments: number;
+  commenters: number;      // pessoas diferentes que comentaram
   interacted: number;     // pessoas que responderam algo
 }
 
@@ -232,6 +235,54 @@ export async function fetchEventStats(): Promise<Map<string, EventStats>> {
     interested: Number(s.interested),
     notGoing: Number(s.not_going),
     notInterested: Number(s.not_interested),
+    comments: Number(s.comments ?? 0),
+    commenters: Number(s.commenters ?? 0),
     interacted: Number(s.interacted)
   }]));
+}
+
+// ----------------- COMENTÁRIOS ----------------- //
+
+const EVENT_COMMENT_SELECT = 'id, event_id, user_id, content, created_at, author:profiles!event_comments_user_id_fkey(username, display_name, avatar_url)';
+
+const mapEventComment = (row: any): EventComment => ({
+  id: row.id,
+  eventId: row.event_id,
+  userId: row.user_id,
+  username: row.author?.username ?? '',
+  displayName: row.author?.display_name ?? 'Membro',
+  avatarUrl: avatarOrDefault(row.author?.avatar_url, row.author?.display_name ?? 'M'),
+  content: row.content,
+  createdAt: row.created_at
+});
+
+export async function fetchEventComments(eventId: string): Promise<{ comments: EventComment[]; unavailable: boolean }> {
+  const { data, error } = await supabase
+    .from('event_comments')
+    .select(EVENT_COMMENT_SELECT)
+    .eq('event_id', eventId)
+    .order('created_at', { ascending: true })
+    .limit(300);
+  if (error) {
+    // Tabela ainda não criada no banco (setup.sql antigo)
+    const unavailable = error.code === 'PGRST205' || error.code === '42P01';
+    if (!unavailable) console.error('[Vybelog] Falha ao carregar comentários:', error.message);
+    return { comments: [], unavailable };
+  }
+  return { comments: (data ?? []).map(mapEventComment), unavailable: false };
+}
+
+export async function addEventComment(me: string, eventId: string, content: string): Promise<{ comment: EventComment | null; error: string | null }> {
+  const { data, error } = await supabase
+    .from('event_comments')
+    .insert({ event_id: eventId, user_id: me, content: content.trim() })
+    .select(EVENT_COMMENT_SELECT)
+    .single();
+  if (error) return { comment: null, error: error.message };
+  return { comment: mapEventComment(data), error: null };
+}
+
+export async function deleteEventComment(commentId: string) {
+  const { error } = await supabase.from('event_comments').delete().eq('id', commentId);
+  return error?.message ?? null;
 }

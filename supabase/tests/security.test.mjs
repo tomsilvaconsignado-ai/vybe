@@ -332,6 +332,30 @@ st && Number(st.viewers) === 2 && Number(st.opens) === 3 && Number(st.not_going)
 r = await db.query(`SELECT count(*)::int AS n FROM event_views WHERE event_id = $1`, [pendingEv]);
 r.rows[0].n === 0 ? ok('evento em análise não acumula alcance') : bad('alcance contado em evento não publicado');
 
+console.log('\nComentários na agenda');
+await expectOk('moderador comenta no evento publicado', ids.mod, `INSERT INTO event_comments (event_id, user_id, content) VALUES ($1, $2, 'Vou levar minha parceira!')`, [ev, ids.mod]);
+r = await db.query(`SELECT comments_count FROM events WHERE id = $1`, [ev]);
+r.rows[0].comments_count === 1 ? ok('contador de comentários atualizado') : bad('contador: ' + r.rows[0].comments_count);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'event_comment'`, [ids.a]);
+r.rows[0].n === 1 ? ok('organizador recebe aviso do comentário') : bad('aviso de comentário: ' + r.rows[0].n);
+await expectFail('não comenta em evento em análise', ids.mod, `INSERT INTO event_comments (event_id, user_id, content) VALUES ($1, $2, 'oi')`, [pendingEv, ids.mod]);
+await expectFail('não comenta em nome de outra pessoa', ids.mod, `INSERT INTO event_comments (event_id, user_id, content) VALUES ($1, $2, 'falso')`, [ev, ids.v]);
+await expectFail('comentário vazio é recusado', ids.mod, `INSERT INTO event_comments (event_id, user_id, content) VALUES ($1, $2, '   ')`, [ev, ids.mod]);
+await expectFail('comentário enorme é recusado', ids.mod, `INSERT INTO event_comments (event_id, user_id, content) VALUES ($1, $2, repeat('a', 1001))`, [ev, ids.mod]);
+await db.query(`UPDATE profiles SET restrictions = '{"cannotPost": true}' WHERE id = $1`, [ids.mod]);
+await expectFail('quem está proibido de postar não comenta', ids.mod, `INSERT INTO event_comments (event_id, user_id, content) VALUES ($1, $2, 'oi')`, [ev, ids.mod]);
+await db.query(`UPDATE profiles SET restrictions = '{}' WHERE id = $1`, [ids.mod]);
+r = await as(ids.v, `SELECT content FROM event_comments WHERE event_id = $1`, [ev]);
+r.rows.length === 1 ? ok('qualquer membro lê os comentários do evento') : bad('comentários não visíveis: ' + r.rows.length);
+await expectFail('ninguém edita comentário', ids.mod, `UPDATE event_comments SET content = 'editado' WHERE event_id = $1`, [ev]);
+await expectFail('vítima não apaga comentário alheio', ids.v, `DELETE FROM event_comments WHERE event_id = $1`, [ev]);
+r = await expectOk('organizador apaga comentário do próprio evento', ids.a, `DELETE FROM event_comments WHERE event_id = $1`, [ev]);
+r?.affectedRows === 1 ? ok('comentário apagado pelo organizador') : bad('organizador não apagou');
+await expectOk('moderador comenta de novo', ids.mod, `INSERT INTO event_comments (event_id, user_id, content) VALUES ($1, $2, 'Até lá!')`, [ev, ids.mod]);
+r = await as(ids.mod, `SELECT comments, commenters, interacted FROM public.admin_event_stats() WHERE event_id = $1`, [ev], 'aal2');
+r.rows[0] && Number(r.rows[0].comments) === 1 && Number(r.rows[0].interacted) === 3
+  ? ok('estatísticas contam comentários e quem comentou como interação') : bad('estatísticas com comentários: ' + JSON.stringify(r.rows[0]));
+
 console.log('\nStatus online (recíproco)');
 await db.query(`UPDATE profiles SET discreet_mode_enabled = false, show_online_status = true WHERE id = ANY($1::uuid[])`, [[ids.a, ids.mod]]);
 await expectOk('A registra presença', ids.a, `SELECT public.touch_presence()`);
