@@ -468,6 +468,21 @@ CREATE TABLE IF NOT EXISTS public.event_attendees (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (event_id, user_id)
 );
+-- Respostas na arte do evento: vou, não vou e não tenho interesse ("tenho interesse" é das versões anteriores)
+ALTER TABLE public.event_attendees DROP CONSTRAINT IF EXISTS event_attendees_status_check;
+ALTER TABLE public.event_attendees ADD CONSTRAINT event_attendees_status_check
+  CHECK (status IN ('going', 'interested', 'not_going', 'not_interested'));
+
+-- Alcance da arte do evento: uma linha por pessoa que abriu, com o total de aberturas.
+-- Gravado só pela RPC record_event_view; lido só pela equipe (admin_event_stats).
+CREATE TABLE IF NOT EXISTS public.event_views (
+  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  open_count INTEGER NOT NULL DEFAULT 1,
+  first_opened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_opened_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, user_id)
+);
 
 -- Publicidade (gerida pelo superadmin)
 CREATE TABLE IF NOT EXISTS public.ads (
@@ -1737,6 +1752,38 @@ DROP TRIGGER IF EXISTS count_event_attendees ON public.event_attendees;
 CREATE TRIGGER count_event_attendees AFTER INSERT OR UPDATE OR DELETE ON public.event_attendees
   FOR EACH ROW EXECUTE FUNCTION public.count_event_attendees();
 
+-- Abrir a arte de um evento publicado conta para o alcance (pessoas únicas e total de aberturas)
+CREATE OR REPLACE FUNCTION public.record_event_view(event UUID)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.event_views (event_id, user_id)
+  SELECT event, auth.uid()
+  WHERE auth.uid() IS NOT NULL AND EXISTS (SELECT 1 FROM public.events e WHERE e.id = event AND e.status = 'approved')
+  ON CONFLICT (event_id, user_id) DO UPDATE
+    SET open_count = event_views.open_count + 1, last_opened_at = now();
+$$;
+
+-- Alcance e interações por evento (somente a equipe)
+CREATE OR REPLACE FUNCTION public.admin_event_stats()
+RETURNS TABLE (event_id UUID, viewers BIGINT, opens BIGINT, going BIGINT, interested BIGINT, not_going BIGINT, not_interested BIGINT, interacted BIGINT)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
+#variable_conflict use_column
+BEGIN
+  IF NOT public.is_staff() THEN
+    RAISE EXCEPTION 'Acesso negado: requer papel administrativo com MFA ativo.';
+  END IF;
+  RETURN QUERY
+  SELECT e.id,
+    (SELECT count(*) FROM public.event_views v WHERE v.event_id = e.id),
+    (SELECT coalesce(sum(v.open_count), 0)::bigint FROM public.event_views v WHERE v.event_id = e.id),
+    (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id AND a.status = 'going'),
+    (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id AND a.status = 'interested'),
+    (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id AND a.status = 'not_going'),
+    (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id AND a.status = 'not_interested'),
+    (SELECT count(*) FROM public.event_attendees a WHERE a.event_id = e.id)
+  FROM public.events e;
+END;
+$$;
+
 -- Usuário não altera status, destaque nem contadores do próprio evento
 CREATE OR REPLACE FUNCTION public.protect_event_fields()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
@@ -1824,7 +1871,7 @@ BEGIN
     'user_blocks', 'communities', 'community_members', 'posts', 'post_polls', 'post_poll_votes', 'post_likes',
     'post_saves', 'post_comments', 'albums', 'album_items', 'album_permissions', 'conversations',
     'conversation_participants', 'messages', 'notifications', 'moderation_reports', 'admin_users',
-    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'ads'
+    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'event_views', 'ads'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated', t);
@@ -1867,6 +1914,8 @@ GRANT EXECUTE ON FUNCTION public.admin_set_role(UUID, admin_role_enum, TEXT) TO 
 GRANT EXECUTE ON FUNCTION public.album_item_counts(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_review_event(UUID, TEXT, BOOLEAN, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.record_ad_event(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.record_event_view(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_event_stats() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.delete_own_account() FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.admin_log(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.require_moderator(TEXT) FROM PUBLIC, anon, authenticated;
@@ -2186,6 +2235,10 @@ CREATE POLICY "events_update" ON public.events FOR UPDATE TO authenticated
   USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
 CREATE POLICY "events_delete" ON public.events FOR DELETE TO authenticated
   USING (created_by = auth.uid());
+
+-- Quem abriu a arte de cada evento: só a equipe lê; a gravação é pela RPC record_event_view
+CREATE POLICY "event_views_select" ON public.event_views FOR SELECT TO authenticated
+  USING (public.is_staff());
 
 -- Presença em evento é informação sensível: cada um vê só a sua (os totais ficam no evento)
 CREATE POLICY "event_attendees_select" ON public.event_attendees FOR SELECT TO authenticated

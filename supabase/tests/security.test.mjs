@@ -309,5 +309,28 @@ r = await as(ids.admin, `SELECT name FROM storage.objects WHERE bucket_id = 'pri
 r.rows.length === 0 ? ok('sem MFA, nem o superadmin abre o cofre') : bad('cofre aberto sem MFA');
 await expectFail('a checagem interna não é chamável direto', ids.admin, `SELECT public.require_superadmin_reason('justificativa longa')`, [], 'aal2');
 
+console.log('\nAgenda: alcance da arte e respostas');
+const ev = (await db.query(`INSERT INTO events (created_by, title, starts_at, venue_name, city, status) VALUES ($1, 'baile', now() + interval '2 days', 'Clube', 'Campinas', 'approved') RETURNING id`, [ids.a])).rows[0].id;
+const pendingEv = (await db.query(`INSERT INTO events (created_by, title, starts_at, venue_name, city) VALUES ($1, 'rascunho', now() + interval '2 days', 'Clube', 'Campinas') RETURNING id`, [ids.a])).rows[0].id;
+await expectOk('vítima abre a arte', ids.v, `SELECT public.record_event_view($1)`, [ev]);
+await expectOk('vítima abre a arte de novo', ids.v, `SELECT public.record_event_view($1)`, [ev]);
+await expectOk('B abre a arte', ids.b, `SELECT public.record_event_view($1)`, [ev]);
+await expectOk('abrir evento não publicado não conta', ids.v, `SELECT public.record_event_view($1)`, [pendingEv]);
+await expectFail('visitante sem login não registra abertura', null, `SELECT public.record_event_view($1)`, [ev]);
+await expectFail('ninguém forja aberturas direto na tabela', ids.v, `INSERT INTO event_views (event_id, user_id, open_count) VALUES ($1, $2, 999)`, [ev, ids.b]);
+r = await as(ids.v, `SELECT * FROM event_views`);
+r.rows.length === 0 ? ok('usuário comum não vê quem abriu a arte') : bad('event_views exposta a usuário');
+await expectOk('vítima responde "não vou"', ids.v, `INSERT INTO event_attendees (event_id, user_id, status) VALUES ($1, $2, 'not_going')`, [ev, ids.v]);
+await expectOk('B responde "não tenho interesse"', ids.b, `INSERT INTO event_attendees (event_id, user_id, status) VALUES ($1, $2, 'not_interested')`, [ev, ids.b]);
+await expectFail('resposta inválida é recusada', ids.a, `INSERT INTO event_attendees (event_id, user_id, status) VALUES ($1, $2, 'talvez')`, [ev, ids.a]);
+await expectFail('usuário comum não lê as estatísticas', ids.v, `SELECT * FROM public.admin_event_stats()`);
+await expectFail('equipe sem MFA não lê as estatísticas', ids.mod, `SELECT * FROM public.admin_event_stats()`);
+r = await expectOk('moderador (MFA) lê as estatísticas', ids.mod, `SELECT * FROM public.admin_event_stats() WHERE event_id = $1`, [ev], 'aal2');
+const st = r?.rows[0];
+st && Number(st.viewers) === 2 && Number(st.opens) === 3 && Number(st.not_going) === 1 && Number(st.not_interested) === 1 && Number(st.interacted) === 2
+  ? ok('alcance: 2 pessoas, 3 aberturas, 2 interações') : bad('estatísticas: ' + JSON.stringify(st));
+r = await db.query(`SELECT count(*)::int AS n FROM event_views WHERE event_id = $1`, [pendingEv]);
+r.rows[0].n === 0 ? ok('evento em análise não acumula alcance') : bad('alcance contado em evento não publicado');
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

@@ -1,9 +1,43 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarHeart, Check, X, Star } from 'lucide-react';
+import { CalendarHeart, Check, X, Star, Eye, MousePointerClick } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { VybeEvent } from '../../types';
-import { EVENT_CATEGORY_LABELS, fetchEventsForReview, formatEventDate, reviewEvent } from '../../lib/events';
+import { EVENT_CATEGORY_LABELS, EventStats, fetchEventStats, fetchEventsForReview, formatEventDate, reviewEvent } from '../../lib/events';
 import { notify, askText } from '../common/Feedback';
+import { AdminThumb } from './AdminImageViewer';
+
+// Alcance da arte: quantas pessoas abriram e o que responderam
+const EventReach: React.FC<{ stats?: EventStats }> = ({ stats }) => {
+  if (!stats) return <p className="text-zinc-500">Alcance ainda não disponível.</p>;
+  const rate = stats.viewers > 0 ? Math.round((stats.interacted / stats.viewers) * 100) : 0;
+  const cells = [
+    { label: 'Vão', value: stats.going },
+    { label: 'Não vão', value: stats.notGoing },
+    { label: 'Sem interesse', value: stats.notInterested },
+    ...(stats.interested > 0 ? [{ label: 'Interesse (antigo)', value: stats.interested }] : [])
+  ];
+  return (
+    <div className="p-3 rounded-2xl bg-zinc-950/70 border border-purple-900/30 space-y-2">
+      <div className="flex flex-wrap gap-x-5 gap-y-1">
+        <span className="flex items-center gap-1.5 text-white font-bold">
+          <Eye className="w-3.5 h-3.5 text-fuchsia-400" /> {stats.viewers} {stats.viewers === 1 ? 'pessoa abriu' : 'pessoas abriram'}
+          <span className="font-normal text-zinc-500">({stats.opens} aberturas)</span>
+        </span>
+        <span className="flex items-center gap-1.5 text-white font-bold">
+          <MousePointerClick className="w-3.5 h-3.5 text-fuchsia-400" /> {stats.interacted} interagiram
+          <span className="font-normal text-zinc-500">({rate}% de quem abriu)</span>
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {cells.map(c => (
+          <span key={c.label} className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300">
+            {c.label}: <strong className="text-white">{c.value}</strong>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const STATUS_STYLES: Record<VybeEvent['status'], string> = {
   pending: 'bg-amber-950 text-amber-300 border-amber-800',
@@ -17,9 +51,12 @@ export const AdminEventsTab: React.FC = () => {
   const [list, setList] = useState<VybeEvent[]>([]);
   const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<Map<string, EventStats>>(new Map());
 
   const load = async () => {
-    setList(await fetchEventsForReview());
+    const [events, reach] = await Promise.all([fetchEventsForReview(), fetchEventStats()]);
+    setList(events);
+    setStats(reach);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -70,7 +107,7 @@ export const AdminEventsTab: React.FC = () => {
       <div className="space-y-4">
         {visible.map(ev => (
           <article key={ev.id} className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-4 flex flex-col md:flex-row gap-4">
-            <img src={ev.coverUrl} alt="" className="w-full md:w-48 aspect-[16/9] md:aspect-square object-cover rounded-2xl shrink-0" />
+            <AdminThumb src={ev.coverUrl} label={`Arte do evento ${ev.title}`} className="w-full md:w-48 aspect-[16/9] md:aspect-square object-cover rounded-2xl shrink-0" />
             <div className="flex-1 min-w-0 space-y-2 text-xs">
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`px-2 py-0.5 rounded border font-bold ${STATUS_STYLES[ev.status]}`}>{STATUS_LABEL[ev.status]}</span>
@@ -83,7 +120,7 @@ export const AdminEventsTab: React.FC = () => {
               {ev.ticketUrl && <p className="text-zinc-400 break-all">Link: {ev.ticketUrl}</p>}
               {ev.description && <p className="text-zinc-300 whitespace-pre-line">{ev.description}</p>}
               {ev.reviewNote && <p className="text-zinc-500">Nota da moderação: {ev.reviewNote}</p>}
-              <p className="text-zinc-500">{ev.goingCount} vão · {ev.interestedCount} com interesse</p>
+              {ev.status === 'approved' ? <EventReach stats={stats.get(ev.id)} /> : <p className="text-zinc-500">O alcance começa a contar quando o evento é publicado.</p>}
             </div>
             <div className="flex md:flex-col gap-2 shrink-0">
               {ev.status !== 'approved' && (

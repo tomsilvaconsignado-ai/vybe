@@ -15,7 +15,8 @@ import {
   StoryGroup,
   VybeEvent,
   Ad,
-  ProfileType
+  ProfileType,
+  EventRsvpStatus
 } from '../types';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, authRedirectUrl, authLinkError, translateAuthError, isSupabaseConfigured } from '../lib/supabase';
@@ -175,7 +176,7 @@ interface AppContextType {
   refreshStories: () => Promise<void>;
   events: VybeEvent[];
   refreshEvents: () => Promise<void>;
-  rsvpEvent: (eventId: string, status: 'going' | 'interested' | null) => Promise<void>;
+  rsvpEvent: (eventId: string, status: EventRsvpStatus | null) => Promise<void>;
   ads: Ad[];
 
   // Messaging Actions
@@ -821,7 +822,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (currentUser.id) setEvents(await fetchEvents(currentUser.id));
   };
 
-  const rsvpEvent = async (eventId: string, status: 'going' | 'interested' | null) => {
+  const rsvpEvent = async (eventId: string, status: EventRsvpStatus | null) => {
     const previous = events.find(e => e.id === eventId)?.myStatus ?? null;
     if (previous === status) return;
     // Atualização otimista dos contadores

@@ -339,6 +339,9 @@ export interface StoryGroup {
 
 export type EventCategory = 'festa' | 'encontro' | 'clube' | 'viagem' | 'workshop' | 'outro';
 
+// Resposta na arte do evento ('interested' vem de versões anteriores do app)
+export type EventRsvpStatus = 'going' | 'not_going' | 'not_interested' | 'interested';
+
 export interface VybeEvent {
   id: string;
   createdBy?: string;
@@ -360,7 +363,7 @@ export interface VybeEvent {
   reviewNote?: string;
   goingCount: number;
   interestedCount: number;
-  myStatus?: 'going' | 'interested';
+  myStatus?: EventRsvpStatus;
 }
 
 export type AdPlacement = 'feed' | 'sidebar' | 'events';
