@@ -1631,7 +1631,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 #variable_conflict use_column
 BEGIN
   PERFORM public.require_superadmin_reason(justification);
-  PERFORM public.admin_log('LIST_ALL_CONVERSATIONS', NULL, 'conversation', justification);
+  PERFORM public.admin_log('LIST_ALL_CONVERSATIONS', 'all', 'conversation', justification);
   RETURN QUERY
   SELECT c.id,
     (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'username', p.username, 'display_name', p.display_name, 'avatar_url', p.avatar_url)), '[]')
