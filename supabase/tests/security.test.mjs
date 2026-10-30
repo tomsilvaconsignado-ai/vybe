@@ -396,6 +396,35 @@ r = await as(ids.b, `SELECT * FROM public.nearby_profiles(150)`);
 r.rows.length === 0 ? ok('sem localização própria, não vê distâncias') : bad('sem localização ainda vê distâncias');
 await expectFail('visitante sem login não busca por distância', null, `SELECT * FROM public.nearby_profiles(50)`);
 
+console.log('\nMesma cidade / mesmo estado (cadastro)');
+const place = async (uid, city, state, privacy) => {
+  await db.query(`UPDATE profile_private SET city = $2, state = $3 WHERE user_id = $1`, [uid, city, state]);
+  await db.query(`UPDATE profiles SET location_privacy = $2 WHERE id = $1`, [uid, privacy]);
+};
+await place(ids.mod, 'Aracaju', 'SE', 'city');
+await place(ids.b, '  aracajú ', 'Sergipe', 'city');
+await place(ids.v, 'Itabaiana', 'se', 'city');
+await place(ids.a, 'Aracaju', 'SE', 'hidden');
+const region = async (uid, scope) => Object.fromEntries((await as(uid, `SELECT * FROM public.same_region_profiles($1)`, [scope])).rows.map(x => [x.profile_id, x.match]));
+let reg = await region(ids.mod, 'city');
+reg[ids.b] === 'city' && !(ids.v in reg) ? ok('mesma cidade ignora acento, espaço e maiúscula (Aracaju = aracajú)') : bad('mesma cidade: ' + JSON.stringify(reg));
+!(ids.a in reg) ? ok('quem oculta a localização não aparece na mesma cidade') : bad('localização oculta exposta por cidade');
+reg = await region(ids.mod, 'state');
+reg[ids.b] === 'city' && reg[ids.v] === 'state' && !(ids.a in reg) ? ok('mesmo estado entende sigla e nome (SE = Sergipe = se)') : bad('mesmo estado: ' + JSON.stringify(reg));
+await place(ids.v, 'Aracaju', 'SE', 'approximate_region');
+reg = await region(ids.mod, 'city');
+!(ids.v in reg) ? ok('quem mostra só a região não é encontrado pela cidade') : bad('cidade de "região aproximada" exposta');
+reg = await region(ids.mod, 'state');
+reg[ids.v] === 'state' ? ok('quem mostra só a região aparece no mesmo estado (sem revelar a cidade)') : bad('região aproximada no estado: ' + JSON.stringify(reg));
+await place(ids.mod, 'Aracaju', 'SE', 'approximate_region');
+reg = await region(ids.mod, 'city');
+Object.keys(reg).length === 0 ? ok('quem não mostra a própria cidade não busca por cidade') : bad('reciprocidade da cidade falhou');
+reg = await region(ids.a, 'state');
+Object.keys(reg).length === 0 ? ok('quem oculta a localização não usa o filtro de região') : bad('reciprocidade do estado falhou');
+reg = await region(ids.b, 'state');
+!(ids.v in reg) ? ok('bloqueado não encontra quem o bloqueou pela região') : bad('região vazou após bloqueio');
+await expectFail('visitante sem login não busca por região', null, `SELECT * FROM public.same_region_profiles('state')`);
+
 console.log('\nStatus online (recíproco)');
 await db.query(`UPDATE profiles SET discreet_mode_enabled = false, show_online_status = true WHERE id = ANY($1::uuid[])`, [[ids.a, ids.mod]]);
 await expectOk('A registra presença', ids.a, `SELECT public.touch_presence()`);

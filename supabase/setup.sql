@@ -1377,6 +1377,56 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
   LIMIT 300;
 $$;
 
+-- ---------- Mesma cidade / mesmo estado (pelo cadastro) ----------
+-- Complementa a distância por GPS: funciona para quem não ativou a localização.
+-- Compara sem acento e sem diferença de maiúsculas; estado por extenso ou sigla ("Sergipe" = "SE").
+CREATE OR REPLACE FUNCTION public.norm_place(t TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT regexp_replace(
+    translate(lower(trim(coalesce(t, ''))), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc'),
+    '\s+', ' ', 'g');
+$$;
+
+CREATE OR REPLACE FUNCTION public.norm_uf(t TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE public.norm_place(t)
+    WHEN 'acre' THEN 'AC' WHEN 'alagoas' THEN 'AL' WHEN 'amapa' THEN 'AP' WHEN 'amazonas' THEN 'AM'
+    WHEN 'bahia' THEN 'BA' WHEN 'ceara' THEN 'CE' WHEN 'distrito federal' THEN 'DF' WHEN 'espirito santo' THEN 'ES'
+    WHEN 'goias' THEN 'GO' WHEN 'maranhao' THEN 'MA' WHEN 'mato grosso' THEN 'MT' WHEN 'mato grosso do sul' THEN 'MS'
+    WHEN 'minas gerais' THEN 'MG' WHEN 'para' THEN 'PA' WHEN 'paraiba' THEN 'PB' WHEN 'parana' THEN 'PR'
+    WHEN 'pernambuco' THEN 'PE' WHEN 'piaui' THEN 'PI' WHEN 'rio de janeiro' THEN 'RJ' WHEN 'rio grande do norte' THEN 'RN'
+    WHEN 'rio grande do sul' THEN 'RS' WHEN 'rondonia' THEN 'RO' WHEN 'roraima' THEN 'RR' WHEN 'santa catarina' THEN 'SC'
+    WHEN 'sao paulo' THEN 'SP' WHEN 'sergipe' THEN 'SE' WHEN 'tocantins' THEN 'TO'
+    ELSE upper(public.norm_place(t))
+  END;
+$$;
+
+-- Perfis da mesma cidade ('city') ou do mesmo estado ('state'), pelo cadastro.
+-- Cidade só casa com quem mostra a cidade (e se quem busca também mostra a sua);
+-- estado inclui quem escolheu "região aproximada". Localização oculta fica de fora dos dois lados.
+CREATE OR REPLACE FUNCTION public.same_region_profiles(scope TEXT)
+RETURNS TABLE (profile_id UUID, match TEXT)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT p.id,
+    CASE WHEN mine.location_privacy = 'city' AND p.location_privacy = 'city'
+              AND public.norm_place(pp.city) = public.norm_place(mypp.city) THEN 'city' ELSE 'state' END
+  FROM public.profile_private mypp
+  JOIN public.profiles mine ON mine.id = mypp.user_id AND mine.location_privacy <> 'hidden'
+  JOIN public.profile_private pp ON pp.user_id <> mypp.user_id
+  JOIN public.profiles p ON p.id = pp.user_id
+  WHERE mypp.user_id = auth.uid()
+    AND scope IN ('city', 'state')
+    AND public.norm_uf(mypp.state) <> '' AND public.norm_uf(pp.state) = public.norm_uf(mypp.state)
+    AND p.location_privacy <> 'hidden' AND p.status <> 'blocked'
+    AND NOT public.is_blocked_between(p.id, auth.uid())
+    AND (scope = 'state' OR (
+      mine.location_privacy = 'city' AND p.location_privacy = 'city'
+      AND public.norm_place(mypp.city) <> '' AND public.norm_place(pp.city) = public.norm_place(mypp.city)
+    ))
+  ORDER BY p.last_active_at DESC
+  LIMIT 300;
+$$;
+
 -- Presença: o app chama touch_presence a cada minuto enquanto está aberto
 CREATE OR REPLACE FUNCTION public.touch_presence()
 RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
@@ -2093,6 +2143,7 @@ GRANT EXECUTE ON FUNCTION public.set_my_location(DOUBLE PRECISION, DOUBLE PRECIS
 GRANT EXECUTE ON FUNCTION public.clear_my_location() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.profile_distances(UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.nearby_profiles(INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.same_region_profiles(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_conversation_read(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;

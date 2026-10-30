@@ -20,9 +20,11 @@ import { OnlineDot } from '../common/OnlineDot';
 interface ProfileCardProps {
   profile: UserProfile;
   viewMode?: 'grid' | 'list';
+  regionMatch?: 'city' | 'state';   // achado pela busca "perto de mim" pelo cadastro
 }
 
-export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'grid' }) => {
+export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'grid', regionMatch }) => {
+  const regionLabel = regionMatch === 'city' ? 'Mesma cidade' : regionMatch === 'state' ? 'Mesmo estado' : null;
   const { 
     currentUser, 
     setSelectedProfileId, 
@@ -83,6 +85,12 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
                 <>
                   <span>•</span>
                   <span className="text-emerald-300 font-semibold">~{profile.approximateDistanceKm} km de você</span>
+                </>
+              )}
+              {profile.approximateDistanceKm === undefined && regionLabel && (
+                <>
+                  <span>•</span>
+                  <span className="text-emerald-300 font-semibold">{regionLabel}</span>
                 </>
               )}
             </div>
@@ -188,6 +196,12 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
               <>
                 <span>•</span>
                 <span className="font-semibold">~{profile.approximateDistanceKm} km</span>
+              </>
+            )}
+            {profile.approximateDistanceKm === undefined && regionLabel && (
+              <>
+                <span>•</span>
+                <span className="font-semibold">{regionLabel}</span>
               </>
             )}
           </div>
