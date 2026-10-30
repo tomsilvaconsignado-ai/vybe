@@ -21,9 +21,10 @@ import { FeedbackHost } from './components/common/Feedback';
 // Tela inicial carrega junto; as demais são baixadas sob demanda (pacote inicial menor)
 import { FeedView } from './components/feed/FeedView';
 import { RightRail } from './components/layout/RightRail';
+import { importWithReload } from './lib/chunkReload';
 
 const named = <K extends string>(loader: () => Promise<Record<K, React.ComponentType<any>>>, name: K) =>
-  lazy(() => loader().then(m => ({ default: m[name] })));
+  lazy(() => importWithReload(loader).then(m => ({ default: m[name] })));
 
 const RegisterWizard = named(() => import('./components/auth/RegisterWizard'), 'RegisterWizard');
 const DiscoverView = named(() => import('./components/discover/DiscoverView'), 'DiscoverView');

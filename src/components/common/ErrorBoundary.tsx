@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Trash2, Shield } from 'lucide-react';
 import logoUrl from '../../assets/logo.png';
+import { isChunkLoadError, reloadForNewVersion } from '../../lib/chunkReload';
 
 interface Props {
   children: ReactNode;
@@ -24,6 +25,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Versão nova publicada com a aba aberta: recarrega sozinho em vez de mostrar o erro
+    if (isChunkLoadError(error) && reloadForNewVersion()) return;
     console.error('[Vybelog ErrorBoundary] Uncaught render error:', error, errorInfo);
     this.setState({ error, errorInfo });
   }
@@ -43,6 +46,26 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   public render() {
+    // Falha ao baixar uma tela: quase sempre é versão nova publicada ou conexão instável
+    if (this.state.hasError && isChunkLoadError(this.state.error)) {
+      return (
+        <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="w-full max-w-sm bg-[#120f1a] border border-purple-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl">
+            <img src={logoUrl} alt="" className="w-14 h-14 rounded-full mx-auto mb-4" />
+            <h1 className="text-lg font-bold text-white mb-2">O Vybelog foi atualizado</h1>
+            <p className="text-sm text-zinc-400 mb-6">
+              Há uma versão nova disponível. Toque abaixo para continuar. Se não funcionar, confira sua conexão com a internet.
+            </p>
+            <button
+              onClick={this.handleReload}
+              className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 to-rose-600 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" /> Atualizar agora
+            </button>
+          </div>
+        </div>
+      );
+    }
     if (this.state.hasError) {
       return (
         <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col items-center justify-center p-6 text-center select-none">
