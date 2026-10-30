@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { DEFAULT_COVER } from './profiles';
-import { Ad, AdPlacement, EventCategory, VybeEvent } from '../types';
+import { Ad, AdPlacement, EventCategory, EventRsvpStatus, VybeEvent } from '../types';
 
 export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
   festa: 'Festa',
@@ -15,7 +15,7 @@ export function formatEventDate(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function mapEvent(row: any, myStatus?: 'going' | 'interested'): VybeEvent {
+function mapEvent(row: any, myStatus?: EventRsvpStatus): VybeEvent {
   return {
     id: row.id,
     createdBy: row.created_by ?? undefined,
@@ -59,7 +59,7 @@ export async function fetchEvents(me: string): Promise<VybeEvent[]> {
   return [...byId.values()];
 }
 
-export async function setEventRsvp(me: string, eventId: string, status: 'going' | 'interested' | null) {
+export async function setEventRsvp(me: string, eventId: string, status: EventRsvpStatus | null) {
   const { error } = status
     ? await supabase.from('event_attendees').upsert({ event_id: eventId, user_id: me, status }, { onConflict: 'event_id,user_id' })
     : await supabase.from('event_attendees').delete().eq('event_id', eventId).eq('user_id', me);
@@ -199,3 +199,39 @@ export const pickAd = (ads: Ad[], placement: AdPlacement, index = 0): Ad | undef
   const pool = ads.filter(a => a.placement === placement);
   return pool.length ? pool[index % pool.length] : undefined;
 };
+
+// ----------------- ALCANCE DA ARTE ----------------- //
+
+// Conta quem abriu a arte de um evento publicado (falha silenciosa: não atrapalha quem está vendo)
+export async function recordEventView(eventId: string) {
+  const { error } = await supabase.rpc('record_event_view', { event: eventId });
+  if (error && error.code !== 'PGRST202') console.error('[Vybelog] Falha ao registrar visualização do evento:', error.message);
+}
+
+export interface EventStats {
+  viewers: number;        // pessoas diferentes que abriram a arte
+  opens: number;          // total de aberturas
+  going: number;
+  interested: number;
+  notGoing: number;
+  notInterested: number;
+  interacted: number;     // pessoas que responderam algo
+}
+
+// Somente equipe administrativa (MFA)
+export async function fetchEventStats(): Promise<Map<string, EventStats>> {
+  const { data, error } = await supabase.rpc('admin_event_stats');
+  if (error) {
+    if (error.code !== 'PGRST202') console.error('[Vybelog] Falha ao carregar alcance dos eventos:', error.message);
+    return new Map();
+  }
+  return new Map(((data ?? []) as any[]).map(s => [s.event_id, {
+    viewers: Number(s.viewers),
+    opens: Number(s.opens),
+    going: Number(s.going),
+    interested: Number(s.interested),
+    notGoing: Number(s.not_going),
+    notInterested: Number(s.not_interested),
+    interacted: Number(s.interacted)
+  }]));
+}
