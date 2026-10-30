@@ -134,6 +134,27 @@ await expectFail('mensagem com mídia externa é recusada', ids.a, `INSERT INTO 
 await expectOk('A manda mensagem normal para B', ids.a, `INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, 'olá')`, [convAB, ids.a]);
 await expectFail('A tenta apagar a mensagem enviada (evidência preservada)', ids.a, `DELETE FROM messages WHERE conversation_id = $1`, [convAB]);
 
+console.log('\nFotos e GIFs no direct (bucket privado chat-media)');
+const chatPath = (conv, uid, f = 'foto.jpg') => `${conv}/${uid}/${f}`;
+await expectOk('A envia foto para a conversa com B', ids.a, `INSERT INTO storage.objects (bucket_id, name) VALUES ('chat-media', $1)`, [chatPath(convAB, ids.a)]);
+await expectOk('A envia GIF para a conversa com B', ids.a, `INSERT INTO storage.objects (bucket_id, name) VALUES ('chat-media', $1)`, [chatPath(convAB, ids.a, 'anim.gif')]);
+await expectFail('A não envia na pasta de B', ids.a, `INSERT INTO storage.objects (bucket_id, name) VALUES ('chat-media', $1)`, [chatPath(convAB, ids.b)]);
+await expectFail('quem não participa não envia na conversa', ids.v, `INSERT INTO storage.objects (bucket_id, name) VALUES ('chat-media', $1)`, [chatPath(convAB, ids.v)]);
+await expectFail('pedido pendente não aceita foto', ids.v, `INSERT INTO storage.objects (bucket_id, name) VALUES ('chat-media', $1)`, [chatPath(convBV, ids.v)]);
+await expectOk('A manda a mensagem com a foto', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', 'chat-media/' || $3)`, [convAB, ids.a, chatPath(convAB, ids.a)]);
+await expectFail('mensagem não aponta para a pasta de outra pessoa', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', 'chat-media/' || $3)`, [convAB, ids.a, chatPath(convAB, ids.b)]);
+await expectFail('mensagem não aponta para foto de outra conversa', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', 'chat-media/' || $3)`, [convAB, ids.a, chatPath(convBV, ids.a)]);
+await expectFail('caminho com ../ é recusado', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', 'chat-media/' || $3)`, [convAB, ids.a, chatPath(convAB, ids.a, '../x.jpg')]);
+r = await as(ids.b, `SELECT name FROM storage.objects WHERE bucket_id = 'chat-media'`);
+r.rows.length === 2 ? ok('B vê as fotos da conversa') : bad(`B deveria ver 2 fotos, viu ${r.rows.length}`);
+r = await as(ids.v, `SELECT name FROM storage.objects WHERE bucket_id = 'chat-media'`);
+r.rows.length === 0 ? ok('quem não participa não vê as fotos') : bad('foto do direct vazou');
+r = await as(ids.mod, `SELECT name FROM storage.objects WHERE bucket_id = 'chat-media'`, [], 'aal2');
+r.rows.length === 0 ? ok('moderação sem denúncia não vê as fotos') : bad('moderação viu foto sem denúncia');
+r = await as(null, `SELECT name FROM storage.objects WHERE bucket_id = 'chat-media'`).catch(() => ({ rows: [] }));
+r.rows.length === 0 ? ok('visitante sem login não vê as fotos') : bad('foto do direct exposta a visitante');
+await expectFail('A não apaga a foto enviada (evidência preservada)', ids.a, `DELETE FROM storage.objects WHERE bucket_id = 'chat-media'`);
+
 console.log('\nPosts privados');
 r = await expectOk('A publica post só para conexões', ids.a, `INSERT INTO posts (user_id, content, visibility) VALUES ($1, 'privado', 'connections_only') RETURNING id`, [ids.a]);
 const postA = r.rows[0].id;

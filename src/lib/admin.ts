@@ -1,6 +1,7 @@
 import { supabase, getPrivateVaultSignedUrl } from './supabase';
 import { avatarOrDefault, DEFAULT_COVER, AdminRole } from './profiles';
 import { formatRelativeTime } from './social';
+import { resolveChatMedia } from './messaging';
 import { AdminAuditLog, AdminMediaRecord, AdminUserRecord, ModerationReport, UserAccountStatus } from '../types';
 
 // Todas as funções abaixo dependem de sessão administrativa com MFA (aal2); o banco recusa as demais.
@@ -194,15 +195,16 @@ export interface EvidenceMessage {
 export async function adminReportEvidence(report: string, justification: string): Promise<{ messages: EvidenceMessage[]; error: string | null }> {
   const { data, error } = await supabase.rpc('admin_report_evidence', { report, justification });
   if (error) return { messages: [], error: error.message };
+  const messages: EvidenceMessage[] = ((data ?? []) as any[]).reverse().map(m => ({
+    id: m.message_id,
+    senderId: m.sender_id,
+    senderName: m.sender_name,
+    content: m.content,
+    mediaUrl: m.media_url ?? undefined,
+    createdAt: formatDateTime(m.created_at)
+  }));
   return {
-    messages: ((data ?? []) as any[]).reverse().map(m => ({
-      id: m.message_id,
-      senderId: m.sender_id,
-      senderName: m.sender_name,
-      content: m.content,
-      mediaUrl: m.media_url ?? undefined,
-      createdAt: formatDateTime(m.created_at)
-    })),
+    messages: await resolveChatMedia(messages),
     error: null
   };
 }
@@ -244,15 +246,16 @@ export async function adminListConversations(justification: string): Promise<{ c
 export async function adminReadConversation(conversation: string, justification: string): Promise<{ messages: EvidenceMessage[]; error: string | null }> {
   const { data, error } = await supabase.rpc('admin_read_conversation', { conv: conversation, justification });
   if (error) return { messages: [], error: missingRpc(error) };
+  const messages: EvidenceMessage[] = ((data ?? []) as any[]).map(m => ({
+    id: m.message_id,
+    senderId: m.sender_id,
+    senderName: m.sender_name,
+    content: m.content,
+    mediaUrl: m.media_url ?? undefined,
+    createdAt: formatDateTime(m.created_at)
+  }));
   return {
-    messages: ((data ?? []) as any[]).map(m => ({
-      id: m.message_id,
-      senderId: m.sender_id,
-      senderName: m.sender_name,
-      content: m.content,
-      mediaUrl: m.media_url ?? undefined,
-      createdAt: formatDateTime(m.created_at)
-    })),
+    messages: await resolveChatMedia(messages),
     error: null
   };
 }

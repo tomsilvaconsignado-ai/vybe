@@ -1,7 +1,46 @@
 import { supabase } from './supabase';
 import { formatRelativeTime } from './social';
 import { avatarOrDefault } from './profiles';
+import { stripImageMetadata } from './media';
 import { ChatMessage, Conversation } from '../types';
+
+// ----------------- FOTOS E GIFS DO DIRECT ----------------- //
+// Ficam no bucket privado chat-media (<conversa>/<remetente>/<arquivo>); a mensagem guarda
+// 'chat-media/<caminho>' e cada participante abre por um link assinado de curta duração.
+
+const CHAT_MEDIA_PREFIX = 'chat-media/';
+const CHAT_MEDIA_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+export const CHAT_MEDIA_ACCEPT = Object.keys(CHAT_MEDIA_TYPES).join(',');
+const CHAT_MEDIA_MAX_BYTES = 10 * 1024 * 1024;
+
+export async function uploadChatMedia(conversationId: string, me: string, file: File): Promise<{ path: string | null; error: string | null }> {
+  const ext = CHAT_MEDIA_TYPES[file.type];
+  if (!ext) return { path: null, error: 'Envie uma imagem JPG, PNG, WebP ou GIF.' };
+  if (file.size > CHAT_MEDIA_MAX_BYTES) return { path: null, error: 'A imagem pode ter no máximo 10 MB.' };
+  let clean: File;
+  try {
+    clean = await stripImageMetadata(file);   // GIF fica como está (mantém a animação)
+  } catch (e) {
+    return { path: null, error: (e as Error).message };
+  }
+  const path = `${conversationId}/${me}/${crypto.randomUUID().replace(/-/g, '')}.${ext}`;
+  const { error } = await supabase.storage.from('chat-media').upload(path, clean, { contentType: file.type, upsert: false });
+  if (error) {
+    return { path: null, error: error.message.includes('row-level security')
+      ? 'Fotos e GIFs são liberados depois que a conversa for aceita.'
+      : 'Não foi possível enviar a imagem. Tente de novo.' };
+  }
+  return { path: CHAT_MEDIA_PREFIX + path, error: null };
+}
+
+// Troca os caminhos do bucket privado por links assinados (válidos por 1 h)
+export async function resolveChatMedia<T extends { mediaUrl?: string }>(items: T[]): Promise<T[]> {
+  const paths = [...new Set(items.map(i => i.mediaUrl).filter((u): u is string => !!u?.startsWith(CHAT_MEDIA_PREFIX)))];
+  if (paths.length === 0) return items;
+  const { data } = await supabase.storage.from('chat-media').createSignedUrls(paths.map(u => u.slice(CHAT_MEDIA_PREFIX.length)), 3600);
+  const signed = new Map((data ?? []).filter(d => d.signedUrl).map(d => [CHAT_MEDIA_PREFIX + d.path, d.signedUrl]));
+  return items.map(i => (i.mediaUrl && signed.has(i.mediaUrl) ? { ...i, mediaUrl: signed.get(i.mediaUrl) } : i));
+}
 
 const PARTICIPANT_PROFILE = 'id, username, display_name, avatar_url, profile_type, is_verified, last_active_at, discreet_mode_enabled, show_online_status';
 
@@ -96,7 +135,7 @@ export async function fetchMessages(conversation: Conversation, me: { id: string
 
   const senders = new Map(conversation.participants.map(p => [p.id, { name: p.displayName, avatar: p.avatarUrl }]));
   senders.set(me.id, { name: me.displayName, avatar: me.avatarUrl });
-  return data.map(row => mapMessage(row, senders));
+  return resolveChatMedia(data.map(row => mapMessage(row, senders)));
 }
 
 export async function insertMessage(me: string, conversationId: string, content: string, mediaUrl?: string) {
@@ -108,6 +147,9 @@ export async function insertMessage(me: string, conversationId: string, content:
   }
   if (error?.message.includes('links externos') || error?.message.includes('Mídia inválida')) {
     return 'Envie a imagem pelo app; links externos não são aceitos.';
+  }
+  if (error?.message.includes('row-level security') && mediaUrl) {
+    return 'Fotos e GIFs são liberados depois que a conversa for aceita.';
   }
   return error?.message ?? null;
 }
