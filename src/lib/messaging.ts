@@ -3,7 +3,7 @@ import { formatRelativeTime } from './social';
 import { avatarOrDefault } from './profiles';
 import { ChatMessage, Conversation } from '../types';
 
-const PARTICIPANT_PROFILE = 'id, username, display_name, avatar_url, profile_type, is_verified, last_active_at, discreet_mode_enabled';
+const PARTICIPANT_PROFILE = 'id, username, display_name, avatar_url, profile_type, is_verified, last_active_at, discreet_mode_enabled, show_online_status';
 
 export function formatMessageTime(iso: string): string {
   const date = new Date(iso);
@@ -70,7 +70,7 @@ export async function fetchConversations(me: string): Promise<Conversation[]> {
         avatarUrl: avatarOrDefault(p.profile.avatar_url, p.profile.display_name),
         profileType: p.profile.profile_type,
         isVerified: p.profile.is_verified,
-        lastActive: p.profile.discreet_mode_enabled ? 'Modo discreto' : formatRelativeTime(p.profile.last_active_at)
+        lastActive: p.profile.discreet_mode_enabled ? 'Modo discreto' : p.profile.show_online_status === false ? '' : formatRelativeTime(p.profile.last_active_at)
       })),
       lastMessage: last ? mapMessage(last, senders) : undefined,
       unreadCount: unread,

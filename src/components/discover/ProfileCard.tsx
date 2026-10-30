@@ -15,6 +15,7 @@ import {
 import { UserProfile } from '../../types';
 import { calculateCompatibility } from '../../utils/compatibility';
 import { PROFILE_TYPE_OPTIONS } from '../../lib/profileOptions';
+import { OnlineDot } from '../common/OnlineDot';
 
 interface ProfileCardProps {
   profile: UserProfile;
@@ -30,7 +31,8 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
     requestConnection,
     following,
     toggleFollow,
-    getCompatibility
+    getCompatibility,
+    isOnline
   } = useApp();
 
   const isConnected = connections.includes(profile.id);
@@ -51,6 +53,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
               alt={profile.displayName}
               className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-purple-500/40"
             />
+            <OnlineDot userId={profile.id} className="-bottom-1 -right-1" />
             {profile.isVerified && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center text-xs text-white shadow">
                 ✓
@@ -145,6 +148,11 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#120d20] via-black/20 to-transparent" />
+        {isOnline(profile.id) && (
+          <span className="absolute top-12 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur text-[10px] font-bold text-emerald-300 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Online
+          </span>
+        )}
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between">

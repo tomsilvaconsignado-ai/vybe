@@ -332,5 +332,26 @@ st && Number(st.viewers) === 2 && Number(st.opens) === 3 && Number(st.not_going)
 r = await db.query(`SELECT count(*)::int AS n FROM event_views WHERE event_id = $1`, [pendingEv]);
 r.rows[0].n === 0 ? ok('evento em análise não acumula alcance') : bad('alcance contado em evento não publicado');
 
+console.log('\nStatus online (recíproco)');
+await db.query(`UPDATE profiles SET discreet_mode_enabled = false, show_online_status = true WHERE id = ANY($1::uuid[])`, [[ids.a, ids.mod]]);
+await expectOk('A registra presença', ids.a, `SELECT public.touch_presence()`);
+await expectOk('moderador registra presença', ids.mod, `SELECT public.touch_presence()`);
+const online = async (viewer, target) => (await as(viewer, `SELECT * FROM public.online_users($1::uuid[]) AS id`, [[target]])).rows.length === 1;
+(await online(ids.mod, ids.a)) ? ok('moderador vê que A está online') : bad('A deveria aparecer online');
+r = await as(ids.mod, `SELECT * FROM user_presence`);
+r.rows.length === 0 ? ok('ninguém lê a tabela de presença direto') : bad('user_presence exposta');
+await expectFail('ninguém forja presença de outra pessoa', ids.mod, `INSERT INTO user_presence (user_id) VALUES ($1)`, [ids.b]);
+await expectOk('A esconde o status online', ids.a, `UPDATE profiles SET show_online_status = false, last_active_at = now() WHERE id = $1`, [ids.a]);
+!(await online(ids.mod, ids.a)) ? ok('quem esconde não aparece online') : bad('status escondido continua visível');
+!(await online(ids.a, ids.mod)) ? ok('quem esconde também não vê os outros') : bad('reciprocidade falhou');
+r = await db.query(`SELECT last_active_at = date_trunc('day', last_active_at) AS rounded FROM profiles WHERE id = $1`, [ids.a]);
+r.rows[0].rounded ? ok('com o status escondido, a última atividade fica só com o dia') : bad('horário exato exposto com status escondido');
+await expectOk('A volta a mostrar o status', ids.a, `UPDATE profiles SET show_online_status = true WHERE id = $1`, [ids.a]);
+await db.query(`UPDATE user_presence SET last_seen_at = now() - interval '10 minutes' WHERE user_id = $1`, [ids.a]);
+!(await online(ids.mod, ids.a)) ? ok('sem sinal há 10 min, deixa de aparecer online') : bad('presença antiga aparece como online');
+await expectFail('visitante sem login não consulta presença', null, `SELECT * FROM public.online_users($1::uuid[])`, [[ids.a]]);
+(await as(ids.b, `SELECT * FROM public.online_users($1::uuid[]) AS id`, [[ids.v]])).rows.length === 0
+  ? ok('bloqueado não vê o status de quem o bloqueou') : bad('presença vazou após bloqueio');
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

@@ -92,6 +92,7 @@ export interface UserProfile {
   lastActive: string;
   statusText?: string;
   discreetModeEnabled?: boolean;
+  showOnlineStatus?: boolean;         // mostra "online" (e vê o dos outros); ligado por padrão
 }
 
 export interface PostComment {

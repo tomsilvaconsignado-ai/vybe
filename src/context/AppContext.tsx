@@ -23,6 +23,7 @@ import { supabase, authRedirectUrl, authLinkError, translateAuthError, isSupabas
 import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile, saveOwnPreferences, saveOwnPartners, changeOwnUsername } from '../lib/profiles';
 import { calculateCompatibility, CompatibilityBreakdown } from '../utils/compatibility';
 import { fetchCompatibilityMap } from '../lib/compatibility';
+import { touchPresence, fetchOnlineUsers } from '../lib/presence';
 import {
   SocialGraph,
   fetchProfiles,
@@ -128,6 +129,8 @@ interface AppContextType {
   // Data
   profiles: UserProfile[];
   getCompatibility: (profile: UserProfile) => CompatibilityBreakdown;
+  isOnline: (userId: string) => boolean;
+  canSeeActivity: (profile: { showOnlineStatus?: boolean }) => boolean;
   posts: Post[];
   communities: Community[];
   conversations: Conversation[];
@@ -399,6 +402,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // durante a migração nem antes de trancar o RLS das preferências.
   const getCompatibility = (profile: UserProfile): CompatibilityBreakdown =>
     compatibilityMap.get(profile.id) ?? calculateCompatibility(currentUser, profile);
+
+  // ---------- Status online ----------
+  // Sinal de presença a cada minuto (com a aba visível) e consulta de quem está online
+  // entre os perfis da tela. Quem escondeu o próprio status não vê o dos outros (o banco garante).
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+  const presenceTargets = useRef<string[]>([]);
+  presenceTargets.current = [...new Set([
+    ...profiles.map(p => p.id),
+    ...conversations.flatMap(c => c.participantIds),
+    ...(selectedProfileId ? [selectedProfileId] : [])
+  ])].filter(id => id !== currentUser.id);
+
+  const refreshOnline = async () => {
+    setOnlineUserIds(await fetchOnlineUsers(presenceTargets.current));
+  };
+
+  useEffect(() => {
+    if (!currentUser.id) {
+      setOnlineUserIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      if (document.hidden) return;
+      await touchPresence();
+      const online = await fetchOnlineUsers(presenceTargets.current);
+      if (!cancelled) setOnlineUserIds(online);
+    };
+    tick();
+    const timer = window.setInterval(tick, 60_000);
+    const onVisibility = () => { if (!document.hidden) tick(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [currentUser.id, currentUser.showOnlineStatus]);
+
+  // Perfis novos na tela (descoberta carregada, perfil aberto) já mostram o status
+  useEffect(() => {
+    if (currentUser.id) refreshOnline();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles.length, conversations.length, selectedProfileId]);
+
+  const seesPresence = currentUser.showOnlineStatus !== false;
+  const isOnline = (userId: string) => seesPresence && onlineUserIds.has(userId);
+  // "Visto há X" também segue a regra recíproca
+  const canSeeActivity = (profile: { showOnlineStatus?: boolean }) => seesPresence && profile.showOnlineStatus !== false;
 
   const loadSession = async (nextSession: Session | null) => {
     setSession(nextSession);
@@ -1044,6 +1096,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedConversationId,
         profiles,
         getCompatibility,
+        isOnline,
+        canSeeActivity,
         posts,
         communities,
         conversations,

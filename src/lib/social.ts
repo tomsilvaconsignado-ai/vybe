@@ -58,7 +58,7 @@ function mapOtherProfile(row: any): UserProfile {
     profile.state = '';
   }
   // No modo discreto o banco só guarda o dia da atividade; não exibe "há X h"
-  profile.lastActive = row.discreet_mode_enabled ? 'Modo discreto' : formatRelativeTime(row.last_active_at);
+  profile.lastActive = row.discreet_mode_enabled ? 'Modo discreto' : row.show_online_status === false ? '' : formatRelativeTime(row.last_active_at);
   // Só o tipo de cada álbum (para o selo de cofre); o conteúdo é carregado no perfil
   profile.albums = (row.albums ?? []).map((a: { id: string; visibility: UserProfile['albums'][number]['visibility'] }) => ({
     id: a.id, userId: row.id, title: '', description: '', coverUrl: '', visibility: a.visibility,
