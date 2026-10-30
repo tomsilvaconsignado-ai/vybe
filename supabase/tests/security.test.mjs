@@ -356,6 +356,46 @@ r = await as(ids.mod, `SELECT comments, commenters, interacted FROM public.admin
 r.rows[0] && Number(r.rows[0].comments) === 1 && Number(r.rows[0].interacted) === 3
   ? ok('estatísticas contam comentários e quem comentou como interação') : bad('estatísticas com comentários: ' + JSON.stringify(r.rows[0]));
 
+console.log('\nDistância (localização aproximada)');
+// moderador e B na capital (região aproximada), vítima em Campinas (mostra a cidade), A oculta a localização
+await db.query(`UPDATE profiles SET location_privacy = 'approximate_region' WHERE id = ANY($1::uuid[])`, [[ids.mod, ids.b]]);
+await db.query(`UPDATE profiles SET location_privacy = 'hidden' WHERE id = $1`, [ids.a]);
+await db.query(`UPDATE profiles SET location_privacy = 'city' WHERE id = $1`, [ids.v]);
+await expectOk('moderador grava a localização', ids.mod, `SELECT public.set_my_location(-23.5505, -46.6333)`);
+await expectOk('B grava a localização', ids.b, `SELECT public.set_my_location(-23.5800, -46.6600)`);
+await expectOk('vítima grava a localização', ids.v, `SELECT public.set_my_location(-22.9056, -47.0608)`);
+await expectOk('A (localização oculta) grava a localização', ids.a, `SELECT public.set_my_location(-23.5510, -46.6340)`);
+r = await db.query(`SELECT lat, lng FROM user_geo WHERE user_id = $1`, [ids.mod]);
+const onGrid = v => Math.abs(Number(v) * 50 - Math.round(Number(v) * 50)) < 1e-9;
+onGrid(r.rows[0].lat) && onGrid(r.rows[0].lng) && Number(r.rows[0].lat) !== -23.5505
+  ? ok('posição guardada só na grade de ~2 km (' + r.rows[0].lat + ', ' + r.rows[0].lng + ')') : bad('posição exata gravada: ' + JSON.stringify(r.rows[0]));
+r = await as(ids.v, `SELECT user_id FROM user_geo`);
+r.rows.length === 1 && r.rows[0].user_id === ids.v ? ok('cada um lê só a própria localização') : bad('localização alheia exposta');
+await expectFail('ninguém grava localização direto na tabela', ids.v, `INSERT INTO user_geo (user_id, lat, lng) VALUES ($1, 0, 0)`, [ids.b]);
+await expectFail('coordenada inválida é recusada', ids.v, `SELECT public.set_my_location(200, 0)`);
+r = await as(ids.mod, `SELECT public.set_my_location(-10.0, -40.0) AS changed`);
+r.rows[0].changed === false ? ok('troca de posição em menos de 10 min é ignorada (anti-triangulação)') : bad('troca rápida de posição aceita');
+r = await as(ids.mod, `SELECT * FROM public.nearby_profiles(20)`);
+const near20 = Object.fromEntries(r.rows.map(x => [x.profile_id, x.distance_km]));
+ids.b in near20 && !(ids.v in near20) ? ok('raio de 20 km traz só quem está perto') : bad('raio 20 km: ' + JSON.stringify(near20));
+near20[ids.b] % 5 === 0 ? ok('região aproximada aparece de 5 em 5 km (' + near20[ids.b] + ' km)') : bad('distância de região aproximada: ' + near20[ids.b]);
+r = await as(ids.mod, `SELECT * FROM public.nearby_profiles(150)`);
+const near150 = Object.fromEntries(r.rows.map(x => [x.profile_id, x.distance_km]));
+near150[ids.v] >= 70 && near150[ids.v] <= 100 ? ok('Campinas aparece a ~' + near150[ids.v] + ' km') : bad('distância até Campinas: ' + near150[ids.v]);
+!(ids.a in near150) ? ok('quem ocultou a localização não aparece por distância') : bad('localização oculta exposta');
+r = await as(ids.a, `SELECT * FROM public.nearby_profiles(150)`);
+r.rows.length === 0 ? ok('quem ocultou a localização também não vê a distância dos outros') : bad('reciprocidade da distância falhou');
+r = await as(ids.b, `SELECT * FROM public.nearby_profiles(150)`);
+!r.rows.some(x => x.profile_id === ids.v) ? ok('bloqueado não encontra quem o bloqueou pela distância') : bad('distância vazou após bloqueio');
+r = await as(ids.mod, `SELECT * FROM public.profile_distances($1::uuid[])`, [[ids.v, ids.b, ids.a]]);
+r.rows.length === 2 ? ok('distâncias em lote só para quem compartilha') : bad('distâncias em lote: ' + JSON.stringify(r.rows));
+r = await as(ids.mod, `SELECT public.compatibility_with($1) AS c`, [ids.v]);
+r.rows[0].c?.distanceKm === near150[ids.v] ? ok('compatibilidade usa a distância real arredondada') : bad('compatibilidade: ' + JSON.stringify(r.rows[0].c?.distanceKm));
+await expectOk('B apaga a própria localização', ids.b, `SELECT public.clear_my_location()`);
+r = await as(ids.b, `SELECT * FROM public.nearby_profiles(150)`);
+r.rows.length === 0 ? ok('sem localização própria, não vê distâncias') : bad('sem localização ainda vê distâncias');
+await expectFail('visitante sem login não busca por distância', null, `SELECT * FROM public.nearby_profiles(50)`);
+
 console.log('\nStatus online (recíproco)');
 await db.query(`UPDATE profiles SET discreet_mode_enabled = false, show_online_status = true WHERE id = ANY($1::uuid[])`, [[ids.a, ids.mod]]);
 await expectOk('A registra presença', ids.a, `SELECT public.touch_presence()`);

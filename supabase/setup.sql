@@ -105,6 +105,16 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username_changed_at TIMESTA
 -- o status dos outros (regra aplicada na RPC online_users).
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS show_online_status BOOLEAN NOT NULL DEFAULT true;
 
+-- Localização aproximada para a busca por distância (opcional; o usuário autoriza o GPS no app).
+-- Guardada já arredondada numa grade de 0,02° (~2 km): a posição exata nunca chega ao banco.
+-- Só o dono lê a própria linha; distâncias saem arredondadas pelas RPCs profile_distances / nearby_profiles.
+CREATE TABLE IF NOT EXISTS public.user_geo (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  lat NUMERIC(6,2) NOT NULL CHECK (lat BETWEEN -90 AND 90),
+  lng NUMERIC(6,2) NOT NULL CHECK (lng BETWEEN -180 AND 180),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Último sinal de vida de cada sessão aberta. Ninguém lê direto: só pelas RPCs de presença.
 CREATE TABLE IF NOT EXISTS public.user_presence (
   user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -1278,6 +1288,95 @@ BEGIN
 END;
 $$;
 
+-- ---------- Distância entre perfis ----------
+-- Distância em km entre dois pontos (fórmula de haversine)
+CREATE OR REPLACE FUNCTION public.geo_distance_km(lat1 NUMERIC, lng1 NUMERIC, lat2 NUMERIC, lng2 NUMERIC)
+RETURNS DOUBLE PRECISION LANGUAGE sql IMMUTABLE AS $$
+  SELECT 2 * 6371 * asin(least(1, sqrt(
+    power(sin(radians((lat2 - lat1)::float8) / 2), 2)
+    + cos(radians(lat1::float8)) * cos(radians(lat2::float8)) * power(sin(radians((lng2 - lng1)::float8) / 2), 2)
+  )));
+$$;
+
+-- O que os outros veem: "região aproximada" arredonda de 5 em 5 km; localização oculta não mostra nada
+CREATE OR REPLACE FUNCTION public.shown_distance_km(km DOUBLE PRECISION, privacy location_privacy_enum)
+RETURNS INTEGER LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN km IS NULL OR privacy = 'hidden' THEN NULL
+    WHEN privacy = 'approximate_region' THEN greatest(5, (ceil(km / 5) * 5)::int)
+    ELSE greatest(2, ceil(km)::int)
+  END;
+$$;
+
+-- Grava a localização do próprio usuário já na grade de ~2 km. Trocas seguidas (menos de
+-- 10 min) são ignoradas, o que impede "triangular" alguém mudando a própria posição várias vezes.
+CREATE OR REPLACE FUNCTION public.set_my_location(p_lat DOUBLE PRECISION, p_lng DOUBLE PRECISION)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE g_lat NUMERIC(6,2); g_lng NUMERIC(6,2); previous public.user_geo;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Não autenticado.'; END IF;
+  IF p_lat IS NULL OR p_lng IS NULL OR p_lat NOT BETWEEN -90 AND 90 OR p_lng NOT BETWEEN -180 AND 180 THEN
+    RAISE EXCEPTION 'Localização inválida.';
+  END IF;
+  g_lat := round((p_lat / 0.02)::numeric) * 0.02;
+  g_lng := round((p_lng / 0.02)::numeric) * 0.02;
+  SELECT * INTO previous FROM public.user_geo WHERE user_id = auth.uid();
+  IF previous.user_id IS NOT NULL THEN
+    IF previous.lat = g_lat AND previous.lng = g_lng THEN
+      UPDATE public.user_geo SET updated_at = now() WHERE user_id = auth.uid();
+      RETURN true;
+    END IF;
+    IF previous.updated_at > now() - INTERVAL '10 minutes' THEN RETURN false; END IF;
+  END IF;
+  INSERT INTO public.user_geo (user_id, lat, lng, updated_at) VALUES (auth.uid(), g_lat, g_lng, now())
+  ON CONFLICT (user_id) DO UPDATE SET lat = EXCLUDED.lat, lng = EXCLUDED.lng, updated_at = now();
+  RETURN true;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.clear_my_location()
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  DELETE FROM public.user_geo WHERE user_id = auth.uid();
+$$;
+
+-- Distância (arredondada) até os perfis pedidos. Sem a própria localização, não vê a de ninguém.
+CREATE OR REPLACE FUNCTION public.profile_distances(ids UUID[])
+RETURNS TABLE (profile_id UUID, distance_km INTEGER)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT p.id, public.shown_distance_km(public.geo_distance_km(me.lat, me.lng, g.lat, g.lng), p.location_privacy)
+  FROM public.user_geo me
+  JOIN public.profiles mine ON mine.id = me.user_id AND mine.location_privacy <> 'hidden'
+  JOIN public.profiles p ON p.id = ANY(ids) AND p.id <> me.user_id
+  JOIN public.user_geo g ON g.user_id = p.id
+  WHERE me.user_id = auth.uid()
+    AND p.location_privacy <> 'hidden' AND p.status <> 'blocked'
+    AND NOT public.is_blocked_between(p.id, auth.uid())
+  LIMIT 500;
+$$;
+
+-- Perfis dentro do raio, do mais perto ao mais longe (a busca "Só perto de mim")
+CREATE OR REPLACE FUNCTION public.nearby_profiles(max_km INTEGER)
+RETURNS TABLE (profile_id UUID, distance_km INTEGER)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT id, shown FROM (
+    SELECT p.id,
+      public.geo_distance_km(me.lat, me.lng, g.lat, g.lng) AS km,
+      public.shown_distance_km(public.geo_distance_km(me.lat, me.lng, g.lat, g.lng), p.location_privacy) AS shown
+    FROM public.user_geo me
+    JOIN public.profiles mine ON mine.id = me.user_id AND mine.location_privacy <> 'hidden'
+    JOIN public.user_geo g ON g.user_id <> me.user_id
+    JOIN public.profiles p ON p.id = g.user_id
+    WHERE me.user_id = auth.uid()
+      AND p.location_privacy <> 'hidden' AND p.status <> 'blocked'
+      AND NOT public.is_blocked_between(p.id, auth.uid())
+      -- Caixa de latitude/longitude antes do cálculo exato (barato e evita varrer o país)
+      AND g.lat BETWEEN me.lat - (least(greatest(max_km, 1), 2000) / 111.0) AND me.lat + (least(greatest(max_km, 1), 2000) / 111.0)
+  ) candidates
+  WHERE km <= least(greatest(max_km, 1), 2000)
+  ORDER BY km
+  LIMIT 300;
+$$;
+
 -- Presença: o app chama touch_presence a cada minuto enquanto está aberto
 CREATE OR REPLACE FUNCTION public.touch_presence()
 RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
@@ -1410,6 +1509,7 @@ DECLARE
   a public.compatibility_preferences; b public.compatibility_preferences;
   match_ab BOOLEAN; match_ba BOOLEAN; mutual BOOLEAN;
   pts INT := 0; combined INT; dist INT := 30; max_dist INT;
+  real_km DOUBLE PRECISION; shown_km INT;
   shared_obj TEXT[]; shared_int TEXT[]; shared_tags TEXT[];
   reasons TEXT[] := '{}'; score INT; tier TEXT; color TEXT;
 BEGIN
@@ -1423,6 +1523,15 @@ BEGIN
   SELECT profile_type, interests INTO a_type, a_interests FROM public.profiles WHERE id = me;
   SELECT profile_type, interests INTO b_type, b_interests FROM public.profiles WHERE id = target;
   IF a_type IS NULL OR b_type IS NULL THEN RETURN NULL; END IF;
+
+  -- Distância real quando os dois compartilham localização (e o alvo não a ocultou)
+  SELECT public.geo_distance_km(ga.lat, ga.lng, gb.lat, gb.lng),
+         public.shown_distance_km(public.geo_distance_km(ga.lat, ga.lng, gb.lat, gb.lng), p.location_privacy)
+    INTO real_km, shown_km
+    FROM public.user_geo ga, public.user_geo gb, public.profiles p, public.profiles mine
+    WHERE ga.user_id = me AND gb.user_id = target AND p.id = target AND p.location_privacy <> 'hidden'
+      AND mine.id = me AND mine.location_privacy <> 'hidden';
+  IF real_km IS NOT NULL THEN dist := ceil(real_km)::int; END IF;
   SELECT * INTO a FROM public.compatibility_preferences WHERE profile_id = me;
   SELECT * INTO b FROM public.compatibility_preferences WHERE profile_id = target;
 
@@ -1456,7 +1565,7 @@ BEGIN
   ELSIF combined >= 2 THEN pts := pts + 14; reasons := reasons || 'Gostos e afinidades em comum'::text;
   ELSIF combined >= 1 THEN pts := pts + 8; END IF;
 
-  -- 4. Distância (15): sem geolocalização real, usa 30 km como o app
+  -- 4. Distância (15): real quando há localização dos dois; senão, 30 km (sem pontuar como "longe")
   max_dist := greatest(coalesce(a.max_distance_km, 50), coalesce(b.max_distance_km, 50));
   IF dist <= 30 THEN pts := pts + 15; reasons := reasons || 'Mesma região metropolitana / proximidade geográfica'::text;
   ELSIF dist <= max_dist THEN pts := pts + 10; reasons := reasons || 'Distância dentro da faixa desejada'::text;
@@ -1482,7 +1591,8 @@ BEGIN
     'sharedObjectives', to_jsonb(shared_obj),
     'sharedInterests', to_jsonb(shared_int),
     'sharedLifestyleTags', to_jsonb(shared_tags),
-    'distanceKm', dist, 'isMutualTargetMatch', mutual
+    -- Só a distância arredondada sai daqui (nula quando não há localização dos dois)
+    'distanceKm', shown_km, 'isMutualTargetMatch', mutual
   );
 END;
 $$;
@@ -1951,7 +2061,7 @@ BEGIN
     'user_blocks', 'communities', 'community_members', 'posts', 'post_polls', 'post_poll_votes', 'post_likes',
     'post_saves', 'post_comments', 'albums', 'album_items', 'album_permissions', 'conversations',
     'conversation_participants', 'messages', 'notifications', 'moderation_reports', 'admin_users',
-    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'event_views', 'ads', 'user_presence', 'event_comments'
+    'admin_user_notes', 'admin_audit_logs', 'stories', 'story_views', 'events', 'event_attendees', 'event_views', 'ads', 'user_presence', 'event_comments', 'user_geo'
   ] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
     EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated', t);
@@ -1979,6 +2089,10 @@ GRANT EXECUTE ON FUNCTION public.change_username(TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.follow_list(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.touch_presence() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.online_users(UUID[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.set_my_location(DOUBLE PRECISION, DOUBLE PRECISION) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.clear_my_location() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.profile_distances(UUID[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.nearby_profiles(INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_conversation_read(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_own_account() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_list_users() TO authenticated;
@@ -2340,6 +2454,10 @@ CREATE POLICY "event_comments_delete" ON public.event_comments FOR DELETE TO aut
     OR EXISTS (SELECT 1 FROM public.events e WHERE e.id = event_id AND e.created_by = auth.uid())
     OR public.is_moderator()
   );
+
+-- Localização aproximada: cada um lê só a própria; gravar e apagar é pelas RPCs set/clear_my_location
+CREATE POLICY "user_geo_select_own" ON public.user_geo FOR SELECT TO authenticated
+  USING (user_id = auth.uid());
 
 -- Quem abriu a arte de cada evento: só a equipe lê; a gravação é pela RPC record_event_view
 CREATE POLICY "event_views_select" ON public.event_views FOR SELECT TO authenticated

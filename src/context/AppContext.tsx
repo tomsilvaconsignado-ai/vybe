@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import {
   UserProfile,
   Post,
@@ -24,9 +24,11 @@ import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile,
 import { calculateCompatibility, CompatibilityBreakdown } from '../utils/compatibility';
 import { fetchCompatibilityMap } from '../lib/compatibility';
 import { touchPresence, fetchOnlineUsers } from '../lib/presence';
+import { getDevicePosition, locationPermissionGranted, saveMyLocation, clearMyLocation, fetchMyLocationStatus, fetchProfileDistances } from '../lib/geo';
 import {
   SocialGraph,
   fetchProfiles,
+  fetchProfilesByIds,
   fetchSocialGraph,
   fetchFeed,
   fetchPost,
@@ -128,6 +130,10 @@ interface AppContextType {
 
   // Data
   profiles: UserProfile[];
+  hasLocation: boolean | null;               // compartilha a localização para a busca por distância
+  enableLocation: () => Promise<string | null>;
+  disableLocation: () => Promise<string | null>;
+  ensureProfiles: (ids: string[]) => Promise<void>;
   getCompatibility: (profile: UserProfile) => CompatibilityBreakdown;
   isOnline: (userId: string) => boolean;
   canSeeActivity: (profile: { showOnlineStatus?: boolean }) => boolean;
@@ -451,6 +457,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isOnline = (userId: string) => seesPresence && onlineUserIds.has(userId);
   // "Visto há X" também segue a regra recíproca
   const canSeeActivity = (profile: { showOnlineStatus?: boolean }) => seesPresence && profile.showOnlineStatus !== false;
+
+  // ---------- Distância ----------
+  // null = ainda verificando. As distâncias vêm do banco já arredondadas e respeitando a
+  // privacidade de cada perfil; quem não compartilha a localização não vê a dos outros.
+  const [hasLocation, setHasLocation] = useState<boolean | null>(null);
+  const [distances, setDistances] = useState<Map<string, number>>(new Map());
+
+  const refreshDistances = async () => {
+    const ids = [...new Set([...profiles.map(p => p.id), ...(selectedProfileId ? [selectedProfileId] : [])])];
+    setDistances(await fetchProfileDistances(ids));
+  };
+
+  useEffect(() => {
+    if (!currentUser.id) {
+      setHasLocation(null);
+      setDistances(new Map());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const status = await fetchMyLocationStatus(currentUser.id);
+      if (cancelled) return;
+      setHasLocation(status.hasLocation);
+      // Quem já autorizou tem a posição atualizada ao abrir o app (no máximo a cada 30 min),
+      // para a busca continuar certa quando a pessoa viaja
+      const stale = !status.updatedAt || Date.now() - new Date(status.updatedAt).getTime() > 30 * 60 * 1000;
+      if (status.hasLocation && stale && await locationPermissionGranted()) {
+        const pos = await getDevicePosition();
+        if (!cancelled && 'lat' in pos) await saveMyLocation(pos.lat, pos.lng);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    if (hasLocation && currentUser.locationPrivacy !== 'hidden') refreshDistances();
+    else setDistances(new Map());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasLocation, profiles.length, selectedProfileId, currentUser.locationPrivacy]);
+
+  const enableLocation = async (): Promise<string | null> => {
+    const pos = await getDevicePosition();
+    if ('error' in pos) return pos.error;
+    const error = await saveMyLocation(pos.lat, pos.lng);
+    if (error) return error;
+    setHasLocation(true);
+    fetchCompatibilityMap(profiles.map(p => p.id)).then(setCompatibilityMap);
+    return null;
+  };
+
+  const disableLocation = async (): Promise<string | null> => {
+    const error = await clearMyLocation();
+    if (error) return error;
+    setHasLocation(false);
+    setDistances(new Map());
+    fetchCompatibilityMap(profiles.map(p => p.id)).then(setCompatibilityMap);
+    return null;
+  };
+
+  // Pessoas próximas que não estavam entre os perfis carregados entram na lista
+  const ensureProfiles = async (ids: string[]) => {
+    const missing = ids.filter(id => id !== currentUser.id && !profiles.some(p => p.id === id));
+    if (missing.length === 0) return;
+    const blockedIds = new Set(blockedUsers.map(b => b.id));
+    const loaded = (await fetchProfilesByIds(missing)).filter(p => !blockedIds.has(p.id));
+    if (loaded.length === 0) return;
+    setProfiles(prev => [...prev, ...loaded.filter(p => !prev.some(x => x.id === p.id))]);
+    fetchCompatibilityMap(loaded.map(p => p.id)).then(map => setCompatibilityMap(prev => new Map([...prev, ...map])));
+  };
+
+  // Perfis com a distância aplicada (os componentes leem approximateDistanceKm)
+  const profilesWithDistance = useMemo(
+    () => profiles.map(p => ({ ...p, approximateDistanceKm: distances.get(p.id) })),
+    [profiles, distances]
+  );
 
   const loadSession = async (nextSession: Session | null) => {
     setSession(nextSession);
@@ -1094,7 +1175,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedProfileId,
         selectedConversationId,
         setSelectedConversationId,
-        profiles,
+        profiles: profilesWithDistance,
+        hasLocation,
+        enableLocation,
+        disableLocation,
+        ensureProfiles,
         getCompatibility,
         isOnline,
         canSeeActivity,

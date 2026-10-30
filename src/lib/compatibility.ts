@@ -12,7 +12,7 @@ function toBreakdown(j: any): CompatibilityBreakdown | null {
     sharedObjectives: j.sharedObjectives ?? [],
     sharedInterests: j.sharedInterests ?? [],
     sharedLifestyleTags: j.sharedLifestyleTags ?? [],
-    distanceKm: j.distanceKm ?? 30,
+    distanceKm: j.distanceKm ?? null,
     isMutualTargetMatch: j.isMutualTargetMatch ?? false
   };
 }
