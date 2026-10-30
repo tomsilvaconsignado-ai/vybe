@@ -173,6 +173,16 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
       notify('Confirme que cada pessoa adicionada concorda em fazer parte do perfil.');
       return;
     }
+    if (!isGroup && (!gender || !orientation)) {
+      setTab('data');
+      notify('Informe seu gênero e sua orientação: eles aparecem no perfil para todos.');
+      return;
+    }
+    if (isGroup && partners.some(p => !p.orientation)) {
+      setTab('data');
+      notify('Informe a orientação de cada pessoa do perfil: ela aparece para todos.');
+      return;
+    }
     if (ageMin < 18 || ageMax < ageMin) {
       setTab('preferences');
       notify('A faixa de idade deve começar em 18 anos ou mais e o máximo não pode ser menor que o mínimo.');
@@ -388,16 +398,16 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 {!isGroup && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={labelClass}>Gênero</label>
+                      <label className={labelClass}>Gênero * (visível a todos)</label>
                       <select value={gender} onChange={e => setGender(e.target.value)} className={inputClass}>
-                        <option value="">Prefiro não dizer</option>
+                        <option value="">Selecione...</option>
                         {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className={labelClass}>Orientação</label>
+                      <label className={labelClass}>Orientação * (visível a todos)</label>
                       <select value={orientation} onChange={e => setOrientation(e.target.value)} className={inputClass}>
-                        <option value="">Prefiro não dizer</option>
+                        <option value="">Selecione...</option>
                         {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                       </select>
                     </div>
@@ -439,7 +449,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                           {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                         </select>
                         <select value={partner.orientation || ''} onChange={e => updatePartner(i, { orientation: e.target.value || undefined })} className={inputClass} aria-label="Orientação">
-                          <option value="">Orientação (opcional)</option>
+                          <option value="">Orientação * (visível a todos)</option>
                           {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       </div>

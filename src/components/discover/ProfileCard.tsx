@@ -16,6 +16,7 @@ import { UserProfile } from '../../types';
 import { calculateCompatibility } from '../../utils/compatibility';
 import { PROFILE_TYPE_OPTIONS } from '../../lib/profileOptions';
 import { OnlineDot } from '../common/OnlineDot';
+import { identityShortLabel } from '../common/IdentityBadges';
 
 interface ProfileCardProps {
   profile: UserProfile;
@@ -73,6 +74,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
               </span>
               <span className="text-xs text-zinc-400">
                 {profile.age} anos
+              </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-950/60 text-rose-200 border border-rose-800/40 font-semibold">
+                {identityShortLabel(profile)}
               </span>
             </div>
 
@@ -188,6 +192,9 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
           <div className="flex items-center gap-1.5 text-white font-extrabold text-base drop-shadow-md">
             <span>{profile.displayName}</span>
             <span className="text-xs font-normal text-zinc-300">({profile.age})</span>
+          </div>
+          <div className="text-[11px] font-semibold text-rose-200 drop-shadow truncate">
+            {identityShortLabel(profile)}
           </div>
           <div className="flex items-center gap-1 text-[11px] text-zinc-300 drop-shadow">
             <MapPin className="w-3 h-3 text-rose-400" />
