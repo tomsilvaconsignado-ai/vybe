@@ -68,6 +68,9 @@ export const TermsPrivacyModal: React.FC = () => {
             <p>
               O endereço residencial exato ou dados de GPS em tempo real nunca são divulgados publicamente. O usuário possui pleno controle de exibir sua cidade, uma aproximação regional ou ocultar completamente sua localização geográfica. A busca por distância é opcional: só com a autorização do usuário o aplicativo lê a localização do aparelho, e o servidor guarda apenas uma área aproximada (cerca de 2 km), nunca a posição exata. Os demais membros veem somente a distância arredondada, e a localização pode ser apagada a qualquer momento em Configurações.
             </p>
+            <p className="mt-2">
+              Gênero e orientação sexual informados no cadastro (inclusive os de cada integrante de perfis de casal ou conjuntos) são exibidos abertamente no perfil e nos resultados de busca para todos os membros. Ao informá-los, o usuário consente com essa exibição, nos termos do art. 11, I, da LGPD, e pode alterá-los a qualquer momento na edição do perfil.
+            </p>
           </div>
 
           <div>

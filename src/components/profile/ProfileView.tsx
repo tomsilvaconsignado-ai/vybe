@@ -33,6 +33,7 @@ import { fetchAlbums } from '../../lib/albums';
 import { fetchUserPosts, fetchProfileById, FollowListKind } from '../../lib/social';
 import { FollowListModal } from './FollowListModal';
 import { OnlineDot, activityLabel } from '../common/OnlineDot';
+import { IdentityBadges, identityEntries } from '../common/IdentityBadges';
 import { PROFILE_TYPE_OPTIONS } from '../../lib/profileOptions';
 import { PostCard } from '../feed/PostCard';
 import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibility';
@@ -315,6 +316,17 @@ export const ProfileView: React.FC = () => {
               </span>
             </div>
 
+            <IdentityBadges profile={profile} />
+            {isSelf && identityEntries(profile).some(e => !e.orientation || !e.gender) && (
+              <button
+                type="button"
+                onClick={() => setEditTab('data')}
+                className="text-[11px] text-amber-300 underline underline-offset-2 cursor-pointer"
+              >
+                Complete seu gênero e orientação: eles aparecem no seu perfil para todos
+              </button>
+            )}
+
             <div className="flex items-center justify-center sm:justify-start gap-3 text-xs text-zinc-400">
               <span className="text-purple-400 font-medium">@{profile.username}</span>
               <span>•</span>
@@ -395,7 +407,7 @@ export const ProfileView: React.FC = () => {
                         )}
                       </div>
                       <div className="text-[11px] text-zinc-400">
-                        {p.gender} • {p.orientation || 'Liberal'}
+                        {[p.gender, p.orientation || 'Orientação não informada'].filter(Boolean).join(' • ')}
                       </div>
                     </div>
                   </div>

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { ProfileType, LocationPrivacy } from '../../types';
 import { defaultAvatar } from '../../lib/profiles';
-import { INTEREST_OPTIONS, OBJECTIVE_OPTIONS } from '../../lib/profileOptions';
+import { GENDER_OPTIONS, INTEREST_OPTIONS, OBJECTIVE_OPTIONS, ORIENTATION_OPTIONS } from '../../lib/profileOptions';
 import { notify } from '../common/Feedback';
 import { Captcha, CaptchaHandle, captchaEnabled } from './Captcha';
 
@@ -48,6 +48,11 @@ export const RegisterWizard: React.FC = () => {
   const [partner2Name, setPartner2Name] = useState('');
   const [partner2Age, setPartner2Age] = useState(28);
   const [partner2Gender, setPartner2Gender] = useState('Feminino');
+  const [partner1Orientation, setPartner1Orientation] = useState('');
+  const [partner2Orientation, setPartner2Orientation] = useState('');
+  // Gênero e orientação ficam visíveis a todos no perfil (obrigatórios no cadastro)
+  const [gender, setGender] = useState('');
+  const [orientation, setOrientation] = useState('');
   const [mutualConsentChecked, setMutualConsentChecked] = useState(true);
 
   // Step 3: Personal Info
@@ -115,6 +120,16 @@ export const RegisterWizard: React.FC = () => {
       }
     }
 
+    if (step === 2 && profileType === 'couple' && (!partner1Orientation || !partner2Orientation)) {
+      notify('Informe a orientação de cada parceiro: ela aparece no perfil para todos.');
+      return;
+    }
+
+    if (step === 2 && profileType !== 'couple' && (!gender || !orientation)) {
+      notify('Informe seu gênero e sua orientação: eles aparecem no perfil para todos.');
+      return;
+    }
+
     if (step === 2 && profileType === 'couple' && !mutualConsentChecked) {
       notify('Para perfis conjuntos ou de casais, a concordância mútua de ambos os parceiros é mandatória.');
       return;
@@ -150,10 +165,12 @@ export const RegisterWizard: React.FC = () => {
       location_privacy: locationPrivacy,
       bio: bio || 'Explorando novas conexões com respeito, discrição e cumplicidade.',
       interests: selectedInterests,
+      gender: isCouple ? undefined : gender,
+      orientation: isCouple ? undefined : orientation,
       verification_requested: wantsSelfieVerification,
       partners: isCouple ? [
-        { name: partner1Name || 'Parceiro 1', age: partner1Age, gender: partner1Gender, consentConfirmed: true },
-        { name: partner2Name || 'Parceiro 2', age: partner2Age, gender: partner2Gender, consentConfirmed: true }
+        { name: partner1Name || 'Parceiro 1', age: partner1Age, gender: partner1Gender, orientation: partner1Orientation, consentConfirmed: true },
+        { name: partner2Name || 'Parceiro 2', age: partner2Age, gender: partner2Gender, orientation: partner2Orientation, consentConfirmed: true }
       ] : undefined,
       prefs: {
         objectives: selectedObjectives,
@@ -354,7 +371,11 @@ export const RegisterWizard: React.FC = () => {
                 <button
                   key={opt.type}
                   type="button"
-                  onClick={() => setProfileType(opt.type as ProfileType)}
+                  onClick={() => {
+                    setProfileType(opt.type as ProfileType);
+                    if (opt.type === 'single_female') setGender('Feminino');
+                    if (opt.type === 'single_male') setGender('Masculino');
+                  }}
                   className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
                     profileType === opt.type
                       ? 'bg-purple-950/70 border-purple-500 text-white shadow-lg shadow-purple-950/40'
@@ -366,6 +387,29 @@ export const RegisterWizard: React.FC = () => {
                 </button>
               ))}
             </div>
+
+            {/* Gênero e orientação de quem não é casal (visíveis a todos no perfil) */}
+            {profileType !== 'couple' && (
+              <div className="p-4 bg-zinc-900/60 border border-purple-900/30 rounded-2xl space-y-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Gênero *</label>
+                    <select value={gender} onChange={e => setGender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                      <option value="">Selecione...</option>
+                      {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Orientação *</label>
+                    <select value={orientation} onChange={e => setOrientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                      <option value="">Selecione...</option>
+                      {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-zinc-500">Gênero e orientação aparecem no seu perfil para todos os membros.</p>
+              </div>
+            )}
 
             {/* If Couple: Partner info & joint authorization */}
             {profileType === 'couple' && (
@@ -399,6 +443,22 @@ export const RegisterWizard: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
+                    <label className="text-[11px] text-zinc-400">Gênero Parceiro 1</label>
+                    <select value={partner1Gender} onChange={e => setPartner1Gender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                      {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Orientação Parceiro 1 *</label>
+                    <select value={partner1Orientation} onChange={e => setPartner1Orientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                      <option value="">Selecione...</option>
+                      {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
                     <label className="text-[11px] text-zinc-400">Nome / Apelido Parceiro 2</label>
                     <input
                       type="text"
@@ -416,6 +476,22 @@ export const RegisterWizard: React.FC = () => {
                       onChange={e => setPartner2Age(Number(e.target.value))}
                       className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Gênero Parceiro 2</label>
+                    <select value={partner2Gender} onChange={e => setPartner2Gender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                      {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Orientação Parceiro 2 *</label>
+                    <select value={partner2Orientation} onChange={e => setPartner2Orientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                      <option value="">Selecione...</option>
+                      {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
                   </div>
                 </div>
 

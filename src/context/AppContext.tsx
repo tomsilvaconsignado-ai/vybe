@@ -85,8 +85,10 @@ export interface SignUpMetadata {
   location_privacy: UserProfile['locationPrivacy'];
   bio: string;
   interests: string[];
+  gender?: string;
+  orientation?: string;
   verification_requested: boolean;
-  partners?: { name: string; age: number; gender: string; consentConfirmed: boolean }[];
+  partners?: { name: string; age: number; gender: string; orientation?: string; consentConfirmed: boolean }[];
   prefs: Partial<UserProfile['compatibilityPrefs']>;
 }
 
