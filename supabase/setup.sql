@@ -1609,6 +1609,82 @@ BEGIN
 END;
 $$;
 
+-- Acesso integral do superadministrador a conversas e cofres (segurança da plataforma e
+-- obrigações legais; informado na Política de Privacidade). Exige MFA e justificativa, e
+-- cada acesso fica no livro de auditoria. Moderadores, suporte e auditoria não têm este acesso.
+CREATE OR REPLACE FUNCTION public.require_superadmin_reason(p_reason TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_superadmin() THEN
+    RAISE EXCEPTION 'Acesso negado: requer superadministrador com MFA ativo.';
+  END IF;
+  IF p_reason IS NULL OR length(trim(p_reason)) < 10 THEN
+    RAISE EXCEPTION 'A justificativa deve ter no mínimo 10 caracteres.';
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.require_superadmin_reason(TEXT) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.admin_list_conversations(justification TEXT)
+RETURNS TABLE (conversation_id UUID, participants JSONB, message_count BIGINT, last_message_at TIMESTAMPTZ, is_pending BOOLEAN)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+#variable_conflict use_column
+BEGIN
+  PERFORM public.require_superadmin_reason(justification);
+  PERFORM public.admin_log('LIST_ALL_CONVERSATIONS', NULL, 'conversation', justification);
+  RETURN QUERY
+  SELECT c.id,
+    (SELECT coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'username', p.username, 'display_name', p.display_name, 'avatar_url', p.avatar_url)), '[]')
+     FROM public.conversation_participants cp JOIN public.profiles p ON p.id = cp.user_id
+     WHERE cp.conversation_id = c.id),
+    (SELECT count(*) FROM public.messages m WHERE m.conversation_id = c.id),
+    (SELECT max(m.created_at) FROM public.messages m WHERE m.conversation_id = c.id),
+    c.is_pending_request
+  FROM public.conversations c
+  ORDER BY 4 DESC NULLS LAST
+  LIMIT 1000;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_read_conversation(conv UUID, justification TEXT)
+RETURNS TABLE (message_id UUID, sender_id UUID, sender_name TEXT, content TEXT, media_url TEXT, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+#variable_conflict use_column
+BEGIN
+  PERFORM public.require_superadmin_reason(justification);
+  IF NOT EXISTS (SELECT 1 FROM public.conversations WHERE id = conv) THEN
+    RAISE EXCEPTION 'Conversa não encontrada.';
+  END IF;
+  PERFORM public.admin_log('READ_CONVERSATION', conv::text, 'conversation', justification);
+  RETURN QUERY
+  SELECT m.id, m.sender_id, p.display_name::text, m.content, m.media_url, m.created_at
+  FROM public.messages m
+  JOIN public.profiles p ON p.id = m.sender_id
+  WHERE m.conversation_id = conv
+  ORDER BY m.created_at ASC
+  LIMIT 2000;
+END;
+$$;
+
+-- Itens de todos os álbuns de um usuário, inclusive cofres privados. Arquivos do cofre
+-- são abertos por URL assinada (a política vybe_vault_read libera o superadmin).
+CREATE OR REPLACE FUNCTION public.admin_vault_items(target UUID, justification TEXT)
+RETURNS TABLE (item_id UUID, album_title TEXT, album_visibility TEXT, url TEXT, storage_path TEXT, media_type TEXT, caption TEXT, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+#variable_conflict use_column
+BEGIN
+  PERFORM public.require_superadmin_reason(justification);
+  PERFORM public.admin_log('INSPECT_PRIVATE_VAULT', target::text, 'user', justification);
+  RETURN QUERY
+  SELECT i.id, a.title::text, a.visibility::text, i.url, i.storage_path, i.type::text, i.caption, i.created_at
+  FROM public.album_items i
+  JOIN public.albums a ON a.id = i.album_id
+  WHERE a.user_id = target
+  ORDER BY i.created_at DESC
+  LIMIT 500;
+END;
+$$;
+
 -- Equipe: superadmin concede ou remove papéis
 CREATE OR REPLACE FUNCTION public.admin_set_role(target UUID, new_role admin_role_enum, reason TEXT)
 RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -1784,6 +1860,9 @@ GRANT EXECUTE ON FUNCTION public.admin_add_note(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_resolve_report(UUID, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_moderate_post(UUID, moderation_status_enum, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_report_evidence(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_list_conversations(TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_read_conversation(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_vault_items(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_set_role(UUID, admin_role_enum, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.album_item_counts(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_review_event(UUID, TEXT, BOOLEAN, TEXT) TO authenticated;
@@ -1791,6 +1870,7 @@ GRANT EXECUTE ON FUNCTION public.record_ad_event(UUID, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.delete_own_account() FROM PUBLIC, anon;
 REVOKE EXECUTE ON FUNCTION public.admin_log(TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.require_moderator(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.require_superadmin_reason(TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.create_profile_for_user(auth.users) FROM PUBLIC, anon, authenticated;
 
 -- profiles (quem bloqueou o usuário atual some para ele)
@@ -2015,8 +2095,8 @@ CREATE POLICY "conv_participants_update_own" ON public.conversation_participants
 CREATE POLICY "conv_participants_leave" ON public.conversation_participants FOR DELETE TO authenticated
   USING (user_id = auth.uid());
 
--- Moderação NÃO lê mensagens livremente: o acesso a evidências passa pela
--- função auditada admin_report_evidence, vinculada a uma denúncia.
+-- Ninguém da equipe lê mensagens direto pela tabela: moderadores só pela função auditada
+-- admin_report_evidence (ligada a uma denúncia) e o superadmin pelas auditadas admin_*_conversation(s).
 -- Mensagens não podem ser editadas nem apagadas: preservam a evidência em caso de assédio.
 CREATE POLICY "messages_select" ON public.messages FOR SELECT TO authenticated
   USING (public.is_conversation_participant(conversation_id, auth.uid()));
@@ -2157,11 +2237,13 @@ CREATE POLICY "vybe_public_media_delete" ON storage.objects FOR DELETE TO authen
   USING (bucket_id = 'public-media' AND (storage.foldername(name))[1] = auth.uid()::text);
 
 -- Cofre: o dono; quem tem acesso liberado (item não removido pela moderação e sem
--- bloqueio entre os dois); moderação somente para itens com denúncia em aberto.
+-- bloqueio entre os dois); moderação somente para itens com denúncia em aberto;
+-- superadmin (MFA) para qualquer item, listado antes pela RPC auditada admin_vault_items.
 CREATE POLICY "vybe_vault_read" ON storage.objects FOR SELECT TO authenticated
   USING (
     bucket_id = 'private-vaults' AND (
       (storage.foldername(objects.name))[1] = auth.uid()::text
+      OR public.is_superadmin()
       OR EXISTS (
         SELECT 1 FROM public.album_items i
         JOIN public.albums a ON a.id = i.album_id

@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, getPrivateVaultSignedUrl } from './supabase';
 import { avatarOrDefault, DEFAULT_COVER, AdminRole } from './profiles';
 import { formatRelativeTime } from './social';
 import { AdminAuditLog, AdminMediaRecord, AdminUserRecord, ModerationReport, UserAccountStatus } from '../types';
@@ -136,6 +136,7 @@ export async function fetchAdminMedia(): Promise<AdminMediaRecord[]> {
     userName: p.author?.username ?? '',
     userAvatar: avatarOrDefault(p.author?.avatar_url, p.author?.display_name ?? 'U'),
     url: p.media_urls[0],
+    urls: p.media_urls,
     type: p.media_type === 'video' ? 'video' : 'image',
     visibility: p.visibility === 'public' ? 'public' : 'connections_only',
     caption: p.content?.slice(0, 80),
@@ -204,4 +205,82 @@ export async function adminReportEvidence(report: string, justification: string)
     })),
     error: null
   };
+}
+
+// ----------------- ACESSO INTEGRAL DO SUPERADMIN (auditado) ----------------- //
+// Cada chamada exige justificativa e fica no livro de auditoria (ver setup.sql).
+
+const missingRpc = (error: { code?: string; message: string }) =>
+  error.code === 'PGRST202' ? 'Esta função ainda não foi instalada no banco. Rode o setup.sql atualizado.' : error.message;
+
+export interface AdminConversationSummary {
+  id: string;
+  participants: { id: string; username: string; displayName: string; avatarUrl: string }[];
+  messageCount: number;
+  lastMessageAt: string;
+  isPending: boolean;
+}
+
+export async function adminListConversations(justification: string): Promise<{ conversations: AdminConversationSummary[]; error: string | null }> {
+  const { data, error } = await supabase.rpc('admin_list_conversations', { justification });
+  if (error) return { conversations: [], error: missingRpc(error) };
+  return {
+    conversations: ((data ?? []) as any[]).map(c => ({
+      id: c.conversation_id,
+      participants: (c.participants ?? []).map((p: any) => ({
+        id: p.id,
+        username: p.username,
+        displayName: p.display_name,
+        avatarUrl: avatarOrDefault(p.avatar_url, p.display_name ?? 'U')
+      })),
+      messageCount: Number(c.message_count),
+      lastMessageAt: c.last_message_at ? formatDateTime(c.last_message_at) : 'Sem mensagens',
+      isPending: c.is_pending
+    })),
+    error: null
+  };
+}
+
+export async function adminReadConversation(conversation: string, justification: string): Promise<{ messages: EvidenceMessage[]; error: string | null }> {
+  const { data, error } = await supabase.rpc('admin_read_conversation', { conv: conversation, justification });
+  if (error) return { messages: [], error: missingRpc(error) };
+  return {
+    messages: ((data ?? []) as any[]).map(m => ({
+      id: m.message_id,
+      senderId: m.sender_id,
+      senderName: m.sender_name,
+      content: m.content,
+      mediaUrl: m.media_url ?? undefined,
+      createdAt: formatDateTime(m.created_at)
+    })),
+    error: null
+  };
+}
+
+export interface AdminAlbumItem {
+  id: string;
+  albumTitle: string;
+  isVault: boolean;
+  url: string | null;   // pública ou assinada (cofre, válida por 10 min)
+  isVideo: boolean;
+  caption: string;
+  createdAt: string;
+}
+
+export async function adminUserAlbumItems(target: string, justification: string): Promise<{ items: AdminAlbumItem[]; error: string | null }> {
+  const { data, error } = await supabase.rpc('admin_vault_items', { target, justification });
+  if (error) return { items: [], error: missingRpc(error) };
+  const items = await Promise.all(((data ?? []) as any[]).map(async i => {
+    const signed = i.storage_path ? (await getPrivateVaultSignedUrl(i.storage_path, 600)).signedUrl : null;
+    return {
+      id: i.item_id,
+      albumTitle: i.album_title,
+      isVault: i.album_visibility === 'private_vault',
+      url: signed ?? i.url ?? null,
+      isVideo: i.media_type === 'video',
+      caption: i.caption ?? '',
+      createdAt: formatDateTime(i.created_at)
+    };
+  }));
+  return { items, error: null };
 }

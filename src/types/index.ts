@@ -271,6 +271,7 @@ export interface AdminMediaRecord {
   userName: string;
   userAvatar: string;
   url: string;
+  urls: string[];                 // todas as fotos do post (url = a primeira)
   type: 'image' | 'video';
   visibility: AlbumVisibility;
   albumTitle?: string;
