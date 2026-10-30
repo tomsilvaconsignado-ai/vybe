@@ -13,11 +13,16 @@ import {
   Sparkles,
   ChevronLeft,
   Info,
-  Ban
+  Ban,
+  Smile,
+  X,
+  Loader2
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
-import { askConfirm } from '../common/Feedback';
+import { askConfirm, notify } from '../common/Feedback';
 import { OnlineDot, activityLabel } from '../common/OnlineDot';
+import { EmojiPicker, isEmojiOnly } from '../common/EmojiPicker';
+import { CHAT_MEDIA_ACCEPT, uploadChatMedia } from '../../lib/messaging';
 
 export const MessagesView: React.FC = () => {
   const { 
@@ -58,6 +63,50 @@ export const MessagesView: React.FC = () => {
 
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [showEmoji, setShowEmoji] = useState(false);
+  const [attachment, setAttachment] = useState<{ file: File; preview: string } | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  // Fotos e GIFs só depois que a conversa for aceita (o pedido aceita só a apresentação em texto)
+  const mediaLocked = inputLocked || Boolean(activeConv?.isPendingRequest);
+
+  const clearAttachment = () => {
+    setAttachment(prev => {
+      if (prev) URL.revokeObjectURL(prev.preview);
+      return null;
+    });
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
+  // Troca de conversa descarta o anexo ainda não enviado
+  useEffect(() => {
+    clearAttachment();
+    setShowEmoji(false);
+  }, [activeConv?.id]);
+
+  const handlePickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!CHAT_MEDIA_ACCEPT.split(',').includes(file.type)) {
+      notify('Envie uma imagem JPG, PNG, WebP ou GIF.');
+      e.target.value = '';
+      return;
+    }
+    clearAttachment();
+    setAttachment({ file, preview: URL.createObjectURL(file) });
+  };
+
+  const insertEmoji = (emoji: string) => {
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? inputText.length;
+    const end = el?.selectionEnd ?? inputText.length;
+    setInputText(inputText.slice(0, start) + emoji + inputText.slice(end));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
 
   useEffect(() => {
     if (activeConv) loadConversationMessages(activeConv.id);
@@ -70,11 +119,23 @@ export const MessagesView: React.FC = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !activeConv || isSending) return;
+    if ((!inputText.trim() && !attachment) || !activeConv || isSending) return;
     setIsSending(true);
-    await sendMessage(activeConv.id, inputText);
+    let mediaPath: string | undefined;
+    if (attachment) {
+      const { path, error } = await uploadChatMedia(activeConv.id, currentUser.id, attachment.file);
+      if (error || !path) {
+        notify(error ?? 'Não foi possível enviar a imagem.');
+        setIsSending(false);
+        return;
+      }
+      mediaPath = path;
+    }
+    await sendMessage(activeConv.id, inputText, mediaPath);
     setIsSending(false);
     setInputText('');
+    clearAttachment();
+    setShowEmoji(false);
   };
 
   return (
@@ -151,7 +212,7 @@ export const MessagesView: React.FC = () => {
                           <span className="text-[10px] text-zinc-400">{conv.lastMessage?.createdAt || ''}</span>
                         </div>
                         <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                          {conv.lastMessage?.content || 'Iniciar conversa...'}
+                          {conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? '📷 Foto' : 'Iniciar conversa...')}
                         </p>
                       </div>
 
@@ -193,7 +254,7 @@ export const MessagesView: React.FC = () => {
                           <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-950 text-rose-300">Nova</span>
                         </div>
                         <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                          {conv.lastMessage?.content || 'Solicitou mensagem'}
+                          {conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? '📷 Foto' : 'Solicitou mensagem')}
                         </p>
                       </div>
                     </div>
@@ -332,6 +393,20 @@ export const MessagesView: React.FC = () => {
 
               {messages.map(msg => {
                 const isMine = msg.senderId === currentUser.id;
+                const bigEmoji = !msg.mediaUrl && isEmojiOnly(msg.content);
+                if (bigEmoji) {
+                  return (
+                    <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                      <p className={`text-4xl leading-tight ${discreetBlur ? 'blur-sm hover:blur-none transition' : ''}`}>{msg.content}</p>
+                      <span className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1">
+                        {msg.createdAt}
+                        {isMine && (msg.status === 'read'
+                          ? <><span>• Lida</span><CheckCheck className="w-3 h-3 text-purple-400" /></>
+                          : <Check className="w-3 h-3 text-zinc-500" />)}
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
                     <div className={`max-w-sm sm:max-w-md p-3.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
@@ -340,7 +415,9 @@ export const MessagesView: React.FC = () => {
                         : 'bg-zinc-900 text-zinc-200 border border-purple-900/30 rounded-bl-none'
                     } ${discreetBlur ? 'blur-sm hover:blur-none transition' : ''}`}>
                       {msg.mediaUrl && (
-                        <img src={msg.mediaUrl} alt="" className="rounded-xl mb-2 max-h-64 object-cover" />
+                        <button type="button" onClick={() => setViewerUrl(msg.mediaUrl!)} className={`block cursor-zoom-in ${msg.content ? 'mb-2' : ''}`}>
+                          <img src={msg.mediaUrl} alt="Imagem enviada" loading="lazy" className="rounded-xl max-h-64 max-w-full object-cover" />
+                        </button>
                       )}
                       {msg.content && <p>{msg.content}</p>}
                     </div>
@@ -357,7 +434,27 @@ export const MessagesView: React.FC = () => {
             </div>
 
             {/* Message Input Box */}
-            <form onSubmit={handleSendMessage} className="p-3 border-t border-purple-900/30 bg-[#150e24] flex items-center gap-2">
+            {attachment && (
+              <div className="px-3 pt-3 border-t border-purple-900/30 bg-[#150e24] flex items-center gap-3">
+                <div className="relative">
+                  <img src={attachment.preview} alt="Imagem a enviar" className="h-20 w-20 rounded-xl object-cover border border-purple-700/50" />
+                  <button
+                    type="button"
+                    onClick={clearAttachment}
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-white flex items-center justify-center cursor-pointer"
+                    aria-label="Remover imagem"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <span className="text-[11px] text-zinc-400">
+                  {attachment.file.type === 'image/gif' ? 'GIF pronto para enviar' : 'Foto pronta para enviar'}. Escreva uma legenda se quiser.
+                </span>
+              </div>
+            )}
+
+            <form onSubmit={handleSendMessage} className={`relative p-3 bg-[#150e24] flex items-center gap-1.5 sm:gap-2 ${attachment ? '' : 'border-t border-purple-900/30'}`}>
+              {showEmoji && <EmojiPicker onPick={insertEmoji} onClose={() => setShowEmoji(false)} />}
               
               <button
                 type="button"
@@ -370,7 +467,31 @@ export const MessagesView: React.FC = () => {
                 <Lock className="w-5 h-5" />
               </button>
 
+              <button
+                type="button"
+                onClick={() => setShowEmoji(v => !v)}
+                disabled={inputLocked}
+                className={`p-2 rounded-xl transition-colors cursor-pointer disabled:opacity-40 ${showEmoji ? 'text-amber-300 bg-zinc-800' : 'text-zinc-400 hover:text-amber-300'}`}
+                title="Emojis"
+                aria-label="Emojis"
+              >
+                <Smile className="w-5 h-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={mediaLocked || isSending}
+                className="p-2 rounded-xl text-zinc-400 hover:text-fuchsia-300 transition-colors cursor-pointer disabled:opacity-40"
+                title={mediaLocked ? 'Fotos e GIFs são liberados depois que a conversa for aceita' : 'Enviar foto ou GIF'}
+                aria-label="Enviar foto ou GIF"
+              >
+                <Image className="w-5 h-5" />
+              </button>
+              <input ref={fileRef} type="file" accept={CHAT_MEDIA_ACCEPT} onChange={handlePickFile} className="hidden" />
+
               <input
+                ref={inputRef}
                 type="text"
                 placeholder={
                   awaitingMyAcceptance ? 'Aceite a conversa para responder'
@@ -386,10 +507,11 @@ export const MessagesView: React.FC = () => {
 
               <button
                 type="submit"
-                disabled={!inputText.trim() || isSending || inputLocked}
+                disabled={(!inputText.trim() && !attachment) || isSending || inputLocked}
                 className="p-2.5 rounded-full bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white disabled:opacity-40 shadow transition-all cursor-pointer"
+                aria-label="Enviar"
               >
-                <Send className="w-4 h-4" />
+                {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
 
             </form>
@@ -406,6 +528,25 @@ export const MessagesView: React.FC = () => {
         )}
 
       </div>
+
+      {viewerUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+          onClick={() => setViewerUrl(null)}
+          role="dialog"
+          aria-label="Imagem em tamanho real"
+        >
+          <img src={viewerUrl} alt="Imagem enviada" className="max-w-full max-h-full object-contain rounded-xl" />
+          <button
+            type="button"
+            onClick={() => setViewerUrl(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-zinc-900/80 text-white cursor-pointer"
+            aria-label="Fechar"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
 
     </div>
   );

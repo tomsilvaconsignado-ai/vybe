@@ -581,6 +581,13 @@ RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS
   );
 $$;
 
+-- Fotos e GIFs do direct ficam no bucket privado chat-media, em <conversa>/<remetente>/<arquivo>.
+-- A mensagem guarda 'chat-media/<caminho>' e o app gera um link assinado de curta duração.
+CREATE OR REPLACE FUNCTION public.is_chat_media_path(u TEXT, conv UUID, sender UUID)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+  SELECT u ~ ('^chat-media/' || conv::text || '/' || sender::text || '/[A-Za-z0-9_-]{1,80}\.(jpg|jpeg|png|webp|gif)$');
+$$;
+
 CREATE OR REPLACE FUNCTION public.has_vault_access(album UUID, uid UUID)
 RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
   SELECT EXISTS (
@@ -891,7 +898,10 @@ BEGIN
       END LOOP;
     END IF;
   ELSIF TG_TABLE_NAME = 'messages' THEN
-    IF NOT public.is_app_media_url(NEW.media_url) THEN RAISE EXCEPTION 'Mídia inválida.'; END IF;
+    IF NOT (public.is_app_media_url(NEW.media_url)
+            OR public.is_chat_media_path(NEW.media_url, NEW.conversation_id, NEW.sender_id)) THEN
+      RAISE EXCEPTION 'Mídia inválida.';
+    END IF;
   ELSIF TG_TABLE_NAME = 'stories' THEN
     IF NOT public.is_app_media_url(NEW.media_url) THEN RAISE EXCEPTION 'Mídia inválida.'; END IF;
   ELSIF TG_TABLE_NAME = 'album_items' THEN
@@ -2538,6 +2548,12 @@ ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = EXCLUDED.file_si
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('chat-media', 'chat-media', false, 10485760,
+        ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('private-vaults', 'private-vaults', false, 52428800,
         ARRAY['image/jpeg', 'image/png', 'image/webp', 'video/mp4'])
 ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = EXCLUDED.file_size_limit,
@@ -2550,6 +2566,45 @@ DROP POLICY IF EXISTS "vybe_public_media_delete" ON storage.objects;
 DROP POLICY IF EXISTS "vybe_vault_read" ON storage.objects;
 DROP POLICY IF EXISTS "vybe_vault_insert" ON storage.objects;
 DROP POLICY IF EXISTS "vybe_vault_delete" ON storage.objects;
+DROP POLICY IF EXISTS "vybe_chat_media_read" ON storage.objects;
+DROP POLICY IF EXISTS "vybe_chat_media_insert" ON storage.objects;
+
+-- Lê a foto quem participa da conversa; o superadmin (MFA); a moderação só com denúncia aberta da conversa
+CREATE OR REPLACE FUNCTION public.can_read_chat_media(obj_name TEXT)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT EXISTS (
+      SELECT 1 FROM public.conversation_participants cp
+      WHERE cp.conversation_id::text = split_part(obj_name, '/', 1) AND cp.user_id = auth.uid()
+    )
+    OR public.is_superadmin()
+    OR (public.is_moderator() AND EXISTS (
+      SELECT 1 FROM public.moderation_reports r
+      WHERE r.target_type = 'message' AND r.target_id = split_part(obj_name, '/', 1)
+        AND r.status IN ('pending', 'under_review')
+    ));
+$$;
+
+-- Envia quem participa de uma conversa já aceita, na própria pasta (pedido pendente aceita só texto)
+CREATE OR REPLACE FUNCTION public.can_upload_chat_media(obj_name TEXT)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT split_part(obj_name, '/', 2) = auth.uid()::text
+    AND position('..' IN obj_name) = 0
+    AND public.can_interact()
+    AND EXISTS (
+      SELECT 1 FROM public.conversations c
+      JOIN public.conversation_participants cp ON cp.conversation_id = c.id
+      WHERE c.id::text = split_part(obj_name, '/', 1) AND cp.user_id = auth.uid() AND NOT c.is_pending_request
+    );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.can_read_chat_media(TEXT), public.can_upload_chat_media(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_read_chat_media(TEXT), public.can_upload_chat_media(TEXT) TO authenticated;
+
+-- Fotos do direct não podem ser apagadas nem trocadas (como as mensagens, preservam a evidência)
+CREATE POLICY "vybe_chat_media_read" ON storage.objects FOR SELECT TO authenticated
+  USING (bucket_id = 'chat-media' AND public.can_read_chat_media(name));
+CREATE POLICY "vybe_chat_media_insert" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'chat-media' AND public.can_upload_chat_media(name));
 
 -- O download pelo link público não passa por RLS. Esta política controla a LISTAGEM:
 -- cada um lista só a própria pasta (antes, qualquer visitante listava o bucket inteiro).
