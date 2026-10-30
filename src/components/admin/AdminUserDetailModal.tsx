@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   X, 
@@ -18,8 +18,11 @@ import {
   Eye,
   Sliders
 } from 'lucide-react';
-import { AdminUserRecord, UserAccountStatus } from '../../types';
+import { AdminUserRecord, Post, UserAccountStatus } from '../../types';
 import { notify, askText } from '../common/Feedback';
+import { AdminThumb, viewAdminMedia } from './AdminImageViewer';
+import { fetchUserPosts } from '../../lib/social';
+import { adminUserAlbumItems, AdminAlbumItem } from '../../lib/admin';
 
 interface AdminUserDetailModalProps {
   user: AdminUserRecord | null;
@@ -35,6 +38,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
     adminSetUserRole,
     adminRole,
     posts,
+    currentUser,
     setSelectedProfileId,
     setIsAdminMode,
     setActiveTab
@@ -53,9 +57,35 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
   const [roleReason, setRoleReason] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>(user?.adminRole ?? '');
 
+  // Todas as publicações do usuário (o feed carregado tem só as recentes)
+  const [loadedPosts, setLoadedPosts] = useState<Post[] | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    fetchUserPosts(user.id, currentUser.id).then(list => { if (!cancelled) setLoadedPosts(list); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Álbuns e cofres (superadmin, com justificativa registrada na auditoria)
+  const [albumReason, setAlbumReason] = useState('');
+  const [albumItems, setAlbumItems] = useState<AdminAlbumItem[] | null>(null);
+  const [albumLoading, setAlbumLoading] = useState(false);
+  const loadAlbumItems = async () => {
+    if (!user) return;
+    setAlbumLoading(true);
+    const { items, error } = await adminUserAlbumItems(user.id, albumReason.trim());
+    setAlbumLoading(false);
+    if (error) {
+      notify(error, 'error');
+      return;
+    }
+    setAlbumItems(items);
+  };
+
   if (!user) return null;
 
-  const userPosts = posts.filter(p => p.userId === user.id);
+  const userPosts = loadedPosts ?? posts.filter(p => p.userId === user.id);
 
   const statusLabels: Record<UserAccountStatus, string> = {
     active: 'Ativo', warned: 'Advertido', restricted: 'Restrito', suspended: 'Suspenso', blocked: 'Bloqueado'
@@ -113,8 +143,9 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
         <div className="flex items-center justify-between pb-4 border-b border-purple-900/30">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <img
+              <AdminThumb
                 src={user.avatarUrl}
+                label={`Foto de perfil de @${user.username}`}
                 alt={user.displayName}
                 className="w-12 h-12 rounded-full object-cover border-2 border-purple-500/50"
               />
@@ -227,7 +258,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
               <div>
                 <span className="text-[11px] text-zinc-400 font-semibold block mb-1">Foto de Capa Atual:</span>
                 <div className="h-28 rounded-2xl overflow-hidden bg-black border border-purple-900/30">
-                  <img src={user.coverUrl} alt="Capa" className="w-full h-full object-cover" />
+                  <AdminThumb src={user.coverUrl} label={`Capa de @${user.username}`} alt="Capa" className="w-full h-full object-cover" />
                 </div>
               </div>
 
@@ -265,7 +296,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                       {p.mediaUrls && p.mediaUrls.length > 0 && (
                         <div className="flex gap-2">
                           {p.mediaUrls.map((u, i) => (
-                            <img key={i} src={u} alt="post" className="w-16 h-16 rounded-xl object-cover border border-purple-900/40" />
+                            <AdminThumb key={i} src={u} label={`Publicação de @${user.username} (${i + 1}/${p.mediaUrls.length})`} alt="post" className="w-16 h-16 rounded-xl object-cover border border-purple-900/40" />
                           ))}
                         </div>
                       )}
@@ -280,6 +311,59 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                 <p className="text-zinc-400 text-xs bg-zinc-900/40 p-4 rounded-xl text-center">
                   O usuário não possui publicações públicas ativas no feed.
                 </p>
+              )}
+
+              {adminRole === 'superadmin' && (
+                <div className="pt-4 border-t border-purple-900/30 space-y-3">
+                  <h4 className="font-bold text-white text-xs flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    Álbuns e cofres privados
+                  </h4>
+                  {albumItems === null ? (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-zinc-400">Informe o motivo. O acesso fica registrado no livro de auditoria.</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={albumReason}
+                          onChange={e => setAlbumReason(e.target.value)}
+                          placeholder="Ex.: denúncia de foto de terceiros sem consentimento"
+                          className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={loadAlbumItems}
+                          disabled={albumReason.trim().length < 10 || albumLoading}
+                          className="px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold disabled:opacity-40 cursor-pointer"
+                        >
+                          {albumLoading ? '...' : 'Abrir'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : albumItems.length === 0 ? (
+                    <p className="text-zinc-400 text-xs bg-zinc-900/40 p-4 rounded-xl text-center">Nenhuma foto em álbuns ou cofres.</p>
+                  ) : (
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                      {albumItems.map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          disabled={!item.url}
+                          onClick={() => item.url && viewAdminMedia(item.url, `${item.isVault ? 'Cofre' : 'Álbum'} "${item.albumTitle}" de @${user.username}`, item.isVideo)}
+                          className="relative aspect-square rounded-xl overflow-hidden bg-black border border-purple-900/40 cursor-zoom-in"
+                        >
+                          {item.url && !item.isVideo && <img src={item.url} alt={item.caption} className="w-full h-full object-cover" />}
+                          {item.isVideo && <span className="absolute inset-0 flex items-center justify-center text-[10px] text-zinc-300">vídeo</span>}
+                          {item.isVault && (
+                            <span className="absolute top-1 left-1 p-0.5 rounded bg-black/70">
+                              <Lock className="w-3 h-3 text-amber-400" />
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}

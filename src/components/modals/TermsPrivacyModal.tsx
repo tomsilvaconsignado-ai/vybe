@@ -57,7 +57,7 @@ export const TermsPrivacyModal: React.FC = () => {
               3. Proteção aos Cofres Íntimos e Propriedade de Mídia
             </h4>
             <p>
-              Mídias armazenadas em cofres privados possuem criptografia e restrição no servidor. Apenas pessoas a quem o proprietário concedeu explicitamente a chave de acesso podem visualizá-las. A captura não autorizada de tela, download forçado ou redistribuição externa de mídias de terceiros constitui infração gravíssima sujeita a banimento permanente e responsabilização civil e criminal.
+              Mídias armazenadas em cofres privados possuem criptografia e restrição no servidor. Entre os membros, apenas pessoas a quem o proprietário concedeu explicitamente a chave de acesso podem visualizá-las (o acesso da administração segue o item 6). A captura não autorizada de tela, download forçado ou redistribuição externa de mídias de terceiros constitui infração gravíssima sujeita a banimento permanente e responsabilização civil e criminal.
             </p>
           </div>
 
@@ -81,10 +81,10 @@ export const TermsPrivacyModal: React.FC = () => {
 
           <div>
             <h4 className="font-bold text-purple-300 text-sm mb-1">
-              6. Moderação Justificada e Registro de Acessos
+              6. Acesso da Administração e Registro de Acessos
             </h4>
             <p>
-              Nossa equipe administrativa não lê conversas privadas de forma indiscriminada. O exame técnico ocorre exclusivamente mediante denúncia fundamentada de usuário ou flagrante violação dos termos legais, sendo todo acesso registrado em log de auditoria rastreável.
+              Para proteger os membros, prevenir crimes (como exploração de menores, assédio, golpes e divulgação de imagens sem consentimento) e cumprir obrigações legais, o administrador responsável pelo Vybelog pode acessar conversas privadas, fotos e conteúdos de álbuns e cofres. Moderadores comuns só examinam conversas denunciadas. Todo acesso exige verificação em duas etapas e uma justificativa, e fica registrado em log de auditoria rastreável.
             </p>
           </div>
 

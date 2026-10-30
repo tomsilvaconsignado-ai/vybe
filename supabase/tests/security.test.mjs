@@ -285,5 +285,29 @@ await expectFail('vítima não remove seguidor de outra pessoa', ids.v, `DELETE 
 r = await expectOk('A remove o moderador dos seguidores', ids.a, `DELETE FROM follows WHERE follower_id = $1 AND following_id = $2`, [ids.mod, ids.a]);
 r?.affectedRows === 1 ? ok('seguidor removido') : bad('remoção de seguidor não apagou a linha');
 
+console.log('\nSuperadmin: conversas e cofres (auditado)');
+await db.query(`INSERT INTO auth.users VALUES ($1,'admin@x.com',$2,now())`, [ids.admin, meta('chefe')]);
+await db.query(`INSERT INTO public.admin_users VALUES ($1, 'admin@x.com', 'superadmin') ON CONFLICT (user_id) DO UPDATE SET role = 'superadmin'`, [ids.admin]);
+const anyConv = (await db.query(`SELECT conversation_id AS id FROM messages LIMIT 1`)).rows[0]?.id;
+anyConv ? ok('há conversa com mensagens para o teste') : bad('nenhuma conversa com mensagens no cenário');
+await expectFail('moderador não lista todas as conversas', ids.mod, `SELECT * FROM public.admin_list_conversations('investigação de rotina')`, [], 'aal2');
+await expectFail('usuário comum não lê conversa alheia pela RPC', ids.b, `SELECT * FROM public.admin_read_conversation($1, 'quero ver tudo aqui')`, [anyConv]);
+await expectFail('superadmin sem MFA não lê conversas', ids.admin, `SELECT * FROM public.admin_read_conversation($1, 'investigação de rotina')`, [anyConv]);
+await expectFail('superadmin precisa justificar', ids.admin, `SELECT * FROM public.admin_read_conversation($1, 'curto')`, [anyConv], 'aal2');
+r = await expectOk('superadmin (MFA) lista as conversas', ids.admin, `SELECT * FROM public.admin_list_conversations('auditoria de segurança da plataforma')`, [], 'aal2');
+r?.rows.length > 0 && Array.isArray(r.rows[0].participants) ? ok('lista traz participantes de cada conversa') : bad('lista de conversas: ' + JSON.stringify(r?.rows[0]));
+r = await expectOk('superadmin (MFA) lê a conversa', ids.admin, `SELECT * FROM public.admin_read_conversation($1, 'auditoria de segurança da plataforma')`, [anyConv], 'aal2');
+r?.rows.length > 0 ? ok('mensagens devolvidas') : bad('conversa sem mensagens');
+r = await db.query(`SELECT count(*)::int AS n FROM admin_audit_logs WHERE admin_id = $1 AND action IN ('LIST_ALL_CONVERSATIONS', 'READ_CONVERSATION')`, [ids.admin]);
+r.rows[0].n === 2 ? ok('cada acesso às conversas ficou na auditoria') : bad('auditoria de conversas: ' + r.rows[0].n);
+await expectFail('usuário comum não lista cofres de outros', ids.b, `SELECT * FROM public.admin_vault_items($1, 'quero ver tudo aqui')`, [ids.v]);
+r = await expectOk('superadmin (MFA) lista os álbuns e cofres da vítima', ids.admin, `SELECT * FROM public.admin_vault_items($1, 'denúncia externa recebida por e-mail')`, [ids.v], 'aal2');
+r?.rows.some(x => x.storage_path) ? ok('itens do cofre listados') : bad('cofre vazio para o superadmin');
+r = await as(ids.admin, `SELECT name FROM storage.objects WHERE bucket_id = 'private-vaults'`, [], 'aal2');
+r.rows.length > 0 ? ok('superadmin (MFA) abre o arquivo do cofre') : bad('superadmin não abre arquivo do cofre');
+r = await as(ids.admin, `SELECT name FROM storage.objects WHERE bucket_id = 'private-vaults'`);
+r.rows.length === 0 ? ok('sem MFA, nem o superadmin abre o cofre') : bad('cofre aberto sem MFA');
+await expectFail('a checagem interna não é chamável direto', ids.admin, `SELECT public.require_superadmin_reason('justificativa longa')`, [], 'aal2');
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

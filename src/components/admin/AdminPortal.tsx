@@ -3,6 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { AdminMfaGate } from './AdminMfaGate';
 import { AdminEventsTab } from './AdminEventsTab';
 import { AdminAdsTab } from './AdminAdsTab';
+import { AdminConversationsTab } from './AdminConversationsTab';
+import { AdminImageViewerHost, AdminThumb } from './AdminImageViewer';
 import { 
   ShieldCheck, 
   Users, 
@@ -31,7 +33,8 @@ import {
   Terminal,
   FolderDown,
   CalendarHeart,
-  Megaphone
+  Megaphone,
+  MessagesSquare
 } from 'lucide-react';
 import { ModerationReport, AdminUserRecord, AdminMediaRecord } from '../../types';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
@@ -53,7 +56,7 @@ export const AdminPortal: React.FC = () => {
     adminMfaVerified
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'users' | 'reports' | 'media' | 'events' | 'ads' | 'audit'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'users' | 'reports' | 'media' | 'conversations' | 'events' | 'ads' | 'audit'>('dashboard');
 
   // Modals state
   const [inspectingUser, setInspectingUser] = useState<AdminUserRecord | null>(null);
@@ -118,6 +121,7 @@ export const AdminPortal: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto py-6 px-4">
+      <AdminImageViewerHost />
       
       {/* Top Admin Header Bar */}
       <div className="bg-gradient-to-r from-amber-950/60 via-zinc-900 to-purple-950/60 border border-amber-600/30 rounded-3xl p-5 sm:p-6 mb-6 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -172,6 +176,7 @@ export const AdminPortal: React.FC = () => {
           { id: 'reports', label: `Fila de Denúncias (${pendingReports.length})`, icon: ShieldAlert },
           { id: 'users', label: `Gerenciamento de Usuários (${totalUsers})`, icon: Users },
           { id: 'media', label: `Moderação de Mídias (${adminMediaList.length})`, icon: Image },
+          ...(adminRole === 'superadmin' ? [{ id: 'conversations', label: 'Conversas', icon: MessagesSquare }] : []),
           { id: 'events', label: 'Eventos', icon: CalendarHeart },
           { id: 'ads', label: 'Publicidade', icon: Megaphone },
           { id: 'audit', label: `Livro de Auditoria (${adminLogs.length})`, icon: FileText },
@@ -612,7 +617,7 @@ export const AdminPortal: React.FC = () => {
                 {filteredUsers.map(u => (
                   <tr key={u.id} className="hover:bg-zinc-900/40 transition-colors">
                     <td className="p-3 flex items-center gap-2.5">
-                      <img src={u.avatarUrl} alt={u.displayName} className="w-8 h-8 rounded-full object-cover border border-purple-500/40" />
+                      <AdminThumb src={u.avatarUrl} label={`Foto de perfil de @${u.username}`} alt={u.displayName} className="w-8 h-8 rounded-full object-cover border border-purple-500/40" />
                       <div>
                         <div className="font-bold text-white flex items-center gap-1">
                           <span>{u.displayName}</span>
@@ -697,7 +702,14 @@ export const AdminPortal: React.FC = () => {
                 
                 {/* Media Preview */}
                 <div className="relative aspect-[16/10] bg-black overflow-hidden group">
-                  <img src={m.url} alt="Mídia" className="w-full h-full object-cover" />
+                  <AdminThumb src={m.url} label={`Publicação de @${m.userName}`} alt="Mídia" className="w-full h-full object-cover" />
+                  {m.urls.length > 1 && (
+                    <div className="absolute bottom-2 right-2 flex gap-1">
+                      {m.urls.slice(1).map((u, i) => (
+                        <AdminThumb key={u} src={u} label={`Publicação de @${m.userName} (${i + 2}/${m.urls.length})`} className="w-9 h-9 rounded-lg object-cover border border-white/40" />
+                      ))}
+                    </div>
+                  )}
                   
                   <div className="absolute top-2 left-2 flex items-center gap-1.5">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -775,6 +787,7 @@ export const AdminPortal: React.FC = () => {
       {/* ==================== TAB 5: AUDIT LOGS ==================== */}
       {activeAdminTab === 'events' && <AdminEventsTab />}
       {activeAdminTab === 'ads' && <AdminAdsTab />}
+      {activeAdminTab === 'conversations' && <AdminConversationsTab />}
 
       {activeAdminTab === 'audit' && (
         <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">

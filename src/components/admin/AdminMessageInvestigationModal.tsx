@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ModerationReport } from '../../types';
 import { notify } from '../common/Feedback';
+import { AdminThumb } from './AdminImageViewer';
 
 interface AdminMessageInvestigationModalProps {
   report: ModerationReport | null;
@@ -155,7 +156,7 @@ export const AdminMessageInvestigationModal: React.FC<AdminMessageInvestigationM
                   )}
                   {m.mediaUrl && (
                     <div className="relative aspect-[16/10] max-h-48 rounded-xl overflow-hidden bg-black border border-rose-500/40">
-                      <img src={m.mediaUrl} alt="Mídia investigada" className="w-full h-full object-cover" />
+                      <AdminThumb src={m.mediaUrl} label="Mídia na conversa denunciada" alt="Mídia investigada" className="w-full h-full object-cover" />
                       <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-rose-600 text-white text-[10px] font-bold">
                         Mídia na conversa denunciada
                       </div>

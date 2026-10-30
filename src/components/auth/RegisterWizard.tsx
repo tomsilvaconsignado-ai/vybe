@@ -642,7 +642,7 @@ export const RegisterWizard: React.FC = () => {
                   <span className="text-xs font-bold text-white">Cofre Íntimo Criado Automaticamente</span>
                 </div>
                 <p className="text-[11px] text-zinc-300 leading-relaxed">
-                  Seu cofre privado estará habilitado. Nele você poderá carregar fotos sensuais posteriormente e ninguém terá acesso até que você clique em <strong>Aprovar</strong> individualmente.
+                  Seu cofre privado estará habilitado. Nele você poderá carregar fotos sensuais posteriormente, e nenhum membro terá acesso até que você clique em <strong>Aprovar</strong> individualmente.
                 </p>
               </div>
             </div>
