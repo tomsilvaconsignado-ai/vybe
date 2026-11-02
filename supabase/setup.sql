@@ -523,7 +523,7 @@ CREATE TABLE IF NOT EXISTS public.ads (
   image_url TEXT NOT NULL DEFAULT '',
   link_url TEXT,
   cta_label VARCHAR(40) NOT NULL DEFAULT 'Saiba mais',
-  placement VARCHAR(20) NOT NULL DEFAULT 'feed' CHECK (placement IN ('feed', 'sidebar', 'events')),
+  placement VARCHAR(20) NOT NULL DEFAULT 'feed' CHECK (placement IN ('feed', 'sidebar', 'events', 'carousel')),
   starts_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   ends_at TIMESTAMPTZ,
   is_active BOOLEAN NOT NULL DEFAULT true,
@@ -532,6 +532,10 @@ CREATE TABLE IF NOT EXISTS public.ads (
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Carrossel de slides na coluna lateral ("carousel" é das versões novas)
+ALTER TABLE public.ads DROP CONSTRAINT IF EXISTS ads_placement_check;
+ALTER TABLE public.ads ADD CONSTRAINT ads_placement_check
+  CHECK (placement IN ('feed', 'sidebar', 'events', 'carousel'));
 
 -- ==============================================================================
 -- 3. FUNÇÕES AUXILIARES DE PERMISSÃO

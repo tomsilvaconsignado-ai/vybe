@@ -3,6 +3,7 @@ import { CalendarHeart, ChevronRight } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { EventCard } from '../events/EventCard';
 import { AdSlot } from '../ads/AdSlot';
+import { AdCarousel } from '../ads/AdCarousel';
 import { calculateCompatibility } from '../../utils/compatibility';
 
 // Coluna lateral (telas largas): agenda, publicidade e sugestões
@@ -46,6 +47,8 @@ export const RightRail: React.FC = () => {
       </section>
 
       <AdSlot placement="sidebar" />
+
+      <AdCarousel />
 
       {suggestions.length > 0 && (
         <section className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-4 space-y-3">

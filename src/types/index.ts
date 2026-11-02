@@ -369,7 +369,7 @@ export interface VybeEvent {
   myStatus?: EventRsvpStatus;
 }
 
-export type AdPlacement = 'feed' | 'sidebar' | 'events';
+export type AdPlacement = 'feed' | 'sidebar' | 'events' | 'carousel';
 
 export interface Ad {
   id: string;

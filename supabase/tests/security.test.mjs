@@ -467,5 +467,15 @@ await expectFail('visitante sem login não consulta presença', null, `SELECT * 
 (await as(ids.b, `SELECT * FROM public.online_users($1::uuid[]) AS id`, [[ids.v]])).rows.length === 0
   ? ok('bloqueado não vê o status de quem o bloqueou') : bad('presença vazou após bloqueio');
 
+console.log('\nPublicidade em carrossel');
+await expectFail('membro comum não cria anúncio', ids.b, `INSERT INTO ads (advertiser, title, placement) VALUES ('X', 'Y', 'carousel')`);
+await expectOk('superadmin (MFA) cria anúncio no carrossel', ids.admin, `INSERT INTO ads (advertiser, title, placement) VALUES ('Clube', 'Slide 1', 'carousel')`, [], 'aal2');
+await expectFail('espaço desconhecido é recusado', ids.admin, `INSERT INTO ads (advertiser, title, placement) VALUES ('Clube', 'Z', 'popup')`, [], 'aal2');
+r = await as(ids.b, `SELECT title FROM ads WHERE placement = 'carousel'`);
+r.rows.length === 1 ? ok('membro vê o slide no ar') : bad('slide do carrossel: ' + r.rows.length);
+await expectOk('superadmin pausa o slide', ids.admin, `UPDATE ads SET is_active = false WHERE placement = 'carousel'`, [], 'aal2');
+r = await as(ids.b, `SELECT title FROM ads WHERE placement = 'carousel'`);
+r.rows.length === 0 ? ok('slide pausado some para os membros') : bad('slide pausado continua visível');
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);
