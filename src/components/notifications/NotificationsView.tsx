@@ -10,7 +10,8 @@ import {
   CheckCheck,
   Lock,
   EyeOff,
-  UserPlus
+  UserPlus,
+  Camera
 } from 'lucide-react';
 
 export const NotificationsView: React.FC = () => {
@@ -43,6 +44,8 @@ export const NotificationsView: React.FC = () => {
         return <ShieldCheck className="w-4 h-4 text-emerald-400" />;
       case 'follow':
         return <UserPlus className="w-4 h-4 text-fuchsia-400" />;
+      case 'profile_photo_reminder':
+        return <Camera className="w-4 h-4 text-amber-400" />;
       default:
         return <Bell className="w-4 h-4 text-purple-400" />;
     }
@@ -101,7 +104,7 @@ export const NotificationsView: React.FC = () => {
             key={n.id}
             onClick={() => {
               markNotificationAsRead(n.id);
-              if (n.type.includes('vault')) {
+              if (n.type.includes('vault') || n.type === 'profile_photo_reminder') {
                 setActiveTab('profile');
               } else if (n.type === 'event_comment') {
                 setActiveTab('events');

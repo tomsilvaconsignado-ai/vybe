@@ -64,7 +64,8 @@ import {
   markNotificationsRead,
   insertReport,
   deleteOwnAccount,
-  touchLastActive
+  touchLastActive,
+  requestAvatarReminder
 } from '../lib/activity';
 import * as adminApi from '../lib/admin';
 import { requestVaultAccess, grantVaultAccess, removeVaultAccess } from '../lib/albums';
@@ -399,6 +400,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConversations(loadedConversations);
     setNotifications(loadedNotifications);
     touchLastActive(userId);
+    requestAvatarReminder();
   };
 
   const refreshSocialData = async () => {

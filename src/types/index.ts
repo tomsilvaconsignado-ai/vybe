@@ -215,7 +215,8 @@ export interface NotificationItem {
     | 'system_safety' 
     | 'community_invite'
     | 'follow'
-    | 'event_comment';
+    | 'event_comment'
+    | 'profile_photo_reminder';
   title: string;
   message: string;
   referenceId?: string;

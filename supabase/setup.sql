@@ -2098,6 +2098,46 @@ RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
     AND kind IN ('impression', 'click') AND auth.uid() IS NOT NULL;
 $$;
 
+-- Lembrete periódico para quem ainda não colocou foto no perfil: no máximo um a cada
+-- 7 dias, só depois do primeiro dia de conta e até 8 vezes (para não virar insistência).
+CREATE OR REPLACE FUNCTION public.send_avatar_reminder(uid UUID)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles p
+    WHERE p.id = uid AND p.avatar_url = '' AND p.status IN ('active', 'warned')
+      AND p.created_at < now() - interval '1 day'
+  ) THEN
+    RETURN false;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.notifications n
+    WHERE n.user_id = uid AND n.type = 'profile_photo_reminder' AND n.created_at > now() - interval '7 days'
+  ) OR (
+    SELECT count(*) FROM public.notifications n WHERE n.user_id = uid AND n.type = 'profile_photo_reminder'
+  ) >= 8 THEN
+    RETURN false;
+  END IF;
+  PERFORM public.notify(uid, NULL, 'profile_photo_reminder', 'Seu perfil ainda está sem foto 📸',
+    'Perfis com foto têm muito mais chances de receber visitas, curtidas e mensagens: é a primeira coisa que as pessoas olham. '
+    || 'Coloque a sua (pode ser discreta, sem mostrar o rosto) e aumente suas chances de conexão.', NULL);
+  RETURN true;
+END;
+$$;
+
+-- Rodada diária (pg_cron) para todos os perfis sem foto; devolve quantos lembretes saíram
+CREATE OR REPLACE FUNCTION public.send_avatar_reminders()
+RETURNS INTEGER LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT count(*)::int FROM public.profiles p
+  WHERE p.avatar_url = '' AND public.send_avatar_reminder(p.id);
+$$;
+
+-- O app também pede o lembrete ao abrir (garante o aviso mesmo sem o agendamento)
+CREATE OR REPLACE FUNCTION public.request_avatar_reminder()
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT public.send_avatar_reminder(auth.uid()) WHERE auth.uid() IS NOT NULL;
+$$;
+
 -- ==============================================================================
 -- 5.2 COMUNIDADES INICIAIS (contadores começam reais, em zero)
 -- ==============================================================================
@@ -2175,6 +2215,9 @@ GRANT EXECUTE ON FUNCTION public.admin_set_role(UUID, admin_role_enum, TEXT) TO 
 GRANT EXECUTE ON FUNCTION public.album_item_counts(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_review_event(UUID, TEXT, BOOLEAN, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.record_ad_event(UUID, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.send_avatar_reminder(UUID), public.send_avatar_reminders() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.request_avatar_reminder() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.request_avatar_reminder() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.record_event_view(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_event_stats() TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.delete_own_account() FROM PUBLIC, anon;
@@ -2670,4 +2713,19 @@ BEGIN
       EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
     END IF;
   END LOOP;
+END $$;
+
+-- ==============================================================================
+-- 9. AGENDAMENTOS (pg_cron)
+-- Lembrete de foto de perfil todo dia às 12h de Brasília (15h UTC). Se o pg_cron não
+-- estiver disponível, nada quebra: o app pede o lembrete quando a pessoa entra.
+-- ==============================================================================
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
+    CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+    PERFORM cron.schedule('vybelog-lembrete-foto-perfil', '0 15 * * *', 'SELECT public.send_avatar_reminders()');
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Agendamento do lembrete de foto não criado: %', SQLERRM;
 END $$;

@@ -477,5 +477,30 @@ await expectOk('superadmin pausa o slide', ids.admin, `UPDATE ads SET is_active 
 r = await as(ids.b, `SELECT title FROM ads WHERE placement = 'carousel'`);
 r.rows.length === 0 ? ok('slide pausado some para os membros') : bad('slide pausado continua visível');
 
+console.log('\nLembrete de foto de perfil');
+const lembretes = async (uid) => (await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'profile_photo_reminder'`, [uid])).rows[0].n;
+await db.query(`UPDATE profiles SET avatar_url = '', created_at = now() WHERE id = $1`, [ids.b]);
+await expectOk('B (conta nova, sem foto) pede o lembrete', ids.b, `SELECT public.request_avatar_reminder()`);
+(await lembretes(ids.b)) === 0 ? ok('conta com menos de 1 dia não recebe lembrete') : bad('lembrete cedo demais');
+await db.query(`UPDATE profiles SET created_at = now() - interval '3 days' WHERE id = $1`, [ids.b]);
+await expectOk('B pede o lembrete de novo', ids.b, `SELECT public.request_avatar_reminder()`);
+(await lembretes(ids.b)) === 1 ? ok('perfil sem foto recebe o lembrete') : bad('lembrete não saiu: ' + (await lembretes(ids.b)));
+await as(ids.b, `SELECT public.request_avatar_reminder()`);
+(await lembretes(ids.b)) === 1 ? ok('no máximo um lembrete por semana') : bad('lembrete repetido na mesma semana');
+r = await as(ids.b, `SELECT title, message, actor_id FROM notifications WHERE user_id = $1 AND type = 'profile_photo_reminder'`, [ids.b]);
+r.rows[0]?.actor_id === null && /mais chances/.test(r.rows[0]?.message) ? ok('B vê o aviso do Vybelog explicando o porquê') : bad('aviso: ' + JSON.stringify(r.rows[0]));
+await db.query(`UPDATE notifications SET created_at = now() - interval '8 days' WHERE user_id = $1 AND type = 'profile_photo_reminder'`, [ids.b]);
+r = await db.query(`SELECT public.send_avatar_reminders() AS n`);
+(await lembretes(ids.b)) === 2 ? ok('rodada diária manda de novo depois de 7 dias') : bad('rodada diária: ' + (await lembretes(ids.b)));
+r = await db.query(`SELECT count(*)::int AS n FROM notifications n JOIN profiles p ON p.id = n.user_id WHERE n.type = 'profile_photo_reminder' AND p.avatar_url <> ''`);
+r.rows[0].n === 0 ? ok('quem já tem foto não recebe lembrete') : bad('lembrete para quem tem foto: ' + r.rows[0].n);
+await db.query(`INSERT INTO notifications (user_id, type, title, message, created_at)
+  SELECT $1, 'profile_photo_reminder', 't', 'm', now() - interval '60 days' FROM generate_series(1, 6)`, [ids.b]);
+await db.query(`UPDATE notifications SET created_at = now() - interval '8 days' WHERE user_id = $1 AND type = 'profile_photo_reminder'`, [ids.b]);
+await as(ids.b, `SELECT public.request_avatar_reminder()`);
+(await lembretes(ids.b)) === 8 ? ok('para de lembrar depois de 8 avisos') : bad('limite de lembretes: ' + (await lembretes(ids.b)));
+await expectFail('membro não dispara a rodada para todos', ids.b, `SELECT public.send_avatar_reminders()`);
+await expectFail('membro não manda lembrete para outra pessoa', ids.b, `SELECT public.send_avatar_reminder($1)`, [ids.v]);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

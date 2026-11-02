@@ -147,3 +147,9 @@ export async function deleteOwnAccount(me: string): Promise<string | null> {
 export async function touchLastActive(me: string) {
   await supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', me);
 }
+
+// Lembrete de foto de perfil: o banco decide se é hora (sem foto, no máximo um por semana).
+// Chega pela assinatura ao vivo de notificações; falha silenciosa se a RPC ainda não existir.
+export function requestAvatarReminder() {
+  supabase.rpc('request_avatar_reminder').then(() => undefined);
+}
