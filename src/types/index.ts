@@ -138,6 +138,8 @@ export interface Post {
   savedByCurrentUser: boolean;
   comments: PostComment[];
   createdAt: string;
+  /** data ISO de criação (cursor da paginação do feed) */
+  createdAtIso?: string;
   visibility: 'public' | 'connections_only';
   communityId?: string;
 }

@@ -280,18 +280,24 @@ function mapPostRow(row: any, me: string): Post {
     savedByCurrentUser: (row.my_save ?? []).length > 0,
     comments,
     createdAt: formatRelativeTime(row.created_at),
+    createdAtIso: row.created_at,
     visibility: row.visibility,
     communityId: row.community_id ?? undefined
   };
 }
 
-export async function fetchFeed(me: string): Promise<Post[]> {
-  const { data, error } = await supabase
+export const FEED_PAGE_SIZE = 20;
+
+// Feed em páginas: a primeira abre rápido; as seguintes chegam ao rolar (antes = data da última publicação carregada)
+export async function fetchFeed(me: string, before?: string): Promise<Post[]> {
+  let query = supabase
     .from('posts')
     .select(POST_SELECT)
     .is('community_id', null)
     .order('created_at', { ascending: false })
-    .limit(50);
+    .limit(FEED_PAGE_SIZE);
+  if (before) query = query.lt('created_at', before);
+  const { data, error } = await query;
 
   if (error) {
     console.error('[Vybelog] Falha ao carregar feed:', error.message);

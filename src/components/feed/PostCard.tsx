@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Heart,
@@ -20,11 +20,19 @@ import { notify, askConfirm } from '../common/Feedback';
 
 interface PostCardProps {
   post: Post;
+  /** primeira publicação da tela: a foto carrega com prioridade (melhora o tempo até o conteúdo aparecer) */
+  priority?: boolean;
+  /** posição no feed, para leitores de tela */
+  position?: number;
+  total?: number;
 }
 
 const CAPTION_PREVIEW_CHARS = 140;
 
-export const PostCard: React.FC<PostCardProps> = ({ post }) => {
+/** Link direto da publicação (abre a publicação ao entrar no Vybelog) */
+export const postLink = (postId: string) => `${window.location.origin}/?post=${postId}`;
+
+export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, position, total }) => {
   const {
     currentUser,
     toggleLikePost,
@@ -77,13 +85,43 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   };
 
   const copyLink = () => {
-    navigator.clipboard?.writeText(window.location.href).catch(() => undefined);
-    notify('Link copiado.');
+    navigator.clipboard?.writeText(postLink(post.id)).catch(() => undefined);
+    notify('Link da publicação copiado.');
     setShowMenu(false);
   };
 
+  // Compartilhar: no celular abre o menu nativo (WhatsApp, Telegram...); no computador copia o link
+  const sharePost = async () => {
+    const url = postLink(post.id);
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: `Publicação de @${post.user.username} no Vybelog`, url });
+        return;
+      } catch (e) {
+        if ((e as DOMException)?.name === 'AbortError') return; // a pessoa fechou o menu
+      }
+    }
+    copyLink();
+  };
+
+  // Menu de opções fecha ao tocar fora ou com Esc
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showMenu) return;
+    const outside = (e: PointerEvent) => { if (!menuRef.current?.contains(e.target as Node)) setShowMenu(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowMenu(false); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', esc); };
+  }, [showMenu]);
+
   return (
-    <article className="bg-[#120d20] border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl mb-6">
+    <article
+      className="bg-[#120d20] border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl mb-6"
+      aria-label={`Publicação de @${post.user.username}`}
+      aria-posinset={position}
+      aria-setsize={total}
+    >
 
       {/* Cabeçalho */}
       <div className="px-4 py-3 flex items-center justify-between">
@@ -105,7 +143,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
           <span className="min-w-0">
             <span className="flex items-center gap-1.5">
               <span className="font-bold text-sm text-zinc-100 group-hover:text-purple-300 truncate">{post.user.username}</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/40 shrink-0">
+              <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/40 shrink-0">
                 {post.user.profileType === 'couple' ? 'Casal' : post.user.profileType === 'polyamorous' ? 'Poli' : 'Solteiro(a)'}
               </span>
             </span>
@@ -116,17 +154,19 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
           </span>
         </button>
 
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <button
             type="button"
             onClick={() => setShowMenu(!showMenu)}
-            className="p-2 text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800/60 cursor-pointer"
+            className="w-11 h-11 flex items-center justify-center text-zinc-400 hover:text-white rounded-full hover:bg-zinc-800/60 cursor-pointer"
             aria-label="Opções da publicação"
+            aria-haspopup="menu"
+            aria-expanded={showMenu}
           >
             <MoreHorizontal className="w-5 h-5" />
           </button>
           {showMenu && (
-            <div className="absolute right-0 top-10 w-48 bg-[#19112a] border border-purple-800/50 rounded-2xl shadow-2xl py-1.5 z-20">
+            <div className="absolute right-0 top-11 w-52 bg-[#19112a] border border-purple-800/50 rounded-2xl shadow-2xl py-1.5 z-20" role="menu">
               {isOwner ? (
                 <button
                   type="button"
@@ -134,9 +174,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
                     setShowMenu(false);
                     if (await askConfirm({ title: 'Excluir publicação?', message: 'Ela será removida do seu perfil e do feed.', confirmLabel: 'Excluir', danger: true })) deletePost(post.id);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                  role="menuitem"
+                  className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
                 >
-                  <Trash2 className="w-3.5 h-3.5" /> Excluir publicação
+                  <Trash2 className="w-4 h-4" /> Excluir publicação
                 </button>
               ) : (
                 <button
@@ -145,13 +186,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
                     setReportModalTarget({ targetType: 'post', targetId: post.id, reportedUserId: post.userId, reportedUserName: post.user.username });
                     setShowMenu(false);
                   }}
-                  className="w-full px-3 py-2 text-left text-xs text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                  role="menuitem"
+                  className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
                 >
-                  <ShieldAlert className="w-3.5 h-3.5" /> Denunciar
+                  <ShieldAlert className="w-4 h-4" /> Denunciar
                 </button>
               )}
-              <button type="button" onClick={copyLink} className="w-full px-3 py-2 text-left text-xs text-zinc-300 hover:bg-purple-950/50 flex items-center gap-2 cursor-pointer">
-                <Link2 className="w-3.5 h-3.5" /> Copiar link
+              <button type="button" role="menuitem" onClick={copyLink} className="w-full min-h-[44px] px-3 py-2 text-left text-sm text-zinc-300 hover:bg-purple-950/50 flex items-center gap-2 cursor-pointer">
+                <Link2 className="w-4 h-4" /> Copiar link
               </button>
             </div>
           )}
@@ -176,7 +218,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
             style={{ transform: `translateX(-${activeMediaIndex * 100}%)` }}
           >
             {post.mediaUrls.map((url, i) => (
-              <img key={i} src={url} alt="" loading="lazy" draggable={false} className="w-full h-full object-cover shrink-0 select-none" />
+              <img
+                key={i}
+                src={url}
+                alt={`Foto ${mediaCount > 1 ? `${i + 1} de ${mediaCount} ` : ''}publicada por @${post.user.username}`}
+                width={1080}
+                height={1920}
+                loading={priority && i === 0 ? 'eager' : 'lazy'}
+                fetchPriority={priority && i === 0 ? 'high' : 'auto'}
+                decoding="async"
+                draggable={false}
+                className="w-full h-full object-cover shrink-0 select-none"
+              />
             ))}
           </div>
 
@@ -258,13 +311,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
         </div>
       )}
 
-      {/* Ações */}
-      <div className="px-3 pt-2 flex items-center justify-between">
+      {/* Ações (alvos de toque de 44px) */}
+      <div className="px-2 pt-1 flex items-center justify-between">
         <div className="flex items-center">
           <button
             type="button"
             onClick={() => toggleLikePost(post.id)}
-            className={`p-2 cursor-pointer transition-transform active:scale-90 ${post.likedByCurrentUser ? 'text-rose-500' : 'text-zinc-200 hover:text-zinc-400'}`}
+            className={`w-11 h-11 flex items-center justify-center cursor-pointer transition-transform active:scale-90 ${post.likedByCurrentUser ? 'text-rose-500' : 'text-zinc-200 hover:text-zinc-400'}`}
             aria-label={post.likedByCurrentUser ? 'Descurtir' : 'Curtir'}
             aria-pressed={post.likedByCurrentUser}
           >
@@ -273,12 +326,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
           <button
             type="button"
             onClick={() => commentInputRef.current?.focus()}
-            className="p-2 text-zinc-200 hover:text-zinc-400 cursor-pointer"
+            className="w-11 h-11 flex items-center justify-center text-zinc-200 hover:text-zinc-400 cursor-pointer"
             aria-label="Comentar"
           >
             <MessageCircle className="w-6 h-6" />
           </button>
-          <button type="button" onClick={copyLink} className="p-2 text-zinc-200 hover:text-zinc-400 cursor-pointer" aria-label="Compartilhar">
+          <button type="button" onClick={sharePost} className="w-11 h-11 flex items-center justify-center text-zinc-200 hover:text-zinc-400 cursor-pointer" aria-label="Compartilhar">
             <Send className="w-6 h-6" />
           </button>
         </div>
@@ -294,7 +347,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
         <button
           type="button"
           onClick={() => toggleSavePost(post.id)}
-          className={`p-2 cursor-pointer ${post.savedByCurrentUser ? 'text-fuchsia-400' : 'text-zinc-200 hover:text-zinc-400'}`}
+          className={`w-11 h-11 flex items-center justify-center cursor-pointer ${post.savedByCurrentUser ? 'text-fuchsia-400' : 'text-zinc-200 hover:text-zinc-400'}`}
           aria-label={post.savedByCurrentUser ? 'Remover dos salvos' : 'Salvar'}
           aria-pressed={post.savedByCurrentUser}
         >
@@ -303,9 +356,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
       </div>
 
       <div className="px-4 pb-4 space-y-1.5">
-        <p className="text-sm font-bold text-zinc-100">
-          {post.likesCount} {post.likesCount === 1 ? 'curtida' : 'curtidas'}
-        </p>
+        {post.likesCount > 0 ? (
+          <p className="text-sm font-bold text-zinc-100">
+            {post.likesCount} {post.likesCount === 1 ? 'curtida' : 'curtidas'}
+          </p>
+        ) : (
+          <p className="text-sm text-zinc-400">Seja o primeiro a curtir</p>
+        )}
 
         {/* Legenda (posts com foto) */}
         {hasMedia && post.content && (

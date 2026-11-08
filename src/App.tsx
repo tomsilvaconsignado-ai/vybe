@@ -20,6 +20,7 @@ import { FeedbackHost } from './components/common/Feedback';
 
 // Tela inicial carrega junto; as demais são baixadas sob demanda (pacote inicial menor)
 import { FeedView } from './components/feed/FeedView';
+import { SharedPostModal } from './components/feed/SharedPostModal';
 import { RightRail } from './components/layout/RightRail';
 import { importWithReload } from './lib/chunkReload';
 
@@ -171,6 +172,7 @@ const AppContent: React.FC = () => {
 
       <MobileNav />
       <MediaProtection />
+      <SharedPostModal />
 
       {/* Global Modals */}
       <ReportModal />

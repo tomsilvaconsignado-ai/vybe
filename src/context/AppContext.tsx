@@ -31,6 +31,7 @@ import {
   fetchProfilesByIds,
   fetchSocialGraph,
   fetchFeed,
+  FEED_PAGE_SIZE,
   fetchPost,
   insertPost,
   removePost,
@@ -156,6 +157,10 @@ interface AppContextType {
   votePoll: (postId: string, optionId: string) => void;
   createPost: (content: string, mediaUrls: string[], tags: string[], pollData?: { question: string; options: string[] }) => Promise<void>;
   deletePost: (postId: string) => void;
+  /** próxima página do feed (rolagem infinita) */
+  loadMorePosts: () => Promise<void>;
+  feedHasMore: boolean;
+  feedLoadingMore: boolean;
   postCache: Record<string, Post>;
   cachePosts: (list: Post[]) => void;
 
@@ -298,6 +303,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Scores de compatibilidade calculados no banco (RPC). Chave: id do perfil.
   const [compatibilityMap, setCompatibilityMap] = useState<Map<string, CompatibilityBreakdown>>(new Map());
   const [posts, setPosts] = useState<Post[]>([]);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const [postCache, setPostCache] = useState<Record<string, Post>>({});
 
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -397,6 +404,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchCompatibilityMap(visibleProfiles.map(p => p.id)).then(setCompatibilityMap);
     applySocialGraph(graph);
     setPosts(feed);
+    setFeedHasMore(feed.length >= FEED_PAGE_SIZE);
     setConversations(loadedConversations);
     setNotifications(loadedNotifications);
     touchLastActive(userId);
@@ -839,6 +847,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (fresh) setPosts(prev => [fresh, ...prev]);
   };
 
+  // Próxima página do feed, a partir da publicação mais antiga já carregada (sem repetir)
+  const loadMorePosts = async () => {
+    if (feedLoadingMore || !feedHasMore || !currentUser.id) return;
+    const oldest = posts[posts.length - 1]?.createdAtIso;
+    if (!oldest) { setFeedHasMore(false); return; }
+    setFeedLoadingMore(true);
+    try {
+      const page = await fetchFeed(currentUser.id, oldest);
+      setPosts(prev => {
+        const known = new Set(prev.map(p => p.id));
+        return [...prev, ...page.filter(p => !known.has(p.id))];
+      });
+      setFeedHasMore(page.length >= FEED_PAGE_SIZE);
+    } finally {
+      setFeedLoadingMore(false);
+    }
+  };
+
   const deletePost = async (postId: string) => {
     const error = await removePost(postId);
     if (error) {
@@ -1201,6 +1227,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         votePoll,
         createPost,
         deletePost,
+        loadMorePosts,
+        feedHasMore,
+        feedLoadingMore,
         blockedUsers,
         blockUser,
         unblockUser,

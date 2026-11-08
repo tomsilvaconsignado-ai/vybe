@@ -30,22 +30,22 @@ export const StoriesBar: React.FC = () => {
             <button
               type="button"
               onClick={() => setComposerOpen(true)}
-              className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-rose-500 border-2 border-[#09070f] flex items-center justify-center text-white cursor-pointer"
+              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-rose-500 border-2 border-[#09070f] flex items-center justify-center text-white cursor-pointer"
               aria-label="Publicar novo story"
             >
-              <Plus className="w-3 h-3" />
+              <Plus className="w-4 h-4" />
             </button>
           </div>
           <span className="text-[11px] font-medium text-zinc-300 truncate max-w-[68px]">Seu story</span>
         </div>
 
         {others.map(({ g, index }) => (
+          <div key={g.userId} role="listitem" className="shrink-0">
           <button
-            key={g.userId}
             type="button"
             onClick={() => setOpenGroupIndex(index)}
-            className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group"
-            role="listitem"
+            className="flex flex-col items-center gap-1.5 cursor-pointer group"
+            aria-label={`Story de @${g.username}${g.hasUnseen ? ' (novo)' : ''}`}
           >
             <span className={`w-16 h-16 rounded-full p-[2.5px] transition-all ${
               g.hasUnseen ? 'bg-gradient-to-tr from-fuchsia-500 via-purple-600 to-rose-500' : 'bg-zinc-700'
@@ -56,6 +56,7 @@ export const StoriesBar: React.FC = () => {
               {g.username}
             </span>
           </button>
+          </div>
         ))}
 
         {others.length === 0 && (
