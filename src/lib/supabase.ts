@@ -65,10 +65,11 @@ export function translateAuthError(message: string | undefined | null): string {
 
 // Todo envio passa por aqui: remove GPS/EXIF das fotos antes de sair do aparelho.
 // Os caminhos já são únicos (UUID ou data), então não é preciso sobrescrever arquivos.
-export async function uploadToBucket(bucket: 'public-media' | 'private-vaults', path: string, file: File): Promise<Error | null> {
+// semMetadados: a imagem já foi redesenhada no app (ex.: enquadramento 9:16), não há EXIF a remover
+export async function uploadToBucket(bucket: 'public-media' | 'private-vaults', path: string, file: File, semMetadados = false): Promise<Error | null> {
   let clean: File;
   try {
-    clean = await stripImageMetadata(file);
+    clean = semMetadados ? file : await stripImageMetadata(file);
   } catch (err) {
     return err instanceof Error ? err : new Error('Não foi possível processar a imagem.');
   }
@@ -80,8 +81,8 @@ export async function uploadToBucket(bucket: 'public-media' | 'private-vaults', 
 }
 
 // Caminho deve começar com o UID do usuário: "<uid>/arquivo.jpg"
-export async function uploadPublicMedia(file: File, path: string): Promise<{ publicUrl: string | null; error: Error | null }> {
-  const error = await uploadToBucket('public-media', path, file);
+export async function uploadPublicMedia(file: File, path: string, semMetadados = false): Promise<{ publicUrl: string | null; error: Error | null }> {
+  const error = await uploadToBucket('public-media', path, file, semMetadados);
   if (error) return { publicUrl: null, error };
 
   const { data } = supabase.storage.from('public-media').getPublicUrl(path);

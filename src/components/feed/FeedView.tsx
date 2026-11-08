@@ -7,8 +7,20 @@ import { AdSlot } from '../ads/AdSlot';
 import { Plus, HeartHandshake } from 'lucide-react';
 
 export const FeedView: React.FC = () => {
-  const { posts, currentUser, following, loadMorePosts, feedHasMore, feedLoadingMore, setActiveTab } = useApp();
-  const [filterType, setFilterType] = useState<'all' | 'following' | 'verified'>('all');
+  const { posts, currentUser, following, loadMorePosts, feedHasMore, feedLoadingMore, setActiveTab, feedFilter: filterType, changeFeedFilter, newPostsCount, checkNewPosts } = useApp();
+
+  // Novas publicações: confere a cada minuto, só com a aba visível (e ao voltar para ela).
+  // A função do contexto muda a cada renderização: o relógio usa sempre a mais recente sem ser reiniciado.
+  const conferirRef = useRef(checkNewPosts);
+  conferirRef.current = checkNewPosts;
+  useEffect(() => {
+    const conferir = () => { if (document.visibilityState === 'visible') conferirRef.current(); };
+    const timer = setInterval(conferir, 60000);
+    document.addEventListener('visibilitychange', conferir);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', conferir); };
+  }, []);
+  const verNovas = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); changeFeedFilter(filterType); };
+  const setFilterType = (f: 'all' | 'following' | 'verified') => { if (f !== filterType) changeFeedFilter(f); };
   const [createPostOpen, setCreatePostOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -23,19 +35,26 @@ export const FeedView: React.FC = () => {
     return () => observer.disconnect();
   }, [feedHasMore, loadMorePosts, posts.length]);
 
-  const filteredPosts = posts.filter(post => {
-    if (filterType === 'following') {
-      return following.includes(post.userId) || post.userId === currentUser.id;
-    }
-    if (filterType === 'verified') {
-      return post.user.isVerified;
-    }
-    return true;
-  });
+  // O filtro já vem aplicado do servidor (páginas filtradas); aqui só protege publicações novas fora do filtro
+  const filteredPosts = posts.filter(post =>
+    filterType === 'following' ? following.includes(post.userId) || post.userId === currentUser.id
+      : filterType === 'verified' ? post.user.isVerified
+        : true);
 
   return (
     <div className="max-w-2xl mx-auto py-6 px-4">
-      
+      {newPostsCount > 0 && (
+        <div className="sticky top-20 z-30 h-0 flex justify-center pointer-events-none" aria-live="polite">
+          <button
+            type="button"
+            onClick={verNovas}
+            className="pointer-events-auto min-h-[40px] px-4 rounded-full text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-rose-600 shadow-lg shadow-purple-950/60 cursor-pointer"
+          >
+            ↑ {newPostsCount > 9 ? '9+' : newPostsCount} {newPostsCount === 1 ? 'nova publicação' : 'novas publicações'}
+          </button>
+        </div>
+      )}
+
       {/* Stories Carousel */}
       <div className="mb-6 pb-2 border-b border-purple-950/40">
         <StoriesBar />

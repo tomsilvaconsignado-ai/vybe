@@ -32,6 +32,7 @@ import {
   fetchSocialGraph,
   fetchFeed,
   FEED_PAGE_SIZE,
+  countNewPosts,
   fetchPost,
   insertPost,
   removePost,
@@ -159,6 +160,12 @@ interface AppContextType {
   deletePost: (postId: string) => void;
   /** próxima página do feed (rolagem infinita) */
   loadMorePosts: () => Promise<void>;
+  /** filtro do feed (aplicado no servidor) */
+  feedFilter: 'all' | 'following' | 'verified';
+  changeFeedFilter: (filter: 'all' | 'following' | 'verified') => Promise<void>;
+  /** publicações mais novas que o topo do feed (aviso "novas publicações") */
+  newPostsCount: number;
+  checkNewPosts: () => Promise<void>;
   feedHasMore: boolean;
   feedLoadingMore: boolean;
   postCache: Record<string, Post>;
@@ -305,6 +312,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [posts, setPosts] = useState<Post[]>([]);
   const [feedHasMore, setFeedHasMore] = useState(true);
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
+  const [feedFilter, setFeedFilter] = useState<'all' | 'following' | 'verified'>('all');
+  const [newPostsCount, setNewPostsCount] = useState(0);
   const [postCache, setPostCache] = useState<Record<string, Post>>({});
 
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -404,6 +413,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchCompatibilityMap(visibleProfiles.map(p => p.id)).then(setCompatibilityMap);
     applySocialGraph(graph);
     setPosts(feed);
+    setFeedFilter('all');
     setFeedHasMore(feed.length >= FEED_PAGE_SIZE);
     setConversations(loadedConversations);
     setNotifications(loadedNotifications);
@@ -847,6 +857,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (fresh) setPosts(prev => [fresh, ...prev]);
   };
 
+  // Filtro do feed traduzido para a consulta: "Seguindo" = quem eu sigo + eu; "Verificados" = autores verificados
+  const filtroDoFeed = (f: 'all' | 'following' | 'verified') =>
+    f === 'following' ? { autores: [...following, currentUser.id] } : f === 'verified' ? { verificados: true } : {};
+
+  const changeFeedFilter = async (filter: 'all' | 'following' | 'verified') => {
+    if (!currentUser.id) return;
+    setFeedFilter(filter);
+    setFeedLoadingMore(true);
+    try {
+      const page = await fetchFeed(currentUser.id, undefined, filtroDoFeed(filter));
+      setPosts(page);
+      setFeedHasMore(page.length >= FEED_PAGE_SIZE);
+      setNewPostsCount(0);
+    } finally {
+      setFeedLoadingMore(false);
+    }
+  };
+
+  const checkNewPosts = async () => {
+    const newest = posts[0]?.createdAtIso;
+    if (!currentUser.id || !newest) return;
+    setNewPostsCount(await countNewPosts(currentUser.id, newest, filtroDoFeed(feedFilter)));
+  };
+
   // Próxima página do feed, a partir da publicação mais antiga já carregada (sem repetir)
   const loadMorePosts = async () => {
     if (feedLoadingMore || !feedHasMore || !currentUser.id) return;
@@ -854,7 +888,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!oldest) { setFeedHasMore(false); return; }
     setFeedLoadingMore(true);
     try {
-      const page = await fetchFeed(currentUser.id, oldest);
+      const page = await fetchFeed(currentUser.id, oldest, filtroDoFeed(feedFilter));
       setPosts(prev => {
         const known = new Set(prev.map(p => p.id));
         return [...prev, ...page.filter(p => !known.has(p.id))];
@@ -1228,6 +1262,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createPost,
         deletePost,
         loadMorePosts,
+        feedFilter,
+        changeFeedFilter,
+        newPostsCount,
+        checkNewPosts,
         feedHasMore,
         feedLoadingMore,
         blockedUsers,

@@ -288,15 +288,22 @@ function mapPostRow(row: any, me: string): Post {
 
 export const FEED_PAGE_SIZE = 20;
 
+/** Filtros do feed aplicados no servidor (cada página já vem filtrada) */
+export type FeedFilter = { autores?: string[]; verificados?: boolean };
+
 // Feed em páginas: a primeira abre rápido; as seguintes chegam ao rolar (antes = data da última publicação carregada)
-export async function fetchFeed(me: string, before?: string): Promise<Post[]> {
+export async function fetchFeed(me: string, before?: string, filtro: FeedFilter = {}): Promise<Post[]> {
+  // "Verificados": o autor precisa ser verificado (junção obrigatória com o perfil)
+  const select = filtro.verificados ? POST_SELECT.replace('author:profiles!posts_user_id_fkey(', 'author:profiles!posts_user_id_fkey!inner(') : POST_SELECT;
   let query = supabase
     .from('posts')
-    .select(POST_SELECT)
+    .select(select)
     .is('community_id', null)
     .order('created_at', { ascending: false })
     .limit(FEED_PAGE_SIZE);
   if (before) query = query.lt('created_at', before);
+  if (filtro.autores) query = query.in('user_id', filtro.autores.length ? filtro.autores : [me]);
+  if (filtro.verificados) query = query.eq('author.is_verified', true);
   const { data, error } = await query;
 
   if (error) {
@@ -304,6 +311,20 @@ export async function fetchFeed(me: string, before?: string): Promise<Post[]> {
     return [];
   }
   return data.map(row => mapPostRow(row, me));
+}
+
+// Quantas publicações chegaram depois da mais recente do feed (consulta leve: só a contagem)
+export async function countNewPosts(me: string, since: string, filtro: FeedFilter = {}): Promise<number> {
+  let query = supabase
+    .from('posts')
+    .select(filtro.verificados ? 'id, author:profiles!posts_user_id_fkey!inner(is_verified)' : 'id', { count: 'exact', head: true })
+    .is('community_id', null)
+    .gt('created_at', since)
+    .neq('user_id', me);
+  if (filtro.autores) query = query.in('user_id', filtro.autores.length ? filtro.autores : [me]);
+  if (filtro.verificados) query = query.eq('author.is_verified', true);
+  const { count, error } = await query;
+  return error ? 0 : count ?? 0;
 }
 
 export async function fetchPost(postId: string, me: string): Promise<Post | null> {

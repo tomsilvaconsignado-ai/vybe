@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Post } from '../../types';
 import { notify, askConfirm } from '../common/Feedback';
+import { FEED_WIDTH, feedVersionUrl } from '../../lib/media';
 
 interface PostCardProps {
   post: Post;
@@ -220,7 +221,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
             {post.mediaUrls.map((url, i) => (
               <img
                 key={i}
-                src={url}
+                src={feedVersionUrl(url) ?? url}
+                // versão leve (810px) nas telas comuns; a original (1080px) nas telas grandes ou de alta densidade
+                srcSet={feedVersionUrl(url) ? `${feedVersionUrl(url)} ${FEED_WIDTH}w, ${url} 1080w` : undefined}
+                sizes={feedVersionUrl(url) ? '(max-width: 672px) 100vw, 640px' : undefined}
+                onError={e => { const img = e.currentTarget; if (img.src !== url) { img.srcset = ''; img.src = url; } }}
                 alt={`Foto ${mediaCount > 1 ? `${i + 1} de ${mediaCount} ` : ''}publicada por @${post.user.username}`}
                 width={1080}
                 height={1920}

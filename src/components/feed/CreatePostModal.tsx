@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { uploadPublicMedia } from '../../lib/supabase';
 import { X, Image, Sparkles, Send, Plus, BarChart2 } from 'lucide-react';
 import { notify } from '../common/Feedback';
-import { fitToFrame, FrameMode, MediaProcessingError } from '../../lib/media';
+import { feedVersion, fitToFrame, FrameMode, MediaProcessingError } from '../../lib/media';
 import { FrameModeToggle } from './FrameModeToggle';
 
 interface CreatePostModalProps {
@@ -46,12 +46,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
         notify(err instanceof MediaProcessingError ? err.message : `Não foi possível processar "${file.name}".`);
         continue;
       }
-      const path = `${currentUser.id}/posts/${crypto.randomUUID()}.jpg`;
-      const { publicUrl, error } = await uploadPublicMedia(framed, path);
+      // ".v2.jpg" marca as fotos que têm a versão leve para o feed (".v2.feed.jpg") ao lado
+      const base = `${currentUser.id}/posts/${crypto.randomUUID()}`;
+      // a foto enquadrada já foi redesenhada no canvas (sem EXIF): sobe sem reprocessar
+      const { publicUrl, error } = await uploadPublicMedia(framed, `${base}.v2.jpg`, true);
       if (error || !publicUrl) {
         notify(error?.message.startsWith('Não foi possível processar') ? error.message : `Não foi possível enviar "${file.name}". Tente novamente.`);
         continue;
       }
+      // Se a versão leve falhar, o feed usa a foto original (o cartão cai nela sozinho)
+      try { await uploadPublicMedia(await feedVersion(framed), `${base}.v2.feed.jpg`, true); } catch { /* segue com a original */ }
       setMediaUrls(prev => [...prev, publicUrl]);
     }
     setIsUploading(false);

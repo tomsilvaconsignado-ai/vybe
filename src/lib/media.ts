@@ -36,6 +36,30 @@ export async function stripImageMetadata(file: File): Promise<File> {
   return new File([blob], file.name, { type: file.type, lastModified: Date.now() });
 }
 
+// Versão leve para o feed: a foto 1080x1920 já enquadrada, reduzida a 810x1440 (cerca de 1/3 do peso).
+// Fica ao lado da original com o mesmo nome + ".feed.jpg"; o navegador escolhe a versão pelo tamanho da tela.
+export const FEED_WIDTH = 810;
+const FEED_HEIGHT = 1440;
+
+export async function feedVersion(framed: File): Promise<File> {
+  const bitmap = await createImageBitmap(framed);
+  const canvas = document.createElement('canvas');
+  canvas.width = FEED_WIDTH;
+  canvas.height = FEED_HEIGHT;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) { bitmap.close(); throw new MediaProcessingError('Seu navegador não conseguiu processar a imagem.'); }
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, 0, 0, FEED_WIDTH, FEED_HEIGHT);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+  if (!blob) throw new MediaProcessingError('Seu navegador não conseguiu processar a imagem.');
+  return new File([blob], framed.name.replace(/\.jpg$/, '.feed.jpg'), { type: 'image/jpeg', lastModified: Date.now() });
+}
+
+// Só as fotos enviadas com a versão leve (nome terminado em ".v2.jpg") têm o arquivo ".feed.jpg"
+export const feedVersionUrl = (url: string): string | null =>
+  /\.v2\.jpg(\?.*)?$/.test(url) ? url.replace(/\.v2\.jpg(\?.*)?$/, '.v2.feed.jpg$1') : null;
+
 // Fotos do feed e dos stories saem sempre em 1080x1920 (9:16, tela cheia do celular).
 // 'fill' corta as sobras pelo centro; 'fit' mostra a foto inteira sobre um fundo desfocado dela mesma.
 export const FRAME_WIDTH = 1080;
