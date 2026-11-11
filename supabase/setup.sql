@@ -3904,3 +3904,42 @@ GRANT EXECUTE ON FUNCTION
   public.invite_to_event(UUID, UUID[])
 TO authenticated;
 GRANT SELECT ON public.community_requests, public.community_invites, public.community_bans, public.event_invites TO authenticated;
+
+-- ==============================================================================
+-- 14. PAINEL ADMINISTRATIVO: indicadores reais da plataforma (só contagens, sem dados pessoais)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.admin_platform_stats()
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
+  RETURN jsonb_build_object(
+    'users', (SELECT count(*) FROM public.profiles),
+    'new_1d', (SELECT count(*) FROM public.profiles WHERE created_at > now() - INTERVAL '1 day'),
+    'new_7d', (SELECT count(*) FROM public.profiles WHERE created_at > now() - INTERVAL '7 days'),
+    'new_30d', (SELECT count(*) FROM public.profiles WHERE created_at > now() - INTERVAL '30 days'),
+    'active_1d', (SELECT count(*) FROM public.user_presence WHERE last_seen_at > now() - INTERVAL '1 day'),
+    'active_7d', (SELECT count(*) FROM public.user_presence WHERE last_seen_at > now() - INTERVAL '7 days'),
+    'active_30d', (SELECT count(*) FROM public.user_presence WHERE last_seen_at > now() - INTERVAL '30 days'),
+    'posts', (SELECT count(*) FROM public.posts),
+    'posts_7d', (SELECT count(*) FROM public.posts WHERE created_at > now() - INTERVAL '7 days'),
+    'comments_7d', (SELECT count(*) FROM public.post_comments WHERE created_at > now() - INTERVAL '7 days'),
+    'messages_7d', (SELECT count(*) FROM public.messages WHERE created_at > now() - INTERVAL '7 days'),
+    'communities', (SELECT count(*) FROM public.communities),
+    'communities_7d', (SELECT count(*) FROM public.communities WHERE created_at > now() - INTERVAL '7 days'),
+    'events_upcoming', (SELECT count(*) FROM public.events WHERE status = 'approved' AND coalesce(ends_at, starts_at) >= now()),
+    'events_pending', (SELECT count(*) FROM public.events WHERE status = 'pending'),
+    'reports_open', (SELECT count(*) FROM public.moderation_reports WHERE status IN ('pending', 'under_review')),
+    'reports_7d', (SELECT count(*) FROM public.moderation_reports WHERE created_at > now() - INTERVAL '7 days'),
+    'signups_14d', (
+      SELECT jsonb_agg(jsonb_build_object('day', d::date, 'n', (
+        SELECT count(*) FROM public.profiles p
+         WHERE p.created_at >= d AND p.created_at < d + INTERVAL '1 day')) ORDER BY d)
+        FROM generate_series(date_trunc('day', now() AT TIME ZONE 'America/Sao_Paulo') - INTERVAL '13 days',
+                             date_trunc('day', now() AT TIME ZONE 'America/Sao_Paulo'), INTERVAL '1 day') AS g(dl)
+        CROSS JOIN LATERAL (SELECT (g.dl AT TIME ZONE 'America/Sao_Paulo') AS d) x
+    )
+  );
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_platform_stats() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_platform_stats() TO authenticated;

@@ -716,5 +716,12 @@ await expectFail('evento pendente não aceita convites', ids.a, `SELECT public.i
   [(await db.query(`INSERT INTO events (created_by, title, starts_at, venue_name, city) VALUES ($1, 'Pendente', now() + interval '3 days', 'Casa', 'SP') RETURNING id`, [ids.mod])).rows[0].id, ids.b]);
 await db.query('DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2', [ids.v, ids.a]);
 
+console.log('\nPainel: indicadores da plataforma');
+await expectFail('usuário comum não lê os indicadores', ids.a, `SELECT public.admin_platform_stats()`);
+r = await expectOk('equipe lê os indicadores', ids.admin, `SELECT public.admin_platform_stats() AS s`, [], 'aal2');
+const st14 = r.rows[0].s;
+st14.users >= 5 && Array.isArray(st14.signups_14d) && st14.signups_14d.length === 14 ? ok('números e série de 14 dias') : bad('indicadores: ' + JSON.stringify(st14).slice(0, 200));
+st14.signups_14d.reduce((a, x) => a + Number(x.n), 0) >= 1 ? ok('cadastros recentes aparecem na série') : bad('série vazia');
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

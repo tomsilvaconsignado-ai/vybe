@@ -3,6 +3,8 @@ import { useApp } from '../../context/AppContext';
 import { AdminMfaGate } from './AdminMfaGate';
 import { AdminEventsTab } from './AdminEventsTab';
 import { AdminAdsTab } from './AdminAdsTab';
+import { AdminIndicadores } from './AdminIndicadores';
+import { AdminComunicadosTab } from './AdminComunicadosTab';
 import { AdminConversationsTab } from './AdminConversationsTab';
 import { AdminImageViewerHost, AdminThumb } from './AdminImageViewer';
 import { 
@@ -57,7 +59,7 @@ export const AdminPortal: React.FC = () => {
     adminMfaVerified
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useEstadoSalvo<'dashboard' | 'users' | 'reports' | 'media' | 'conversations' | 'events' | 'ads' | 'audit'>('admin.aba', 'dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useEstadoSalvo<'dashboard' | 'users' | 'reports' | 'media' | 'conversations' | 'events' | 'ads' | 'broadcasts' | 'audit'>('admin.aba', 'dashboard');
 
   // Modals state
   const [inspectingUser, setInspectingUser] = useState<AdminUserRecord | null>(null);
@@ -180,6 +182,7 @@ export const AdminPortal: React.FC = () => {
           ...(adminRole === 'superadmin' ? [{ id: 'conversations', label: 'Conversas', icon: MessagesSquare }] : []),
           { id: 'events', label: 'Eventos', icon: CalendarHeart },
           { id: 'ads', label: 'Publicidade', icon: Megaphone },
+          { id: 'broadcasts', label: 'Comunicados (push)', icon: Megaphone },
           { id: 'audit', label: `Livro de Auditoria (${adminLogs.length})`, icon: FileText },
         ].map(t => {
           const Icon = t.icon;
@@ -204,6 +207,7 @@ export const AdminPortal: React.FC = () => {
       {/* ==================== TAB 1: DASHBOARD & METRICS ==================== */}
       {activeAdminTab === 'dashboard' && (
         <div className="space-y-6">
+          <AdminIndicadores />
           
           {/* Complete 11 KPIs Grid as requested in Prompt Section 3 */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -215,7 +219,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-white">{totalUsers}</span>
-                <span className="text-[11px] text-purple-400 font-semibold">+100% +18</span>
+                <span className="text-[11px] text-zinc-400">contas cadastradas</span>
               </div>
             </div>
 
@@ -788,6 +792,7 @@ export const AdminPortal: React.FC = () => {
       {/* ==================== TAB 5: AUDIT LOGS ==================== */}
       {activeAdminTab === 'events' && <AdminEventsTab />}
       {activeAdminTab === 'ads' && <AdminAdsTab />}
+      {activeAdminTab === 'broadcasts' && <AdminComunicadosTab />}
       {activeAdminTab === 'conversations' && <AdminConversationsTab />}
 
       {activeAdminTab === 'audit' && (
