@@ -106,6 +106,8 @@ export interface PostComment {
   content: string;
   createdAt: string;
   likesCount: number;
+  /** comentário respondido (um nível) */
+  parentId?: string;
 }
 
 export interface PostPoll {

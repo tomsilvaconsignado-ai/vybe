@@ -7,7 +7,7 @@ import { AdSlot } from '../ads/AdSlot';
 import { Plus, HeartHandshake } from 'lucide-react';
 
 export const FeedView: React.FC = () => {
-  const { posts, currentUser, following, loadMorePosts, feedHasMore, feedLoadingMore, setActiveTab, feedFilter: filterType, changeFeedFilter, newPostsCount, checkNewPosts } = useApp();
+  const { posts, currentUser, following, loadMorePosts, feedHasMore, feedLoadingMore, setActiveTab, activeTab, feedFilter: filterType, changeFeedFilter, newPostsCount, checkNewPosts } = useApp();
 
   // Novas publicações: confere a cada minuto, só com a aba visível (e ao voltar para ela).
   // A função do contexto muda a cada renderização: o relógio usa sempre a mais recente sem ser reiniciado.
@@ -20,7 +20,18 @@ export const FeedView: React.FC = () => {
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', conferir); };
   }, []);
   const verNovas = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); changeFeedFilter(filterType); };
-  const setFilterType = (f: 'all' | 'following' | 'verified') => { if (f !== filterType) changeFeedFilter(f); };
+  // "Seguindo" tem endereço próprio (/seguindo); as demais abas ficam na página inicial
+  const setFilterType = (f: 'foryou' | 'all' | 'following' | 'verified') => {
+    setActiveTab(f === 'following' ? 'following' : 'feed');
+    if (f !== filterType) changeFeedFilter(f);
+  };
+  // voltar/avançar e F5 em /seguindo: a aba acompanha o endereço
+  useEffect(() => {
+    // (também recarrega quando a lista de quem você segue termina de chegar ou muda)
+    if (activeTab === 'following') changeFeedFilter('following');
+    if (activeTab === 'feed' && filterType === 'following') changeFeedFilter('foryou');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, following.length]);
   const [createPostOpen, setCreatePostOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -87,8 +98,9 @@ export const FeedView: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar" role="group" aria-label="Filtrar o feed">
           {([
-            { id: 'all', label: 'Para Você' },
+            { id: 'foryou', label: 'Para você' },
             { id: 'following', label: `Seguindo (${following.length})` },
+            { id: 'all', label: 'Recentes' },
             { id: 'verified', label: '✓ Verificados' }
           ] as const).map(f => (
             <button
@@ -134,8 +146,8 @@ export const FeedView: React.FC = () => {
               <button onClick={() => setActiveTab('discover')} className="min-h-[40px] px-4 rounded-full text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-rose-600 cursor-pointer">
                 Descobrir perfis
               </button>
-              {filterType !== 'all' && (
-                <button onClick={() => setFilterType('all')} className="min-h-[40px] px-4 rounded-full text-xs font-semibold text-zinc-300 bg-zinc-900/60 cursor-pointer">
+              {filterType !== 'foryou' && (
+                <button onClick={() => setFilterType('foryou')} className="min-h-[40px] px-4 rounded-full text-xs font-semibold text-zinc-300 bg-zinc-900/60 cursor-pointer">
                   Ver todas
                 </button>
               )}

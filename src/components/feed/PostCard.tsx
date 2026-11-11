@@ -19,6 +19,7 @@ import {
 import { Post } from '../../types';
 import { notify, askConfirm } from '../common/Feedback';
 import { FEED_WIDTH, feedVersionUrl } from '../../lib/media';
+import { TextoComMencoes } from '../common/TextoComMencoes';
 
 interface PostCardProps {
   post: Post;
@@ -27,6 +28,8 @@ interface PostCardProps {
   /** posição no feed, para leitores de tela */
   position?: number;
   total?: number;
+  /** comentário a destacar (link de notificação de resposta/menção) */
+  highlightCommentId?: string | null;
 }
 
 const CAPTION_PREVIEW_CHARS = 140;
@@ -34,7 +37,7 @@ const CAPTION_PREVIEW_CHARS = 140;
 /** Link direto da publicação (abre a publicação ao entrar no Vybelog) */
 export const postLink = (postId: string) => linkDaPublicacao(window.location.origin, postId);
 
-export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, position, total }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, position, total, highlightCommentId = null }) => {
   const {
     currentUser,
     toggleLikePost,
@@ -47,7 +50,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
   } = useApp();
 
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
-  const [showAllComments, setShowAllComments] = useState(false);
+  const [showAllComments, setShowAllComments] = useState(!!highlightCommentId);
+  const [replyTo, setReplyTo] = useState<{ id: string; username: string } | null>(null);
   const [commentInput, setCommentInput] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
@@ -61,7 +65,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
   const hasMedia = mediaCount > 0;
   const totalPollVotes = post.poll?.options?.reduce((acc, opt) => acc + opt.votes, 0) || 0;
   const userPollVote = (currentUser?.id && post.poll?.voterIds) ? post.poll.voterIds[currentUser.id] : undefined;
-  const visibleComments = showAllComments ? post.comments : post.comments.slice(-2);
+  // Comentários em um nível de respostas (como no Instagram): principais e, embaixo, as respostas
+  const principais = post.comments.filter(c => !c.parentId || !post.comments.some(p => p.id === c.parentId));
+  const respostasDe = (id: string) => post.comments.filter(c => c.parentId === id);
+  const visibleComments = showAllComments ? principais : principais.slice(-2);
+  const isVideo = post.mediaType === 'video';
+
+  // Destaque do comentário vindo de notificação: rola até ele
+  useEffect(() => {
+    if (!highlightCommentId) return;
+    const t = setTimeout(() => document.getElementById('comentario-' + highlightCommentId)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 400);
+    return () => clearTimeout(t);
+  }, [highlightCommentId, post.comments.length]);
   const longCaption = post.content.length > CAPTION_PREVIEW_CHARS;
 
   const goTo = (index: number) => setActiveMediaIndex(Math.max(0, Math.min(mediaCount - 1, index)));
@@ -82,8 +97,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
   const handleSendComment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentInput.trim()) return;
-    addComment(post.id, commentInput);
+    addComment(post.id, commentInput, replyTo?.id);
     setCommentInput('');
+    setReplyTo(null);
   };
 
   const copyLink = () => {
@@ -219,7 +235,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
             className="flex h-full transition-transform duration-300 ease-out"
             style={{ transform: `translateX(-${activeMediaIndex * 100}%)` }}
           >
-            {post.mediaUrls.map((url, i) => (
+            {isVideo ? (
+              <video
+                src={post.mediaUrls[0]}
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full h-full object-contain bg-black shrink-0"
+                aria-label={`Vídeo publicado por @${post.user.username}`}
+                onClick={e => e.stopPropagation()}
+              />
+            ) : post.mediaUrls.map((url, i) => (
               <img
                 key={i}
                 src={feedVersionUrl(url) ?? url}
@@ -276,7 +302,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
       {/* Publicação só de texto */}
       {!hasMedia && post.content && (
         <div className="px-4 pb-2">
-          <p className="text-[15px] text-zinc-100 leading-relaxed whitespace-pre-line">{post.content}</p>
+          <p className="text-[15px] text-zinc-100 leading-relaxed whitespace-pre-line"><TextoComMencoes texto={post.content} /></p>
         </div>
       )}
 
@@ -376,7 +402,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
             <button type="button" onClick={() => setSelectedProfileId(post.userId)} className="font-bold text-zinc-100 mr-1.5 cursor-pointer">
               {post.user.username}
             </button>
-            {longCaption && !captionExpanded ? `${post.content.slice(0, CAPTION_PREVIEW_CHARS).trimEnd()}… ` : post.content}
+            <TextoComMencoes texto={longCaption && !captionExpanded ? `${post.content.slice(0, CAPTION_PREVIEW_CHARS).trimEnd()}… ` : post.content} />
             {longCaption && !captionExpanded && (
               <button type="button" onClick={() => setCaptionExpanded(true)} className="text-zinc-400 cursor-pointer">mais</button>
             )}
@@ -398,24 +424,42 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
         {visibleComments.length > 0 && (
           <div className={`space-y-1 ${showAllComments ? 'max-h-60 overflow-y-auto pr-1' : ''}`}>
             {visibleComments.map(c => (
-              <p key={c.id} className="text-sm text-zinc-300 leading-snug">
-                <button type="button" onClick={() => setSelectedProfileId(c.userId)} className="font-bold text-zinc-100 mr-1.5 cursor-pointer">
-                  {c.username || c.userDisplayName}
-                </button>
-                {c.content}
-              </p>
+              <div key={c.id}>
+                {[c, ...respostasDe(c.id)].map(item => (
+                  <div key={item.id} id={`comentario-${item.id}`}
+                    className={`${item.id !== c.id ? 'ml-6 mt-1 pl-3 border-l border-purple-900/40' : ''} ${highlightCommentId === item.id ? 'rounded-lg bg-fuchsia-500/10 ring-1 ring-fuchsia-500/40 px-2 py-1' : ''}`}>
+                    <p className="text-sm text-zinc-300 leading-snug">
+                      <button type="button" onClick={() => setSelectedProfileId(item.userId)} className="font-bold text-zinc-100 mr-1.5 cursor-pointer">
+                        {item.username || item.userDisplayName}
+                      </button>
+                      <TextoComMencoes texto={item.content} />
+                    </p>
+                    <button type="button" onClick={() => {
+                      setReplyTo({ id: c.id, username: item.username });
+                      setCommentInput(item.userId !== currentUser.id && item.username ? `@${item.username} ` : '');
+                      commentInputRef.current?.focus();
+                    }} className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 cursor-pointer">Responder</button>
+                  </div>
+                ))}
+              </div>
             ))}
           </div>
         )}
 
         <p className="text-[11px] uppercase tracking-wide text-zinc-500">{post.createdAt}</p>
 
+        {replyTo && (
+          <p className="flex items-center justify-between text-[11px] text-zinc-400 pt-1">
+            <span>Respondendo a <b className="text-zinc-200">@{replyTo.username}</b></span>
+            <button type="button" onClick={() => { setReplyTo(null); setCommentInput(''); }} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">Cancelar</button>
+          </p>
+        )}
         <form onSubmit={handleSendComment} className="flex items-center gap-2 pt-2 border-t border-purple-950/40">
           <img src={currentUser.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
           <input
             ref={commentInputRef}
             type="text"
-            placeholder="Adicione um comentário..."
+            placeholder={replyTo ? 'Escreva sua resposta...' : 'Adicione um comentário...'}
             value={commentInput}
             onChange={e => setCommentInput(e.target.value)}
             aria-label="Comentário"

@@ -608,5 +608,36 @@ r = await expectOk('equipe vê o histórico com o resultado', ids.admin, `SELECT
 r && r.rows.length === 1 ? ok('histórico de comunicados') : bad('histórico');
 await expectFail('membro não vê o histórico', ids.a, `SELECT * FROM public.admin_broadcast_history()`);
 
+console.log('\nFeed: respostas, menções e "Para você"');
+r = await expectOk('A comenta no próprio post', ids.a, `INSERT INTO post_comments (post_id, user_id, content) VALUES ($1, $2, 'comentário principal') RETURNING id`, [postA, ids.a]);
+const cPai = r.rows[0].id;
+r = await expectOk('B responde ao comentário de A', ids.b, `INSERT INTO post_comments (post_id, user_id, content, parent_id) VALUES ($1, $2, 'resposta', $3) RETURNING id, parent_id`, [postA, ids.b, cPai]);
+const cResp = r.rows[0].id;
+r = await expectOk('A responde à resposta (vira resposta ao principal)', ids.a, `INSERT INTO post_comments (post_id, user_id, content, parent_id) VALUES ($1, $2, 'tréplica', $3) RETURNING parent_id`, [postA, ids.a, cResp]);
+r && r.rows[0].parent_id === cPai ? ok('respostas ficam em um nível (como no Instagram)') : bad('nível da resposta: ' + JSON.stringify(r?.rows));
+r = await as(ids.a, `INSERT INTO posts (user_id, content) VALUES ($1, 'post aberto') RETURNING id`, [ids.a]);
+const postPub = r.rows[0].id;
+r = await as(ids.b, `INSERT INTO post_comments (post_id, user_id, content) VALUES ($1, $2, 'opinião de B') RETURNING id`, [postPub, ids.b]);
+await expectOk('moder responde ao comentário de B num post público', ids.mod, `INSERT INTO post_comments (post_id, user_id, content, parent_id) VALUES ($1, $2, 'concordo', $3)`, [postPub, ids.mod, r.rows[0].id]);
+r = await db.query(`SELECT link FROM notifications WHERE user_id = $1 AND type = 'comment_reply' ORDER BY created_at DESC LIMIT 1`, [ids.b]);
+r.rows[0]?.link?.startsWith(`/publicacao/${postPub}?comentario=`) ? ok('quem foi respondido recebe aviso que abre a publicação no comentário') : bad('aviso de resposta: ' + JSON.stringify(r.rows));
+r = await as(ids.b, `INSERT INTO posts (user_id, content) VALUES ($1, 'outro') RETURNING id`, [ids.b]);
+await expectFail('resposta a comentário de outra publicação é recusada', ids.b, `INSERT INTO post_comments (post_id, user_id, content, parent_id) VALUES ($1, $2, 'x', $3)`, [r.rows[0].id, ids.b, cPai]);
+
+await expectOk('B publica mencionando @alice e @vitima', ids.b, `INSERT INTO posts (user_id, content) VALUES ($1, 'olá @Alice_Nova e @MODER e @vitima e @ninguem') RETURNING id`, [ids.b]);
+r = await db.query(`SELECT user_id, link FROM notifications WHERE type = 'mention'`);
+const mencionados = r.rows.map(x => x.user_id);
+mencionados.includes(ids.a) && mencionados.includes(ids.mod) && !mencionados.includes(ids.v) && r.rows.every(x => x.link.startsWith('/publicacao/')) ? ok('menções avisam os citados (sem diferenciar maiúsculas); quem bloqueou o autor não é avisado') : bad('menções: ' + JSON.stringify(r.rows));
+const antesPriv = r.rows.length;
+await expectOk('A menciona @vitima num post só para conexões', ids.a, `INSERT INTO posts (user_id, content, visibility) VALUES ($1, 'segredo para @vitima', 'connections_only')`, [ids.a]);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE type = 'mention'`);
+r.rows[0].n === antesPriv ? ok('ninguém é avisado de menção em publicação que não pode ver') : bad('menção vazou de post privado');
+
+r = await expectOk('Para você: lista ranqueada', ids.v, `SELECT * FROM public.feed_for_you(20, 0)`);
+const visiveisV = (await as(ids.v, `SELECT id FROM posts WHERE community_id IS NULL AND created_at > now() - interval '30 days' AND moderation_status = 'approved'`)).rows.map(x => x.id);
+r && r.rows.every(x => visiveisV.includes(x.post_id)) && !r.rows.some(x => x.post_id === postA) ? ok('"Para você" respeita as regras de acesso (sem posts privados alheios)') : bad('para você vazou: ' + JSON.stringify(r?.rows));
+r = await as(ids.b, `SELECT public.profile_id_by_username('ALICE_NOVA') AS id`);
+r.rows[0].id === ids.a ? ok('@usuario leva ao perfil certo') : bad('busca por @usuario');
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

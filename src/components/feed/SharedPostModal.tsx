@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { fetchPost } from '../../lib/social';
 import { PostCard } from './PostCard';
+import { comentarioDoEndereco } from '../../lib/rotas';
 
 // Publicação aberta pelo endereço /publicacao/<id> (link compartilhado, notificação ou F5), por cima
 // da tela atual. Fechar volta para a tela de baixo (o endereço acompanha).
@@ -61,7 +62,7 @@ export const SharedPostModal: React.FC = () => {
               <p className="text-xs text-zinc-400">Ela foi removida ou é visível só para as conexões de quem publicou.</p>
             </div>
           )}
-          {estado === 'pronto' && post && <div className="pt-12"><PostCard post={post} priority /></div>}
+          {estado === 'pronto' && post && <div className="pt-12"><PostCard post={post} priority highlightCommentId={comentarioDoEndereco(window.location.search)} /></div>}
         </div>
       </div>
     </div>

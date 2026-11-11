@@ -223,7 +223,7 @@ const POST_SELECT = `
   *,
   author:profiles!posts_user_id_fkey(${AUTHOR_COLUMNS}),
   post_polls(id, question, options, post_poll_votes(user_id, option_id)),
-  post_comments(id, user_id, content, likes_count, created_at, author:profiles!post_comments_user_id_fkey(id, username, display_name, avatar_url, is_verified)),
+  post_comments(id, user_id, content, likes_count, created_at, parent_id, author:profiles!post_comments_user_id_fkey(id, username, display_name, avatar_url, is_verified)),
   my_like:post_likes(user_id),
   my_save:post_saves(user_id)
 `;
@@ -245,7 +245,8 @@ function mapPostRow(row: any, me: string): Post {
       isVerified: c.author?.is_verified ?? false,
       content: c.content,
       createdAt: formatRelativeTime(c.created_at),
-      likesCount: c.likes_count
+      likesCount: c.likes_count,
+      parentId: c.parent_id ?? undefined
     }));
 
   return {
@@ -327,6 +328,26 @@ export async function countNewPosts(me: string, since: string, filtro: FeedFilte
   return error ? 0 : count ?? 0;
 }
 
+// "Para você": ordem calculada no banco (interações, quem você segue, novidade), respeitando as regras de acesso
+export async function fetchForYou(me: string, offset = 0): Promise<Post[]> {
+  const { data: ordem, error } = await supabase.rpc('feed_for_you', { p_limit: FEED_PAGE_SIZE, p_offset: offset });
+  if (error) {
+    console.error('[Vybelog] Falha ao carregar "Para você":', error.message);
+    return fetchFeed(me);
+  }
+  const ids = (ordem as { post_id: string }[]).map(o => o.post_id);
+  if (!ids.length) return [];
+  const { data } = await supabase.from('posts').select(POST_SELECT).in('id', ids);
+  const porId = new Map((data ?? []).map(row => [row.id as string, mapPostRow(row, me)]));
+  return ids.map(id => porId.get(id)).filter((p): p is Post => !!p);
+}
+
+/** @usuario → id do perfil (links das menções) */
+export async function profileIdByUsername(username: string): Promise<string | null> {
+  const { data } = await supabase.rpc('profile_id_by_username', { p_username: username });
+  return (data as string | null) ?? null;
+}
+
 export async function fetchPost(postId: string, me: string): Promise<Post | null> {
   const { data, error } = await supabase
     .from('posts')
@@ -342,11 +363,12 @@ export async function insertPost(
   content: string,
   mediaUrls: string[],
   tags: string[],
-  poll?: { question: string; options: string[] }
+  poll?: { question: string; options: string[] },
+  mediaType: 'image' | 'video' = 'image'
 ): Promise<{ postId: string | null; error: string | null }> {
   const { data, error } = await supabase
     .from('posts')
-    .insert({ user_id: me, content, media_urls: mediaUrls, tags })
+    .insert({ user_id: me, content, media_urls: mediaUrls, tags, media_type: mediaType })
     .select('id')
     .single();
   if (error) return { postId: null, error: error.message };
@@ -381,8 +403,8 @@ export async function setSave(me: string, postId: string, save: boolean) {
   return error?.message ?? null;
 }
 
-export async function insertComment(me: string, postId: string, content: string) {
-  const { error } = await supabase.from('post_comments').insert({ post_id: postId, user_id: me, content });
+export async function insertComment(me: string, postId: string, content: string, parentId?: string) {
+  const { error } = await supabase.from('post_comments').insert({ post_id: postId, user_id: me, content, parent_id: parentId ?? null });
   return error?.message ?? null;
 }
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { uploadPublicMedia } from '../../lib/supabase';
-import { X, Image, Sparkles, Send, Plus, BarChart2 } from 'lucide-react';
+import { X, Image, Sparkles, Send, Plus, BarChart2, Film } from 'lucide-react';
 import { notify } from '../common/Feedback';
 import { feedVersion, fitToFrame, FrameMode, MediaProcessingError } from '../../lib/media';
 import { FrameModeToggle } from './FrameModeToggle';
@@ -20,6 +20,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
   const [isUploading, setIsUploading] = useState(false);
   const [frameMode, setFrameMode] = useState<FrameMode>('fill');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
 
   // Poll state
   const [includePoll, setIncludePoll] = useState(false);
@@ -61,6 +62,22 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     setIsUploading(false);
   };
 
+  // Vídeo: um por publicação (fica sozinho, sem fotos), até 20 MB
+  const handleUploadVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!['video/mp4', 'video/quicktime'].includes(file.type)) { notify('Envie o vídeo em MP4 ou MOV.'); return; }
+    if (file.size > 20 * 1024 * 1024) { notify(`O vídeo tem ${(file.size / 1048576).toFixed(1)} MB; o limite é 20 MB.`); return; }
+    setIsUploading(true);
+    const ext = file.type === 'video/quicktime' ? 'mov' : 'mp4';
+    const { publicUrl, error } = await uploadPublicMedia(file, `${currentUser.id}/posts/${crypto.randomUUID()}.${ext}`, true);
+    setIsUploading(false);
+    if (error || !publicUrl) { notify('Não foi possível enviar o vídeo. Tente novamente.'); return; }
+    setMediaUrls([publicUrl]);
+    setMediaType('video');
+  };
+
   const handleAddTag = () => {
     if (tagInput.trim()) {
       const clean = tagInput.trim().replace(/^#/, '');
@@ -84,13 +101,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
       includePoll && pollQuestion.trim() ? {
         question: pollQuestion.trim(),
         options: pollOptions.filter(o => o.trim())
-      } : undefined
+      } : undefined,
+      mediaType
     );
 
     // Reset and close
     setIsPublishing(false);
     setContent('');
     setMediaUrls([]);
+    setMediaType('image');
     onClose();
   };
 
@@ -134,10 +153,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             <div className="flex gap-2 overflow-x-auto pb-2">
               {mediaUrls.map((url, i) => (
                 <div key={i} className="relative w-14 aspect-[9/16] rounded-xl overflow-hidden shrink-0 border border-purple-500/40">
-                  <img src={url} alt="Upload" className="w-full h-full object-cover" />
+                  {mediaType === 'video'
+                    ? <video src={url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                    : <img src={url} alt="Upload" className="w-full h-full object-cover" />}
                   <button
                     type="button"
-                    onClick={() => setMediaUrls(prev => prev.filter((_, idx) => idx !== i))}
+                    onClick={() => { setMediaUrls(prev => prev.filter((_, idx) => idx !== i)); if (mediaType === 'video') setMediaType('image'); }}
                     className="absolute top-1 right-1 bg-black/70 rounded-full p-0.5 text-white"
                   >
                     <X className="w-3 h-3" />
@@ -153,8 +174,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
           <label className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-purple-700/50 text-xs font-semibold text-purple-200 hover:bg-purple-950/40 cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
             <Image className="w-4 h-4" />
             {isUploading ? 'Enviando foto...' : 'Enviar foto do dispositivo'}
-            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={handleUploadFiles} />
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={handleUploadFiles} disabled={mediaType === 'video'} />
           </label>
+          <label className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-purple-700/50 text-xs font-semibold text-purple-200 hover:bg-purple-950/40 cursor-pointer ${isUploading || (mediaUrls.length > 0 && mediaType === 'image') ? 'opacity-50 pointer-events-none' : ''}`}>
+            <Film className="w-4 h-4" />
+            {mediaType === 'video' && mediaUrls.length ? 'Trocar o vídeo' : 'Enviar vídeo (até 20 MB)'}
+            <input type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={handleUploadVideo} />
+          </label>
+          {mediaType === 'video' && <p className="text-[11px] text-amber-300/80">Vídeos podem guardar dados de localização do celular. Se preferir, desligue a localização da câmera antes de gravar.</p>}
 
           <p className="text-[11px] text-zinc-500">
             As fotos ficam no formato de tela cheia do celular (1080 × 1920). Removemos automaticamente a localização GPS e outros dados escondidos antes do envio.

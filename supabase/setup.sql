@@ -3251,3 +3251,125 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'Agendamentos do push não criados: %', SQLERRM;
 END $$;
+
+-- ==============================================================================
+-- 11. FEED E INTERAÇÕES (respostas, menções, "Para você", vídeo)
+-- ==============================================================================
+
+-- 11.1 Respostas a comentários (um nível, como no Instagram)
+ALTER TABLE public.post_comments ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES public.post_comments(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_post_comments_parent ON public.post_comments(parent_id) WHERE parent_id IS NOT NULL;
+
+-- A resposta precisa ser da mesma publicação; resposta de resposta vira resposta ao comentário principal
+CREATE OR REPLACE FUNCTION public.prepare_comment_reply() RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE pai public.post_comments;
+BEGIN
+  IF NEW.parent_id IS NULL THEN RETURN NEW; END IF;
+  SELECT * INTO pai FROM public.post_comments WHERE id = NEW.parent_id;
+  IF pai.id IS NULL OR pai.post_id <> NEW.post_id THEN
+    RAISE EXCEPTION 'O comentário respondido não pertence a esta publicação.';
+  END IF;
+  IF pai.parent_id IS NOT NULL THEN NEW.parent_id := pai.parent_id; END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS comments_prepare_reply ON public.post_comments;
+CREATE TRIGGER comments_prepare_reply BEFORE INSERT ON public.post_comments
+  FOR EACH ROW EXECUTE FUNCTION public.prepare_comment_reply();
+
+-- 11.2 Menções: @usuario em publicações e comentários avisam quem foi mencionado — só se a pessoa
+-- puder ver a publicação e não houver bloqueio. No máximo 10 menções avisadas por texto.
+CREATE OR REPLACE FUNCTION public.notify_mentions(p_text TEXT, p_actor UUID, p_post UUID, p_comment UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  alvo RECORD;
+  post public.posts;
+  nome TEXT;
+BEGIN
+  IF p_text IS NULL OR position('@' IN p_text) = 0 THEN RETURN; END IF;
+  SELECT * INTO post FROM public.posts WHERE id = p_post;
+  SELECT display_name INTO nome FROM public.profiles WHERE id = p_actor;
+  FOR alvo IN
+    SELECT DISTINCT p.id FROM public.profiles p
+     WHERE p.username IN (SELECT lower(m[1]) FROM regexp_matches(p_text, '@([A-Za-z0-9_]{3,50})', 'g') AS m LIMIT 10)
+       AND p.id <> p_actor
+       AND NOT public.is_blocked_between(p.id, p_actor)
+       AND (post.visibility = 'public' OR p.id = post.user_id OR public.are_connected(p.id, post.user_id))
+  LOOP
+    INSERT INTO public.notifications (user_id, actor_id, type, title, message, reference_id, dedupe_key)
+    VALUES (alvo.id, p_actor, 'mention', 'Você foi mencionado',
+            coalesce(nome, 'Alguém') || CASE WHEN p_comment IS NULL THEN ' mencionou você em uma publicação.' ELSE ' mencionou você em um comentário.' END,
+            p_post::text || CASE WHEN p_comment IS NULL THEN '' ELSE '#' || p_comment END,
+            'mention:' || coalesce(p_comment, p_post)::text || ':' || alvo.id)
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.notify_on_post_text() RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  autor_pai UUID;
+  dono UUID;
+  nome TEXT;
+BEGIN
+  IF TG_TABLE_NAME = 'posts' THEN
+    PERFORM public.notify_mentions(NEW.content, NEW.user_id, NEW.id, NULL);
+  ELSE
+    IF NEW.parent_id IS NOT NULL THEN
+      SELECT user_id INTO autor_pai FROM public.post_comments WHERE id = NEW.parent_id;
+      SELECT user_id INTO dono FROM public.posts WHERE id = NEW.post_id;
+      SELECT display_name INTO nome FROM public.profiles WHERE id = NEW.user_id;
+      -- o dono da publicação já recebe o aviso de comentário; quem foi respondido recebe "resposta"
+      IF autor_pai IS DISTINCT FROM dono AND NOT public.is_blocked_between(autor_pai, NEW.user_id) THEN
+        PERFORM public.notify(autor_pai, NEW.user_id, 'comment_reply', 'Nova resposta',
+          coalesce(nome, 'Alguém') || ' respondeu ao seu comentário.', NEW.post_id::text || '#' || NEW.id);
+      END IF;
+    END IF;
+    PERFORM public.notify_mentions(NEW.content, NEW.user_id, NEW.post_id, NEW.id);
+  END IF;
+  RETURN NULL;
+END;
+$$;
+DROP TRIGGER IF EXISTS notify_post_mentions ON public.posts;
+CREATE TRIGGER notify_post_mentions AFTER INSERT ON public.posts
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_post_text();
+DROP TRIGGER IF EXISTS notify_comment_text ON public.post_comments;
+CREATE TRIGGER notify_comment_text AFTER INSERT ON public.post_comments
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_post_text();
+
+-- 11.3 "Para você": publicações dos últimos 30 dias que a pessoa pode ver (regras de acesso valem:
+-- a função roda com as permissões de quem chama), ordenadas por interações recentes, por seguir o
+-- autor e pela novidade. Paginação por posição.
+CREATE OR REPLACE FUNCTION public.feed_for_you(p_limit INTEGER DEFAULT 20, p_offset INTEGER DEFAULT 0)
+RETURNS TABLE (post_id UUID, score DOUBLE PRECISION)
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public AS $$
+  SELECT p.id,
+         ((p.likes_count + 2.0 * p.comments_count + 1.0)
+           * CASE WHEN EXISTS (SELECT 1 FROM public.follows f WHERE f.follower_id = auth.uid() AND f.following_id = p.user_id) THEN 1.8 ELSE 1.0 END
+           * CASE WHEN p.user_id = auth.uid() THEN 0.6 ELSE 1.0 END
+           * CASE WHEN cardinality(p.media_urls) > 0 THEN 1.2 ELSE 1.0 END)
+         / power(extract(epoch FROM (now() - p.created_at)) / 3600.0 + 2.0, 1.4) AS score
+    FROM public.posts p
+   WHERE p.community_id IS NULL
+     AND p.created_at > now() - INTERVAL '30 days'
+     AND p.moderation_status = 'approved'
+   ORDER BY score DESC, p.created_at DESC
+   LIMIT least(greatest(p_limit, 1), 50) OFFSET greatest(p_offset, 0);
+$$;
+REVOKE EXECUTE ON FUNCTION public.feed_for_you(INTEGER, INTEGER) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.feed_for_you(INTEGER, INTEGER) TO authenticated;
+
+-- 11.4 @usuario → perfil (para os links das menções)
+CREATE OR REPLACE FUNCTION public.profile_id_by_username(p_username TEXT)
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT p.id FROM public.profiles p
+   WHERE p.username = lower(p_username) AND NOT public.is_blocked_between(p.id, auth.uid())
+   LIMIT 1;
+$$;
+REVOKE EXECUTE ON FUNCTION public.profile_id_by_username(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.profile_id_by_username(TEXT) TO authenticated;
+
+REVOKE EXECUTE ON FUNCTION public.prepare_comment_reply(), public.notify_mentions(TEXT, UUID, UUID, UUID), public.notify_on_post_text()
+  FROM PUBLIC, anon, authenticated;

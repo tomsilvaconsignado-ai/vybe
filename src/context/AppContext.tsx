@@ -33,6 +33,7 @@ import {
   fetchProfilesByIds,
   fetchSocialGraph,
   fetchFeed,
+  fetchForYou,
   FEED_PAGE_SIZE,
   countNewPosts,
   fetchPost,
@@ -168,15 +169,15 @@ interface AppContextType {
   // Post Actions
   toggleLikePost: (postId: string) => void;
   toggleSavePost: (postId: string) => void;
-  addComment: (postId: string, text: string) => void;
+  addComment: (postId: string, text: string, parentId?: string) => void;
   votePoll: (postId: string, optionId: string) => void;
-  createPost: (content: string, mediaUrls: string[], tags: string[], pollData?: { question: string; options: string[] }) => Promise<void>;
+  createPost: (content: string, mediaUrls: string[], tags: string[], pollData?: { question: string; options: string[] }, mediaType?: 'image' | 'video') => Promise<void>;
   deletePost: (postId: string) => void;
   /** próxima página do feed (rolagem infinita) */
   loadMorePosts: () => Promise<void>;
   /** filtro do feed (aplicado no servidor) */
-  feedFilter: 'all' | 'following' | 'verified';
-  changeFeedFilter: (filter: 'all' | 'following' | 'verified') => Promise<void>;
+  feedFilter: 'foryou' | 'all' | 'following' | 'verified';
+  changeFeedFilter: (filter: 'foryou' | 'all' | 'following' | 'verified') => Promise<void>;
   /** publicações mais novas que o topo do feed (aviso "novas publicações") */
   newPostsCount: number;
   checkNewPosts: () => Promise<void>;
@@ -326,7 +327,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [posts, setPosts] = useState<Post[]>([]);
   const [feedHasMore, setFeedHasMore] = useState(true);
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
-  const [feedFilter, setFeedFilter] = useState<'all' | 'following' | 'verified'>('all');
+  const [feedFilter, setFeedFilter] = useState<'foryou' | 'all' | 'following' | 'verified'>('foryou');
   const [newPostsCount, setNewPostsCount] = useState(0);
   const [postCache, setPostCache] = useState<Record<string, Post>>({});
 
@@ -414,7 +415,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [loadedProfiles, graph, feed, loadedConversations, loadedNotifications, loadedCommunities, blocked] = await Promise.all([
       fetchProfiles(userId),
       fetchSocialGraph(userId),
-      fetchFeed(userId),
+      fetchForYou(userId),
       fetchConversations(userId),
       fetchNotifications(userId),
       fetchCommunities(userId),
@@ -944,9 +945,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const addComment = async (postId: string, text: string) => {
+  const addComment = async (postId: string, text: string, parentId?: string) => {
     if (!text.trim()) return;
-    const error = await insertComment(currentUser.id, postId, text.trim());
+    const error = await insertComment(currentUser.id, postId, text.trim(), parentId);
     if (error) reportFailure('publicar o comentário', error);
     await reloadPost(postId);
   };
@@ -963,9 +964,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     content: string,
     mediaUrls: string[],
     tags: string[],
-    pollData?: { question: string; options: string[] }
+    pollData?: { question: string; options: string[] },
+    mediaType: 'image' | 'video' = 'image'
   ) => {
-    const { postId, error } = await insertPost(currentUser.id, content, mediaUrls, tags, pollData);
+    const { postId, error } = await insertPost(currentUser.id, content, mediaUrls, tags, pollData, mediaType);
     if (error) reportFailure('publicar', error);
     if (!postId) return;
     const fresh = await fetchPost(postId, currentUser.id);
@@ -973,15 +975,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Filtro do feed traduzido para a consulta: "Seguindo" = quem eu sigo + eu; "Verificados" = autores verificados
-  const filtroDoFeed = (f: 'all' | 'following' | 'verified') =>
+  const filtroDoFeed = (f: 'foryou' | 'all' | 'following' | 'verified') =>
     f === 'following' ? { autores: [...following, currentUser.id] } : f === 'verified' ? { verificados: true } : {};
 
-  const changeFeedFilter = async (filter: 'all' | 'following' | 'verified') => {
+  const changeFeedFilter = async (filter: 'foryou' | 'all' | 'following' | 'verified') => {
     if (!currentUser.id) return;
     setFeedFilter(filter);
     setFeedLoadingMore(true);
     try {
-      const page = await fetchFeed(currentUser.id, undefined, filtroDoFeed(filter));
+      const page = filter === 'foryou' ? await fetchForYou(currentUser.id) : await fetchFeed(currentUser.id, undefined, filtroDoFeed(filter));
       setPosts(page);
       setFeedHasMore(page.length >= FEED_PAGE_SIZE);
       setNewPostsCount(0);
@@ -993,7 +995,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const checkNewPosts = async () => {
     const newest = posts[0]?.createdAtIso;
     if (!currentUser.id || !newest) return;
-    setNewPostsCount(await countNewPosts(currentUser.id, newest, filtroDoFeed(feedFilter)));
+    // "Para você" não é cronológico: compara com a publicação mais recente que já está na tela
+    const maisRecente: string = feedFilter === 'foryou' ? posts.reduce<string>((m, p) => (p.createdAtIso && p.createdAtIso > m ? p.createdAtIso : m), newest) : newest;
+    setNewPostsCount(await countNewPosts(currentUser.id, maisRecente, filtroDoFeed(feedFilter)));
   };
 
   // Próxima página do feed, a partir da publicação mais antiga já carregada (sem repetir)
@@ -1003,7 +1007,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!oldest) { setFeedHasMore(false); return; }
     setFeedLoadingMore(true);
     try {
-      const page = await fetchFeed(currentUser.id, oldest, filtroDoFeed(feedFilter));
+      const page = feedFilter === 'foryou' ? await fetchForYou(currentUser.id, posts.length) : await fetchFeed(currentUser.id, oldest, filtroDoFeed(feedFilter));
       setPosts(prev => {
         const known = new Set(prev.map(p => p.id));
         return [...prev, ...page.filter(p => !known.has(p.id))];

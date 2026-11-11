@@ -39,6 +39,16 @@ import { PostCard } from '../feed/PostCard';
 import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibility';
 import { MediaAlbum, Post, UserProfile } from '../../types';
 import { notify, askConfirm } from '../common/Feedback';
+import { linkDoPerfil } from '../../lib/rotas';
+
+// Compartilhar perfil: no celular abre o menu nativo; no computador copia o link (/perfil/<id>)
+const compartilharPerfil = async (id: string, usuario: string) => {
+  const url = linkDoPerfil(window.location.origin, id);
+  if (typeof navigator.share === 'function') {
+    try { await navigator.share({ title: `@${usuario} no Vybelog`, url }); return; } catch { /* cancelado: copia */ }
+  }
+  try { await navigator.clipboard.writeText(url); notify('Link do perfil copiado.'); } catch { notify(url); }
+};
 
 export const ProfileView: React.FC = () => {
   const { 
@@ -252,7 +262,7 @@ export const ProfileView: React.FC = () => {
                     <span>Preferências</span>
                   </button>
                   <button
-                    onClick={() => notify('Link seguro do seu perfil copiado!')}
+                    onClick={() => compartilharPerfil(profile.id, profile.username)}
                     className="p-2 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
                     title="Compartilhar"
                   >
@@ -278,6 +288,15 @@ export const ProfileView: React.FC = () => {
                     }`}
                   >
                     {isFollowing ? 'Seguindo' : '+ Seguir'}
+                  </button>
+
+                  <button
+                    onClick={() => compartilharPerfil(profile.id, profile.username)}
+                    className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                    title="Compartilhar perfil"
+                    aria-label="Compartilhar perfil"
+                  >
+                    <Share2 className="w-4 h-4" />
                   </button>
 
                   <button
