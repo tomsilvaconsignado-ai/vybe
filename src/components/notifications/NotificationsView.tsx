@@ -11,7 +11,11 @@ import {
   Lock,
   EyeOff,
   UserPlus,
-  Camera
+  Camera,
+  Settings2,
+  Megaphone,
+  AtSign,
+  Reply
 } from 'lucide-react';
 
 export const NotificationsView: React.FC = () => {
@@ -21,6 +25,7 @@ export const NotificationsView: React.FC = () => {
     markAllNotificationsAsRead, 
     setSelectedProfileId,
     setActiveTab,
+    abrirEndereco,
     currentUser,
     updateCurrentUser,
     following,
@@ -46,6 +51,12 @@ export const NotificationsView: React.FC = () => {
         return <UserPlus className="w-4 h-4 text-fuchsia-400" />;
       case 'profile_photo_reminder':
         return <Camera className="w-4 h-4 text-amber-400" />;
+      case 'admin_broadcast':
+        return <Megaphone className="w-4 h-4 text-amber-300" />;
+      case 'mention':
+        return <AtSign className="w-4 h-4 text-sky-400" />;
+      case 'comment_reply':
+        return <Reply className="w-4 h-4 text-sky-400" />;
       default:
         return <Bell className="w-4 h-4 text-purple-400" />;
     }
@@ -65,6 +76,15 @@ export const NotificationsView: React.FC = () => {
           </p>
         </div>
 
+        <div className="flex flex-col items-end gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('notification-prefs')}
+          className="text-xs font-semibold text-zinc-300 hover:text-white flex items-center gap-1 cursor-pointer"
+        >
+          <Settings2 className="w-4 h-4" />
+          <span>Preferências</span>
+        </button>
         <button
           onClick={markAllNotificationsAsRead}
           className="text-xs font-semibold text-purple-400 hover:text-purple-300 flex items-center gap-1 cursor-pointer"
@@ -72,6 +92,7 @@ export const NotificationsView: React.FC = () => {
           <CheckCheck className="w-4 h-4" />
           <span>Marcar todas como lidas</span>
         </button>
+        </div>
       </div>
 
       {/* Discreet Mode Notification Card */}
@@ -104,7 +125,10 @@ export const NotificationsView: React.FC = () => {
             key={n.id}
             onClick={() => {
               markNotificationAsRead(n.id);
-              if (n.type.includes('vault') || n.type === 'profile_photo_reminder') {
+              // destino exato gravado pelo banco (publicação, perfil, conversa, evento...)
+              if (n.link && n.link !== '/notificacoes') {
+                abrirEndereco(n.link);
+              } else if (n.type.includes('vault') || n.type === 'profile_photo_reminder') {
                 setActiveTab('profile');
               } else if (n.type === 'event_comment') {
                 setActiveTab('events');

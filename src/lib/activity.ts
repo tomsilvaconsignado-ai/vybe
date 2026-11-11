@@ -7,6 +7,15 @@ import { ModerationReport, NotificationItem } from '../types';
 
 const SYSTEM_ACTOR = { id: 'sys', displayName: 'Vybelog', username: 'vybelog', avatarUrl: '' };
 
+/** Avisos de mensagem existem para o push; na central não aparecem (a conversa já mostra o não lido) */
+export const MESSAGE_NOTIFICATION_TYPES = ['message', 'message_request'];
+
+/** Abrir a conversa marca como lidos os avisos (e o push) dela */
+export async function markConversationNotificationsRead(conversationId: string) {
+  const { error } = await supabase.rpc('mark_conversation_notifications_read', { conv: conversationId });
+  return error?.message ?? null;
+}
+
 export function mapNotificationRow(row: any): NotificationItem {
   const actor = row.actor;
   return {
@@ -19,6 +28,7 @@ export function mapNotificationRow(row: any): NotificationItem {
     title: row.title,
     message: row.message,
     referenceId: row.reference_id ?? undefined,
+    link: row.link ?? undefined,
     createdAt: formatRelativeTime(row.created_at),
     read: row.read
   };
@@ -31,6 +41,7 @@ export async function fetchNotifications(me: string): Promise<NotificationItem[]
     .from('notifications')
     .select(NOTIFICATION_SELECT)
     .eq('user_id', me)
+    .not('type', 'in', `(${MESSAGE_NOTIFICATION_TYPES.join(',')})`)
     .order('created_at', { ascending: false })
     .limit(100);
 

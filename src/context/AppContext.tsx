@@ -65,6 +65,8 @@ import {
 import {
   fetchNotifications,
   fetchNotification,
+  MESSAGE_NOTIFICATION_TYPES,
+  markConversationNotificationsRead,
   markNotificationsRead,
   insertReport,
   deleteOwnAccount,
@@ -137,6 +139,13 @@ interface AppContextType {
   /** publicação aberta por link (/publicacao/:id) */
   openPostId: string | null;
   setOpenPostId: (id: string | null) => void;
+  /** evento e comunidade abertos (/eventos/:id, /comunidades/:id) */
+  selectedEventId: string | null;
+  setSelectedEventId: (id: string | null) => void;
+  selectedCommunityId: string | null;
+  setSelectedCommunityId: (id: string | null) => void;
+  /** abre um endereço interno (links das notificações) */
+  abrirEndereco: (caminho: string) => void;
 
   // Data
   profiles: UserProfile[];
@@ -344,12 +353,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeTab, setActiveTabState] = useState<string>(rotaInicial.aba);
   const [selectedProfileId, setSelectedProfileIdState] = useState<string | null>(rotaInicial.perfilId);
   const [openPostId, setOpenPostId] = useState<string | null>(rotaInicial.postId);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(rotaInicial.eventoId);
+  const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(rotaInicial.comunidadeId);
   // painel administrativo pedido pelo endereço: só abre depois de confirmado o papel administrativo
   const adminPedidoPelaRota = useRef(rotaInicial.admin);
 
-  // Ir para "Meu Perfil" pelo menu limpa o perfil visitado
+  // Ir para "Meu Perfil", "Eventos" ou "Comunidades" pelo menu volta para a lista (sem item aberto)
   const setActiveTab = (tab: string) => {
     if (tab === 'profile') setSelectedProfileIdState(null);
+    if (tab === 'events') setSelectedEventId(null);
+    if (tab === 'communities') setSelectedCommunityId(null);
     setActiveTabState(tab);
   };
 
@@ -651,6 +664,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser.id]);
 
+  // Conversa aberta na tela: os avisos dela (central e push) ficam lidos
+  const conversaNaTelaRef = useRef<string | null>(null);
+  conversaNaTelaRef.current = activeTab === 'messages' && !isAdminMode ? selectedConversationId : null;
+  useEffect(() => {
+    if (currentUser.id && conversaNaTelaRef.current) markConversationNotificationsRead(conversaNaTelaRef.current);
+  }, [currentUser.id, activeTab, selectedConversationId, isAdminMode]);
+
   // Tempo real: novas mensagens, conversas aceitas e notificações
   useEffect(() => {
     const me = currentUser.id;
@@ -659,9 +679,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const channel = supabase
       .channel(`vybe-live-${me}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-        const row = payload.new as { conversation_id: string };
+        const row = payload.new as { conversation_id: string; sender_id?: string };
         if (conversationMessagesRef.current[row.conversation_id]) {
           loadConversationMessagesRef.current(row.conversation_id);
+        }
+        if (row.sender_id !== me && conversaNaTelaRef.current === row.conversation_id) {
+          // chegou na conversa que está aberta: o aviso não fica pendente
+          setTimeout(() => markConversationNotificationsRead(row.conversation_id), 800);
         }
         refreshConversationsRef.current();
       })
@@ -669,7 +693,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshConversationsRef.current();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` }, async payload => {
-        const notification = await fetchNotification((payload.new as { id: string }).id);
+        const nova = payload.new as { id: string; type?: string };
+        // aviso de mensagem é para o push; na tela, a conversa já mostra o "não lido"
+        if (nova.type && MESSAGE_NOTIFICATION_TYPES.includes(nova.type)) return;
+        const notification = await fetchNotification(nova.id);
         if (notification) setNotifications(prev => [notification, ...prev.filter(n => n.id !== notification.id)]);
       })
       .subscribe();
@@ -698,19 +725,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => iniciarRolagem(), []);
 
+  // Aplica na tela o que o endereço atual representa (voltar/avançar e abrir por notificação)
+  const aplicarEnderecoAtual = (restaurar: boolean) => {
+    const e = estadoDoCaminho(window.location.pathname, window.location.search);
+    vindoDoHistorico.current = true;
+    setIsAdminModeInternal(e.admin && adminAutorizadoRef.current);
+    setActiveTabState(e.aba);
+    setSelectedProfileIdState(e.perfilId);
+    setSelectedConversationId(e.conversaId);
+    setOpenPostId(e.postId);
+    setSelectedEventId(e.eventoId);
+    setSelectedCommunityId(e.comunidadeId);
+    if (restaurar) restaurarRolagem(); else window.scrollTo(0, 0);
+  };
+
+  /** Abre um endereço interno (link de notificação, push): vira um passo no histórico */
+  const abrirEndereco = (caminho: string) => {
+    if (!caminho.startsWith('/') || caminho.startsWith('//')) return;
+    if (caminho !== window.location.pathname + window.location.search) {
+      lembrarRolagem(window.location.pathname);
+      window.history.pushState(null, '', caminho);
+    }
+    aplicarEnderecoAtual(false);
+  };
+
   useEffect(() => {
-    const aoNavegarNoHistorico = () => {
-      const e = estadoDoCaminho(window.location.pathname, window.location.search);
-      vindoDoHistorico.current = true;
-      setIsAdminModeInternal(e.admin && adminAutorizadoRef.current);
-      setActiveTabState(e.aba);
-      setSelectedProfileIdState(e.perfilId);
-      setSelectedConversationId(e.conversaId);
-      setOpenPostId(e.postId);
-      restaurarRolagem();
-    };
+    const aoNavegarNoHistorico = () => aplicarEnderecoAtual(true);
     window.addEventListener('popstate', aoNavegarNoHistorico);
-    return () => window.removeEventListener('popstate', aoNavegarNoHistorico);
+    // toque numa notificação push com o Vybelog já aberto: o service worker pede para abrir aqui
+    const sw = navigator.serviceWorker;
+    const aoReceberDoSw = (ev: MessageEvent) => {
+      const d = ev.data as { tipo?: string; caminho?: string } | null;
+      if (d?.tipo === 'abrir' && typeof d.caminho === 'string') abrirEndereco(d.caminho);
+    };
+    sw?.addEventListener('message', aoReceberDoSw);
+    return () => { window.removeEventListener('popstate', aoNavegarNoHistorico); sw?.removeEventListener('message', aoReceberDoSw); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // /admin: abre o painel quando o papel administrativo for confirmado; sem papel, fica no feed
@@ -722,7 +772,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (authLoading || !isLoggedIn || adminPedidoPelaRota.current) return;
-    const caminho = caminhoDoEstado({ aba: activeTab, perfilId: selectedProfileId, conversaId: selectedConversationId, admin: isAdminMode, postId: openPostId });
+    const caminho = caminhoDoEstado({ aba: activeTab, perfilId: selectedProfileId, conversaId: selectedConversationId, admin: isAdminMode,
+      postId: openPostId, eventoId: selectedEventId, comunidadeId: selectedCommunityId });
     if (vindoDoHistorico.current) {
       vindoDoHistorico.current = false;
       primeiraSincronia.current = false;
@@ -740,7 +791,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.history.pushState(null, '', caminho);
       window.scrollTo(0, 0);
     }
-  }, [authLoading, isLoggedIn, activeTab, selectedProfileId, selectedConversationId, isAdminMode, openPostId]);
+  }, [authLoading, isLoggedIn, activeTab, selectedProfileId, selectedConversationId, isAdminMode, openPostId, selectedEventId, selectedCommunityId]);
 
   const confirmAge = () => {
     setIsAgeConfirmed(true);
@@ -1305,6 +1356,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedConversationId,
         openPostId,
         setOpenPostId,
+        selectedEventId,
+        setSelectedEventId,
+        selectedCommunityId,
+        setSelectedCommunityId,
+        abrirEndereco,
         profiles: profilesWithDistance,
         hasLocation,
         enableLocation,

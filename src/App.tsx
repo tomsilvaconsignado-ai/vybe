@@ -23,6 +23,7 @@ import { FeedView } from './components/feed/FeedView';
 import { SharedPostModal } from './components/feed/SharedPostModal';
 import { RightRail } from './components/layout/RightRail';
 import { importWithReload } from './lib/chunkReload';
+import { PushInvite } from './components/notifications/PushInvite';
 
 const named = <K extends string>(loader: () => Promise<Record<K, React.ComponentType<any>>>, name: K) =>
   lazy(() => importWithReload(loader).then(m => ({ default: m[name] })));
@@ -38,6 +39,7 @@ const ProfileView = named(() => import('./components/profile/ProfileView'), 'Pro
 const SettingsView = named(() => import('./components/settings/SettingsView'), 'SettingsView');
 const AdminPortal = named(() => import('./components/admin/AdminPortal'), 'AdminPortal');
 const EventsView = named(() => import('./components/events/EventsView'), 'EventsView');
+const NotificationPreferencesView = named(() => import('./components/notifications/NotificationPreferencesView'), 'NotificationPreferencesView');
 
 const ViewLoading: React.FC = () => (
   <div className="py-24 flex items-center justify-center">
@@ -129,6 +131,7 @@ const AppContent: React.FC = () => {
   const renderMainView = () => {
     switch (activeTab) {
       case 'feed':
+      case 'following':
         return <FeedView />;
       case 'discover':
         return <DiscoverView key="all" initialFilter="all" />;
@@ -148,6 +151,8 @@ const AppContent: React.FC = () => {
         return <MessagesView />;
       case 'notifications':
         return <NotificationsView />;
+      case 'notification-prefs':
+        return <NotificationPreferencesView />;
       case 'profile':
         return <ProfileView />;
       case 'settings':
@@ -167,10 +172,11 @@ const AppContent: React.FC = () => {
           <Suspense fallback={<ViewLoading />}>{renderMainView()}</Suspense>
         </main>
         {/* Coluna de destaques (eventos, publicidade, sugestões) nas telas sociais */}
-        {['feed', 'discover', 'couples', 'singles', 'communities', 'notifications', 'connections'].includes(activeTab) && <RightRail />}
+        {['feed', 'following', 'discover', 'couples', 'singles', 'communities', 'notifications', 'connections'].includes(activeTab) && <RightRail />}
       </div>
 
       <MobileNav />
+      <PushInvite />
       <MediaProtection />
       <SharedPostModal />
 

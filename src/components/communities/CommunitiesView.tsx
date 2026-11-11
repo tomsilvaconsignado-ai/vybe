@@ -16,9 +16,8 @@ import { Community } from '../../types';
 import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 export const CommunitiesView: React.FC = () => {
-  const { communities, toggleJoinCommunity, setSelectedProfileId } = useApp();
-  // a comunidade aberta e a categoria sobrevivem ao F5 (guarda o id; o objeto vem da lista atual)
-  const [selectedCommunityId, setSelectedCommunityId] = useEstadoSalvo<string | null>('comunidades.aberta', null);
+  const { communities, toggleJoinCommunity, setSelectedProfileId, selectedCommunityId, setSelectedCommunityId } = useApp();
+  // a comunidade aberta vem do endereço (/comunidades/<id>); a categoria sobrevive ao F5
   const selectedCommunity = communities.find(c => c.id === selectedCommunityId) ?? null;
   const setSelectedCommunity = (c: Community | null) => setSelectedCommunityId(c?.id ?? null);
   const [activeCategory, setActiveCategory] = useEstadoSalvo<string>('comunidades.categoria', 'all');

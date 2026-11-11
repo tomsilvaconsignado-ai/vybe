@@ -218,10 +218,18 @@ export interface NotificationItem {
     | 'community_invite'
     | 'follow'
     | 'event_comment'
-    | 'profile_photo_reminder';
+    | 'profile_photo_reminder'
+    | 'comment_reply'
+    | 'mention'
+    | 'message'
+    | 'message_request'
+    | 'admin_broadcast'
+    | (string & {});
   title: string;
   message: string;
   referenceId?: string;
+  /** endereço interno do conteúdo (/publicacao/…, /perfil/…, /mensagens/…) */
+  link?: string;
   createdAt: string;
   read: boolean;
 }

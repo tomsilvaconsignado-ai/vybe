@@ -38,3 +38,12 @@ test('meu perfil (sem id) e conversa sem id', () => {
   assert.equal(caminhoDoEstado({ ...ESTADO_INICIAL, aba: 'profile' }), '/perfil');
   assert.equal(caminhoDoEstado({ ...ESTADO_INICIAL, aba: 'messages' }), '/mensagens');
 });
+
+test('evento, comunidade e preferências de notificação têm endereço', () => {
+  assert.equal(caminhoDoEstado({ ...ESTADO_INICIAL, aba: 'events', eventoId: id }), `/eventos/${id}`);
+  assert.equal(estadoDoCaminho(`/eventos/${id}`).eventoId, id);
+  assert.equal(estadoDoCaminho(`/comunidades/${id}`).comunidadeId, id);
+  assert.equal(estadoDoCaminho(`/comunidades/${id}`).aba, 'communities');
+  assert.equal(estadoDoCaminho('/notificacoes/preferencias').aba, 'notification-prefs');
+  assert.equal(estadoDoCaminho('/seguindo').aba, 'following');
+});

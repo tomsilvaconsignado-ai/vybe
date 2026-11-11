@@ -502,5 +502,111 @@ await as(ids.b, `SELECT public.request_avatar_reminder()`);
 await expectFail('membro não dispara a rodada para todos', ids.b, `SELECT public.send_avatar_reminders()`);
 await expectFail('membro não manda lembrete para outra pessoa', ids.b, `SELECT public.send_avatar_reminder($1)`, [ids.v]);
 
+console.log('\nNotificações push');
+const ep = (n) => `https://fcm.googleapis.com/fcm/send/teste-${n}`;
+const chaves = ['BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM', 'tBHItJI5svbpez7KI4CCXg'];
+await expectOk('A registra o celular para push', ids.a, `SELECT public.push_subscribe($1, $2, $3, 'Android · Chrome')`, [ep('a1'), ...chaves]);
+await expectOk('A registra também o computador (vários aparelhos)', ids.a, `SELECT public.push_subscribe($1, $2, $3, 'Windows · Edge')`, [ep('a2'), ...chaves]);
+await expectOk('B registra o celular', ids.b, `SELECT public.push_subscribe($1, $2, $3, 'iPhone · PWA')`, [ep('b1'), ...chaves]);
+await expectFail('endereço de push sem https é recusado', ids.b, `SELECT public.push_subscribe('http://inseguro', $1, $2, 'x')`, chaves);
+await expectFail('ninguém lê as inscrições (chaves) direto', ids.a, `SELECT * FROM push_subscriptions`);
+await expectFail('ninguém mexe na fila de envio', ids.a, `SELECT * FROM push_queue`);
+await expectFail('membro não reserva a fila (só a função do servidor)', ids.a, `SELECT public.push_claim(10)`);
+r = await as(ids.a, `SELECT * FROM public.my_push_devices()`);
+r.rows.length === 2 && !('p256dh' in r.rows[0]) ? ok('a pessoa vê os próprios aparelhos, sem as chaves') : bad('meus aparelhos: ' + JSON.stringify(r.rows));
+r = await as(ids.b, `SELECT * FROM public.my_push_devices()`);
+r.rows.length === 1 ? ok('e só os próprios') : bad('aparelhos de outra pessoa visíveis');
+
+const filaDe = async (uid, tipo) => (await db.query(`SELECT q.status, q.next_attempt_at > now() + interval '1 minute' AS adiado FROM push_queue q JOIN notifications n ON n.id = q.notification_id WHERE n.user_id = $1 AND n.type = $2 ORDER BY q.id`, [uid, tipo])).rows;
+await db.query(`DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2`, [postA, ids.b]);
+await expectOk('B curte o post de A', ids.b, `INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)`, [postA, ids.b]);
+r = await db.query(`SELECT link, category FROM notifications WHERE user_id = $1 AND type = 'like' ORDER BY created_at DESC LIMIT 1`, [ids.a]);
+r.rows[0]?.link === `/publicacao/${postA}` && r.rows[0]?.category === 'likes' ? ok('curtida leva direto à publicação (categoria likes)') : bad('link da curtida: ' + JSON.stringify(r.rows[0]));
+r = await filaDe(ids.a, 'like');
+r.length >= 2 && r.slice(-2).every(x => x.status === 'pending') ? ok('push na fila dos 2 aparelhos de A') : bad('fila da curtida: ' + JSON.stringify(r));
+
+await expectOk('A desliga push de comentários', ids.a, `SELECT public.save_notification_preferences($1)`, [JSON.stringify({ categories: { comments: false } })]);
+await expectOk('B comenta no post de A', ids.b, `INSERT INTO post_comments (post_id, user_id, content) VALUES ($1, $2, 'comentário reservado')`, [postA, ids.b]);
+r = await filaDe(ids.a, 'comment');
+r.length > 0 && r.slice(-2).every(x => x.status === 'skipped') ? ok('preferência desligada: fica só na central, sem push') : bad('preferência ignorada: ' + JSON.stringify(r));
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'comment'`, [ids.a]);
+r.rows[0].n >= 1 ? ok('a notificação interna continua existindo') : bad('central perdeu a notificação');
+
+const agora = (await db.query(`SELECT to_char(now() AT TIME ZONE 'America/Sao_Paulo', 'HH24') AS h`)).rows[0].h;
+const hh = Number(agora);
+const ini = `${String((hh + 23) % 24).padStart(2, '0')}:00`, fim = `${String((hh + 2) % 24).padStart(2, '0')}:00`;
+await expectOk('A liga o horário silencioso agora', ids.a, `SELECT public.save_notification_preferences($1)`, [JSON.stringify({ quiet_start: ini, quiet_end: fim })]);
+await db.query(`DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2`, [postA, ids.b]);
+await expectOk('B curte de novo', ids.b, `INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)`, [postA, ids.b]);
+r = await filaDe(ids.a, 'like');
+r.slice(-2).every(x => x.status === 'pending' && x.adiado) ? ok('horário silencioso: o push fica para o fim do período') : bad('horário silencioso: ' + JSON.stringify(r));
+await expectOk('A silencia por 8 horas', ids.a, `SELECT public.save_notification_preferences($1)`, [JSON.stringify({ muted_until: new Date(Date.now() + 8 * 3600e3).toISOString() })]);
+await db.query(`DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2`, [postA, ids.b]);
+await as(ids.b, `INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)`, [postA, ids.b]);
+r = await filaDe(ids.a, 'like');
+r.slice(-2).every(x => x.status === 'skipped') ? ok('silenciado: nenhum push') : bad('silenciar: ' + JSON.stringify(r));
+await expectOk('A volta ao normal', ids.a, `SELECT public.save_notification_preferences('{}')`);
+
+// mensagens: aviso discreto, um por conversa enquanto não for lido
+await db.query(`DELETE FROM notifications WHERE type IN ('message', 'message_request')`);
+await as(ids.a, `INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, 'primeira mensagem secreta')`, [convAB, ids.a]);
+r = await db.query(`SELECT count(*)::int AS n, max(link) AS link FROM notifications WHERE user_id = $1 AND type = 'message' AND reference_id = $2`, [ids.b, convAB]);
+r.rows[0].n === 1 && r.rows[0].link === `/mensagens/${convAB}` ? ok('mensagem nova avisa o destinatário e leva à conversa') : bad('aviso de mensagem: ' + JSON.stringify(r.rows[0]));
+await as(ids.a, `INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, 'segunda mensagem secreta')`, [convAB, ids.a]);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'message' AND reference_id = $2`, [ids.b, convAB]);
+r.rows[0].n === 1 ? ok('mensagens seguidas não duplicam o aviso') : bad('aviso duplicado: ' + r.rows[0].n);
+await expectOk('B abre a conversa (avisos lidos)', ids.b, `SELECT public.mark_conversation_notifications_read($1)`, [convAB]);
+await as(ids.a, `INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, 'terceira')`, [convAB, ids.a]);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'message' AND reference_id = $2`, [ids.b, convAB]);
+r.rows[0].n === 2 ? ok('depois de lido, nova mensagem avisa de novo') : bad('aviso após leitura: ' + r.rows[0].n);
+
+// conteúdo da tela bloqueada e resultado do envio
+await db.exec('RESET ROLE');
+r = await db.query(`SELECT public.push_claim(200) AS l`);
+const lote = r.rows[0].l;
+const msgB = lote.find(x => x.endpoint === ep('b1') && x.payload.link.startsWith('/mensagens/'));
+msgB && msgB.payload.t === 'Nova mensagem!' && msgB.payload.b === 'Você recebeu uma nova mensagem.' && msgB.payload.link === `/mensagens/${convAB}`
+  && !JSON.stringify(lote).includes('secreta') && !JSON.stringify(lote).includes('reservado') && !JSON.stringify(lote).includes('ALICE')
+  ? ok('tela bloqueada discreta: sem conteúdo nem nome (padrão), com o link certo') : bad('payload: ' + JSON.stringify(msgB));
+(await db.query(`SELECT public.push_claim(200) AS l`)).rows[0].l.length === 0 ? ok('o que está sendo enviado não é reservado de novo') : bad('reserva duplicada');
+const [okItem, goneItem, erroItem] = lote;
+await db.query(`SELECT public.push_complete($1)`, [JSON.stringify([{ id: okItem.id, ok: true, status: 201 }, { id: goneItem.id, ok: false, status: 410, error: 'Gone' }, { id: erroItem.id, ok: false, status: 503, error: 'indisponível' }])]);
+r = await db.query(`SELECT id, status FROM push_queue WHERE id = ANY($1::bigint[])`, [[okItem.id, goneItem.id, erroItem.id]]);
+const stFila = Object.fromEntries(r.rows.map(x => [x.id, x.status]));
+stFila[okItem.id] === 'sent' && stFila[goneItem.id] === 'skipped' && stFila[erroItem.id] === 'pending' ? ok('enviado, expirado (descartado) e falha temporária (nova tentativa)') : bad("resultado: " + JSON.stringify(stFila));
+r = await db.query(`SELECT active FROM push_subscriptions WHERE endpoint = $1`, [goneItem.endpoint]);
+r.rows[0].active === false ? ok('aparelho expirado (410) é desativado') : bad('inscrição inválida continua ativa');
+for (let i = 0; i < 5; i++) {
+  await db.query(`UPDATE push_queue SET status = 'sending', attempts = attempts + 1 WHERE id = $1`, [erroItem.id]);
+  await db.query(`SELECT public.push_complete($1)`, [JSON.stringify([{ id: erroItem.id, ok: false, status: 503, error: 'indisponível' }])]);
+}
+r = await db.query(`SELECT status, error FROM push_queue WHERE id = $1`, [erroItem.id]);
+r.rows[0].status === 'failed' && r.rows[0].error ? ok('depois de 5 tentativas a falha fica registrada') : bad('retentativas: ' + JSON.stringify(r.rows[0]));
+
+await expectOk('A revoga o computador', ids.a, `SELECT public.push_unsubscribe(NULL, $1)`, [ep('a2')]);
+r = await db.query(`SELECT active FROM push_subscriptions WHERE endpoint = $1`, [ep('a2')]);
+r.rows[0].active === false ? ok('aparelho revogado não recebe mais') : bad('revogação falhou');
+
+// limite contra abuso
+await db.query(`INSERT INTO notifications (user_id, actor_id, type, title, message, reference_id) SELECT $1, $2, 'follow', 't', 'm', g::text FROM generate_series(1, 40) g`, [ids.b, ids.a]);
+r = await db.query(`SELECT count(*) FILTER (WHERE q.status = 'skipped' AND q.error = 'limite de envio')::int AS n FROM push_queue q JOIN notifications n ON n.id = q.notification_id WHERE n.user_id = $1`, [ids.b]);
+r.rows[0].n > 0 ? ok('rajada de notificações: o excesso não vira push (limite de envio)') : bad('sem limite de envio');
+
+// comunicados
+await expectFail('membro não envia comunicado', ids.a, `SELECT public.admin_create_broadcast('Aviso', 'Manutenção hoje', 'all', NULL, NULL, NULL, 'teste de aviso')`);
+await expectFail('superadmin sem MFA não envia', ids.admin, `SELECT public.admin_create_broadcast('Aviso', 'Manutenção hoje', 'all', NULL, NULL, NULL, 'teste de aviso')`);
+await expectFail('destino externo é recusado', ids.admin, `SELECT public.admin_create_broadcast('Aviso', 'Manutenção hoje', 'all', NULL, 'https://evil.example', NULL, 'teste de aviso')`, [], 'aal2');
+r = await expectOk('superadmin (MFA) envia comunicado a todos', ids.admin, `SELECT public.admin_create_broadcast('Manutenção programada', 'O Vybelog terá manutenção às 3h.', 'all', NULL, '/notificacoes', NULL, 'aviso de manutenção') AS id`, [], 'aal2');
+const totalAtivos = (await db.query(`SELECT count(*)::int AS n FROM profiles WHERE status::text <> 'suspended'`)).rows[0].n;
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE type = 'admin_broadcast'`);
+r.rows[0].n === totalAtivos ? ok(`comunicado chegou à central de todos (${totalAtivos})`) : bad('comunicado: ' + r.rows[0].n + ' de ' + totalAtivos);
+await db.query(`UPDATE admin_broadcasts SET sent_at = NULL`);
+await db.query(`SELECT public.dispatch_broadcasts()`);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE type = 'admin_broadcast'`);
+r.rows[0].n === totalAtivos ? ok('reprocessar o comunicado não duplica') : bad('comunicado duplicado: ' + r.rows[0].n);
+r = await expectOk('equipe vê o histórico com o resultado', ids.admin, `SELECT * FROM public.admin_broadcast_history()`, [], 'aal2');
+r && r.rows.length === 1 ? ok('histórico de comunicados') : bad('histórico');
+await expectFail('membro não vê o histórico', ids.a, `SELECT * FROM public.admin_broadcast_history()`);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

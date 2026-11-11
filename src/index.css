@@ -211,3 +211,12 @@ video {
   box-shadow: 0 0 25px -5px rgba(168, 85, 247, 0.35);
 }
 
+
+/* Entrada suave de cartões flutuantes (convite de notificações) */
+@keyframes vybe-sobe {
+  from { opacity: 0; transform: translateY(16px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-[vybe-sobe"] { animation: none !important; }
+}

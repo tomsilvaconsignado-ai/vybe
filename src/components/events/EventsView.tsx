@@ -13,10 +13,12 @@ import { useEstadoSalvo } from '../../lib/estadoSalvo';
 type Filter = 'upcoming' | 'city' | 'going' | 'mine';
 
 export const EventsView: React.FC = () => {
-  const { events, currentUser, refreshEvents } = useApp();
+  const { events, currentUser, refreshEvents, selectedEventId, setSelectedEventId } = useApp();
   const [filter, setFilter] = useEstadoSalvo<Filter>('eventos.filtro', 'upcoming');
   const [submitOpen, setSubmitOpen] = useState(false);
-  const [openEvent, setOpenEvent] = useState<VybeEvent | null>(null);
+  // evento aberto vem do endereço (/eventos/<id>): F5, link compartilhado e notificação abrem direto
+  const openEvent = selectedEventId ? events.find(e => e.id === selectedEventId) ?? null : null;
+  const setOpenEvent = (e: VybeEvent | null) => setSelectedEventId(e?.id ?? null);
   const [artFullscreen, setArtFullscreen] = useState(false);
   const [showHidden, setShowHidden] = useEstadoSalvo('eventos.ocultos', false);
 

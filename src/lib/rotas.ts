@@ -7,10 +7,13 @@ export interface EstadoTela {
   conversaId: string | null;         // conversa aberta
   admin: boolean;                    // painel administrativo
   postId: string | null;             // publicação aberta por link
+  eventoId: string | null;           // evento aberto
+  comunidadeId: string | null;       // comunidade aberta
 }
 
 const ABA_PARA_CAMINHO: Record<string, string> = {
   feed: '/',
+  following: '/seguindo',
   discover: '/descobrir',
   couples: '/casais',
   singles: '/solteiros',
@@ -20,6 +23,7 @@ const ABA_PARA_CAMINHO: Record<string, string> = {
   connections: '/conexoes',
   messages: '/mensagens',
   notifications: '/notificacoes',
+  'notification-prefs': '/notificacoes/preferencias',
   profile: '/perfil',
   settings: '/configuracoes',
 };
@@ -31,7 +35,7 @@ const limpar = (caminho: string) => {
   return c === '' ? '/' : c;
 };
 
-export const ESTADO_INICIAL: EstadoTela = { aba: 'feed', perfilId: null, conversaId: null, admin: false, postId: null };
+export const ESTADO_INICIAL: EstadoTela = { aba: 'feed', perfilId: null, conversaId: null, admin: false, postId: null, eventoId: null, comunidadeId: null };
 
 /** Caminho que representa a tela atual */
 export function caminhoDoEstado(e: EstadoTela): string {
@@ -39,6 +43,8 @@ export function caminhoDoEstado(e: EstadoTela): string {
   if (e.postId) return `/publicacao/${e.postId}`;
   if (e.aba === 'profile' && e.perfilId) return `/perfil/${e.perfilId}`;
   if (e.aba === 'messages' && e.conversaId) return `/mensagens/${e.conversaId}`;
+  if (e.aba === 'events' && e.eventoId) return `/eventos/${e.eventoId}`;
+  if (e.aba === 'communities' && e.comunidadeId) return `/comunidades/${e.comunidadeId}`;
   return ABA_PARA_CAMINHO[e.aba] ?? '/';
 }
 
@@ -48,18 +54,29 @@ export function estadoDoCaminho(caminho: string, busca = ''): EstadoTela & { val
   const postAntigo = new URLSearchParams(busca).get('post');
   if (postAntigo && ID.test(postAntigo)) return { ...ESTADO_INICIAL, postId: postAntigo, valido: true };
   if (c === '/admin') return { ...ESTADO_INICIAL, admin: true, valido: true };
+  const aba = CAMINHO_PARA_ABA[c];
+  if (aba) return { ...ESTADO_INICIAL, aba, valido: true };
   const partes = c.split('/').filter(Boolean);
   if (partes.length === 2 && ID.test(partes[1]!)) {
-    if (partes[0] === 'perfil') return { ...ESTADO_INICIAL, aba: 'profile', perfilId: partes[1]!, valido: true };
-    if (partes[0] === 'mensagens') return { ...ESTADO_INICIAL, aba: 'messages', conversaId: partes[1]!, valido: true };
-    if (partes[0] === 'publicacao') return { ...ESTADO_INICIAL, postId: partes[1]!, valido: true };
+    const id = partes[1]!;
+    switch (partes[0]) {
+      case 'perfil': return { ...ESTADO_INICIAL, aba: 'profile', perfilId: id, valido: true };
+      case 'mensagens': return { ...ESTADO_INICIAL, aba: 'messages', conversaId: id, valido: true };
+      case 'publicacao': return { ...ESTADO_INICIAL, postId: id, valido: true };
+      case 'eventos': return { ...ESTADO_INICIAL, aba: 'events', eventoId: id, valido: true };
+      case 'comunidades': return { ...ESTADO_INICIAL, aba: 'communities', comunidadeId: id, valido: true };
+    }
   }
-  const aba = CAMINHO_PARA_ABA[c];
-  return aba ? { ...ESTADO_INICIAL, aba, valido: true } : { ...ESTADO_INICIAL, valido: c === '/' };
+  return { ...ESTADO_INICIAL, valido: c === '/' };
 }
 
-export const mesmaTela = (a: EstadoTela, b: EstadoTela) => caminhoDoEstado(a) === caminhoDoEstado(b);
+/** Comentário a destacar (?comentario=<id>) quando a notificação aponta para um comentário */
+export const comentarioDoEndereco = (busca: string) => {
+  const id = new URLSearchParams(busca).get('comentario');
+  return id && ID.test(id) ? id : null;
+};
 
-/** Link público de uma publicação */
+/** Link público de uma publicação, perfil ou evento */
 export const linkDaPublicacao = (origem: string, postId: string) => `${origem}/publicacao/${postId}`;
 export const linkDoPerfil = (origem: string, perfilId: string) => `${origem}/perfil/${perfilId}`;
+export const linkDoEvento = (origem: string, eventoId: string) => `${origem}/eventos/${eventoId}`;

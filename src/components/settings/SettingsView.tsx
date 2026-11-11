@@ -26,7 +26,8 @@ export const SettingsView: React.FC = () => {
     unblockUser,
     hasLocation,
     enableLocation,
-    disableLocation
+    disableLocation,
+    setActiveTab
   } = useApp();
 
   const [exporting, setExporting] = useState(false);
@@ -76,7 +77,17 @@ export const SettingsView: React.FC = () => {
       </div>
 
       <div className="space-y-6">
-        
+
+        {/* Atalho: notificações push e preferências */}
+        <button type="button" onClick={() => setActiveTab('notification-prefs')}
+          className="w-full p-5 bg-[#120d20] border border-purple-900/30 rounded-3xl flex items-center gap-4 text-left hover:border-fuchsia-700/50 transition-colors cursor-pointer">
+          <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-fuchsia-600 to-rose-600 flex items-center justify-center shrink-0"><Bell className="w-5 h-5 text-white" /></span>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-white">Preferências de notificações</span>
+            <span className="block text-xs text-zinc-400">Push no celular e no computador, silenciar, horário silencioso e aparelhos conectados.</span>
+          </span>
+        </button>
+
         {/* Section 1: Location & Discretion */}
         <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">

@@ -2729,3 +2729,525 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'Agendamento do lembrete de foto não criado: %', SQLERRM;
 END $$;
+
+-- ==============================================================================
+-- 10. NOTIFICAÇÕES PUSH (Web Push / VAPID)
+-- Cada notificação criada pelo banco (curtida, comentário, seguidor, mensagem, evento...) entra numa
+-- fila por aparelho autorizado, respeitando as preferências (categorias, silenciar, horário silencioso).
+-- A Edge Function "push" envia com a chave VAPID privada (só no servidor) e devolve o resultado.
+-- O conteúdo da tela bloqueada é discreto: nada de texto de mensagem, comentário ou mídia.
+-- ==============================================================================
+
+-- 10.1 Notificação: link de destino, chave anti-duplicidade e texto para a tela bloqueada
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS link TEXT;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS dedupe_key TEXT;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS category VARCHAR(30);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_dedupe ON public.notifications(user_id, dedupe_key) WHERE dedupe_key IS NOT NULL;
+
+-- Categoria (preferências) e destino de cada tipo de notificação
+CREATE OR REPLACE FUNCTION public.notification_category(p_type TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN p_type = 'follow' THEN 'follows'
+    WHEN p_type IN ('like', 'comment_like') THEN 'likes'
+    WHEN p_type IN ('comment', 'event_comment') THEN 'comments'
+    WHEN p_type = 'comment_reply' THEN 'replies'
+    WHEN p_type = 'mention' THEN 'mentions'
+    WHEN p_type IN ('message', 'message_request') THEN 'messages'
+    WHEN p_type IN ('connection_request', 'connection_accepted') THEN 'connections'
+    WHEN p_type LIKE 'group\_%' OR p_type LIKE 'community\_%' THEN 'groups'
+    WHEN p_type LIKE 'event\_%' THEN 'events'
+    WHEN p_type IN ('vault_access_request', 'vault_access_granted') THEN 'vault'
+    WHEN p_type = 'admin_broadcast' THEN 'announcements'
+    WHEN p_type IN ('system_safety', 'security_alert') THEN 'essential'
+    ELSE 'other'
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.notification_link(p_type TEXT, p_ref TEXT, p_actor UUID)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT CASE
+    WHEN p_ref IS NULL OR p_ref = '' THEN '/notificacoes'
+    WHEN p_type IN ('like', 'comment', 'comment_reply', 'mention', 'comment_like') THEN '/publicacao/' || split_part(p_ref, '#', 1)
+      || CASE WHEN position('#' IN p_ref) > 0 THEN '?comentario=' || split_part(p_ref, '#', 2) ELSE '' END
+    WHEN p_type IN ('follow', 'connection_request', 'connection_accepted') THEN '/perfil/' || p_ref
+    WHEN p_type IN ('message', 'message_request') THEN '/mensagens/' || p_ref
+    WHEN p_type LIKE 'event\_%' THEN '/eventos/' || p_ref
+    WHEN p_type LIKE 'group\_%' OR p_type LIKE 'community\_%' THEN '/comunidades/' || p_ref
+    WHEN p_type = 'vault_access_request' THEN '/perfil'
+    WHEN p_type = 'vault_access_granted' AND p_actor IS NOT NULL THEN '/perfil/' || p_actor
+    WHEN p_type = 'profile_photo_reminder' THEN '/perfil'
+    ELSE '/notificacoes'
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.notifications_fill() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.category := coalesce(NEW.category, public.notification_category(NEW.type));
+  NEW.link := coalesce(NEW.link, public.notification_link(NEW.type, NEW.reference_id, NEW.actor_id));
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS notifications_fill ON public.notifications;
+CREATE TRIGGER notifications_fill BEFORE INSERT ON public.notifications
+  FOR EACH ROW EXECUTE FUNCTION public.notifications_fill();
+
+-- notificações já existentes: categoria e destino (só preenche o que está vazio)
+UPDATE public.notifications SET category = public.notification_category(type) WHERE category IS NULL;
+UPDATE public.notifications SET link = public.notification_link(type, reference_id, actor_id) WHERE link IS NULL;
+
+-- 10.2 Preferências por pessoa
+CREATE TABLE IF NOT EXISTS public.notification_preferences (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  categories JSONB NOT NULL DEFAULT '{}',          -- {"likes": false, ...}; ausente = ligado
+  muted_until TIMESTAMPTZ,                          -- silenciar temporariamente
+  quiet_start TIME,                                 -- horário silencioso (ex.: 23:00)
+  quiet_end TIME,                                   -- (ex.: 07:00); atravessa a meia-noite
+  timezone TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+  show_names BOOLEAN NOT NULL DEFAULT false,        -- nomes na tela bloqueada (padrão: discreto)
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.notification_preferences ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS notification_preferences_own ON public.notification_preferences;
+CREATE POLICY notification_preferences_own ON public.notification_preferences FOR SELECT TO authenticated USING (user_id = auth.uid());
+REVOKE INSERT, UPDATE, DELETE ON public.notification_preferences FROM authenticated, anon;
+REVOKE ALL ON public.notification_preferences FROM anon;
+
+-- 10.3 Aparelhos inscritos (um por navegador/aparelho; vários por pessoa)
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE CHECK (endpoint ~ '^https://'),
+  p256dh TEXT NOT NULL CHECK (length(p256dh) BETWEEN 40 AND 200),
+  auth TEXT NOT NULL CHECK (length(auth) BETWEEN 10 AND 100),
+  device_label VARCHAR(120),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_success_at TIMESTAMPTZ,
+  active BOOLEAN NOT NULL DEFAULT true,
+  failures INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON public.push_subscriptions(user_id) WHERE active;
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.push_subscriptions FROM anon, authenticated;   -- chaves nunca saem para a tela
+
+-- 10.4 Fila de envio (uma linha por notificação × aparelho)
+CREATE TABLE IF NOT EXISTS public.push_queue (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  notification_id UUID NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE,
+  subscription_id UUID NOT NULL REFERENCES public.push_subscriptions(id) ON DELETE CASCADE,
+  status VARCHAR(12) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'skipped')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  claimed_at TIMESTAMPTZ,
+  sent_at TIMESTAMPTZ,
+  http_status INTEGER,
+  error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (notification_id, subscription_id)
+);
+CREATE INDEX IF NOT EXISTS idx_push_queue_due ON public.push_queue(next_attempt_at) WHERE status IN ('pending', 'sending');
+ALTER TABLE public.push_queue ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.push_queue FROM anon, authenticated;
+
+-- Configuração pública (chave VAPID pública, lida pelo app)
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  key VARCHAR(60) PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS app_settings_public_read ON public.app_settings;
+CREATE POLICY app_settings_public_read ON public.app_settings FOR SELECT TO authenticated USING (key LIKE 'public.%');
+REVOKE INSERT, UPDATE, DELETE ON public.app_settings FROM anon, authenticated;
+
+-- 10.5 Regras de envio
+-- A pessoa quer push desta categoria agora? Devolve o momento de envio (adiado no horário silencioso)
+-- ou NULL para não enviar. Categoria "essential" (segurança da conta) ignora as preferências.
+CREATE OR REPLACE FUNCTION public.push_send_time(p_user UUID, p_category TEXT)
+RETURNS TIMESTAMPTZ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  pref public.notification_preferences;
+  local_now TIMESTAMP;
+  t TIME;
+  fim TIMESTAMP;
+BEGIN
+  SELECT * INTO pref FROM public.notification_preferences WHERE user_id = p_user;
+  IF p_category = 'essential' OR pref.user_id IS NULL THEN RETURN now(); END IF;
+  IF coalesce((pref.categories ->> p_category)::boolean, true) = false THEN RETURN NULL; END IF;
+  IF pref.muted_until IS NOT NULL AND pref.muted_until > now() THEN RETURN NULL; END IF;
+  IF pref.quiet_start IS NULL OR pref.quiet_end IS NULL OR pref.quiet_start = pref.quiet_end THEN RETURN now(); END IF;
+  local_now := now() AT TIME ZONE pref.timezone;
+  t := local_now::time;
+  IF (pref.quiet_start < pref.quiet_end AND t >= pref.quiet_start AND t < pref.quiet_end)
+     OR (pref.quiet_start > pref.quiet_end AND (t >= pref.quiet_start OR t < pref.quiet_end)) THEN
+    fim := local_now::date + pref.quiet_end;
+    IF fim <= local_now THEN fim := fim + INTERVAL '1 day'; END IF;
+    RETURN fim AT TIME ZONE pref.timezone;   -- entrega ao fim do horário silencioso
+  END IF;
+  RETURN now();
+END;
+$$;
+
+-- Texto da tela bloqueada: discreto por padrão; com "mostrar nomes", cita quem agiu (nunca o conteúdo)
+CREATE OR REPLACE FUNCTION public.push_text(p_type TEXT, p_actor UUID, p_user UUID, p_title TEXT, p_message TEXT)
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  nomes BOOLEAN := coalesce((SELECT show_names FROM public.notification_preferences WHERE user_id = p_user), false);
+  quem TEXT := CASE WHEN nomes AND p_actor IS NOT NULL THEN (SELECT display_name FROM public.profiles WHERE id = p_actor) END;
+BEGIN
+  RETURN CASE
+    WHEN p_type = 'follow' THEN jsonb_build_object('t', 'Novo seguidor!', 'b', coalesce(quem || ' começou a seguir você no Vybelog.', 'Você tem um novo seguidor no Vybelog.'))
+    WHEN p_type = 'like' THEN jsonb_build_object('t', 'Nova curtida!', 'b', coalesce(quem || ' curtiu sua publicação.', 'Alguém curtiu sua publicação.'))
+    WHEN p_type IN ('comment', 'event_comment') THEN jsonb_build_object('t', 'Nova interação!', 'b', coalesce(quem || ' comentou na sua publicação.', 'Há um novo comentário para você.'))
+    WHEN p_type = 'comment_reply' THEN jsonb_build_object('t', 'Nova resposta!', 'b', coalesce(quem || ' respondeu ao seu comentário.', 'Responderam ao seu comentário.'))
+    WHEN p_type = 'mention' THEN jsonb_build_object('t', 'Você foi mencionado!', 'b', coalesce(quem || ' mencionou você.', 'Mencionaram você em uma publicação.'))
+    WHEN p_type = 'message' THEN jsonb_build_object('t', 'Nova mensagem!', 'b', coalesce('Você recebeu uma nova mensagem de ' || quem || '.', 'Você recebeu uma nova mensagem.'))
+    WHEN p_type = 'message_request' THEN jsonb_build_object('t', 'Novo pedido de mensagem', 'b', 'Alguém quer conversar com você.')
+    WHEN p_type = 'connection_request' THEN jsonb_build_object('t', 'Pedido de conexão', 'b', coalesce(quem || ' quer se conectar com você.', 'Você recebeu um pedido de conexão.'))
+    WHEN p_type = 'connection_accepted' THEN jsonb_build_object('t', 'Conexão aceita!', 'b', coalesce(quem || ' aceitou sua conexão.', 'Um pedido de conexão foi aceito.'))
+    WHEN p_type LIKE 'vault\_%' THEN jsonb_build_object('t', 'Cofre privado', 'b', 'Há uma novidade no seu cofre privado.')
+    WHEN p_type LIKE 'event\_%' THEN jsonb_build_object('t', 'Eventos', 'b', 'Há uma novidade em um evento.')
+    WHEN p_type LIKE 'group\_%' OR p_type LIKE 'community\_%' THEN jsonb_build_object('t', 'Comunidades', 'b', 'Há uma novidade em uma comunidade.')
+    WHEN p_type = 'admin_broadcast' THEN jsonb_build_object('t', left(p_title, 80), 'b', left(p_message, 160))
+    ELSE jsonb_build_object('t', 'Vybelog', 'b', 'Você tem uma nova notificação.')
+  END;
+END;
+$$;
+
+-- Cada notificação nova entra na fila dos aparelhos ativos da pessoa (com limite contra abuso)
+CREATE OR REPLACE FUNCTION public.push_enqueue() RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE n INTEGER;
+BEGIN
+  INSERT INTO public.push_queue (notification_id, subscription_id, next_attempt_at, status, error)
+  SELECT x.id, s.id, coalesce(x.quando, now()),
+         CASE WHEN x.quando IS NULL THEN 'skipped'
+              WHEN x.recentes >= 30 AND x.category <> 'essential' THEN 'skipped' ELSE 'pending' END,
+         CASE WHEN x.quando IS NULL THEN 'preferências' WHEN x.recentes >= 30 AND x.category <> 'essential' THEN 'limite de envio' END
+    FROM (SELECT nn.id, nn.user_id, nn.category, public.push_send_time(nn.user_id, nn.category) AS quando,
+                 (SELECT count(*) FROM public.push_queue q JOIN public.notifications o ON o.id = q.notification_id
+                   WHERE o.user_id = nn.user_id AND q.created_at > now() - INTERVAL '10 minutes' AND q.status <> 'skipped')
+                 + row_number() OVER (PARTITION BY nn.user_id ORDER BY nn.created_at, nn.id) - 1 AS recentes
+            FROM novas nn) x
+    JOIN public.push_subscriptions s ON s.user_id = x.user_id AND s.active
+  ON CONFLICT DO NOTHING;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  IF n > 0 THEN PERFORM public.push_wake(); END IF;
+  RETURN NULL;
+END;
+$$;
+
+-- Acorda a Edge Function (pg_net, depois do commit). Sem pg_net/segredo: o agendamento de 1 min envia.
+CREATE OR REPLACE FUNCTION public.push_wake() RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE url TEXT; segredo TEXT;
+BEGIN
+  IF to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') IS NULL THEN RETURN; END IF;
+  SELECT value INTO url FROM public.app_settings WHERE key = 'push.function_url';
+  IF url IS NULL THEN RETURN; END IF;
+  BEGIN
+    EXECUTE 'SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = $1' INTO segredo USING 'vybelog_push_secret';
+  EXCEPTION WHEN OTHERS THEN segredo := NULL;
+  END;
+  IF segredo IS NULL THEN RETURN; END IF;
+  EXECUTE 'SELECT net.http_post(url := $1, body := $2, headers := $3, timeout_milliseconds := 30000)'
+    USING url, '{}'::jsonb, jsonb_build_object('Content-Type', 'application/json', 'x-push-secret', segredo);
+EXCEPTION WHEN OTHERS THEN NULL;   -- o envio nunca derruba a ação que gerou a notificação
+END;
+$$;
+
+DROP TRIGGER IF EXISTS notifications_push ON public.notifications;
+CREATE TRIGGER notifications_push AFTER INSERT ON public.notifications REFERENCING NEW TABLE AS novas
+  FOR EACH STATEMENT EXECUTE FUNCTION public.push_enqueue();
+
+-- 10.6 Mensagens privadas avisam o destinatário (sem o conteúdo). Conversa silenciada não avisa;
+-- várias mensagens seguidas da mesma conversa viram um aviso só enquanto não for lido.
+CREATE OR REPLACE FUNCTION public.notify_on_message() RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  dest RECORD;
+  pendente BOOLEAN;
+  nome TEXT;
+BEGIN
+  SELECT is_pending_request INTO pendente FROM public.conversations WHERE id = NEW.conversation_id;
+  SELECT display_name INTO nome FROM public.profiles WHERE id = NEW.sender_id;
+  FOR dest IN
+    SELECT cp.user_id FROM public.conversation_participants cp
+     WHERE cp.conversation_id = NEW.conversation_id AND cp.user_id <> NEW.sender_id AND NOT cp.is_muted
+       AND NOT public.is_blocked_between(cp.user_id, NEW.sender_id)
+  LOOP
+    IF EXISTS (SELECT 1 FROM public.notifications
+                WHERE user_id = dest.user_id AND type IN ('message', 'message_request') AND reference_id = NEW.conversation_id::text AND NOT read) THEN
+      CONTINUE;
+    END IF;
+    INSERT INTO public.notifications (user_id, actor_id, type, title, message, reference_id)
+    VALUES (dest.user_id, NEW.sender_id, CASE WHEN pendente THEN 'message_request' ELSE 'message' END,
+            CASE WHEN pendente THEN 'Novo pedido de mensagem' ELSE 'Nova mensagem' END,
+            'Você recebeu uma nova mensagem de ' || coalesce(nome, 'um membro') || '.', NEW.conversation_id::text);
+  END LOOP;
+  RETURN NULL;
+END;
+$$;
+DROP TRIGGER IF EXISTS notify_messages ON public.messages;
+CREATE TRIGGER notify_messages AFTER INSERT ON public.messages
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_message();
+
+-- Abrir a conversa marca os avisos dela como lidos
+CREATE OR REPLACE FUNCTION public.mark_conversation_notifications_read(conv UUID)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.notifications SET read = true
+   WHERE user_id = auth.uid() AND type IN ('message', 'message_request') AND reference_id = conv::text AND NOT read;
+$$;
+
+-- 10.7 Funções do app (a própria pessoa)
+CREATE OR REPLACE FUNCTION public.push_subscribe(p_endpoint TEXT, p_p256dh TEXT, p_auth TEXT, p_device TEXT)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v UUID;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
+  INSERT INTO public.push_subscriptions (user_id, endpoint, p256dh, auth, device_label)
+  VALUES (auth.uid(), p_endpoint, p_p256dh, p_auth, left(p_device, 120))
+  ON CONFLICT (endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth,
+    device_label = excluded.device_label, active = true, failures = 0, updated_at = now()
+  RETURNING id INTO v;
+  RETURN v;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.push_unsubscribe(p_id UUID DEFAULT NULL, p_endpoint TEXT DEFAULT NULL)
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE n INTEGER;
+BEGIN
+  UPDATE public.push_subscriptions SET active = false, updated_at = now()
+   WHERE user_id = auth.uid() AND active AND (id = p_id OR endpoint = p_endpoint);
+  GET DIAGNOSTICS n = ROW_COUNT;
+  UPDATE public.push_queue SET status = 'skipped', error = 'aparelho removido'
+   WHERE status IN ('pending', 'sending') AND subscription_id IN (SELECT id FROM public.push_subscriptions WHERE user_id = auth.uid() AND NOT active);
+  RETURN n;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.my_push_devices()
+RETURNS TABLE (id UUID, device_label TEXT, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ, last_success_at TIMESTAMPTZ, active BOOLEAN, endpoint_tail TEXT)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT s.id, s.device_label::text, s.created_at, s.updated_at, s.last_success_at, s.active, right(s.endpoint, 16)
+    FROM public.push_subscriptions s
+   WHERE s.user_id = auth.uid() AND (s.active OR s.updated_at > now() - INTERVAL '30 days')
+   ORDER BY s.active DESC, s.updated_at DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION public.save_notification_preferences(p JSONB)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
+  INSERT INTO public.notification_preferences (user_id, categories, muted_until, quiet_start, quiet_end, timezone, show_names, updated_at)
+  VALUES (auth.uid(), coalesce(p -> 'categories', '{}'), nullif(p ->> 'muted_until', '')::timestamptz,
+          nullif(p ->> 'quiet_start', '')::time, nullif(p ->> 'quiet_end', '')::time,
+          coalesce(nullif(p ->> 'timezone', ''), 'America/Sao_Paulo'), coalesce((p ->> 'show_names')::boolean, false), now())
+  ON CONFLICT (user_id) DO UPDATE SET categories = excluded.categories, muted_until = excluded.muted_until,
+    quiet_start = excluded.quiet_start, quiet_end = excluded.quiet_end, timezone = excluded.timezone,
+    show_names = excluded.show_names, updated_at = now();
+END;
+$$;
+
+-- 10.8 Fila: usada só pela Edge Function (chave de serviço)
+CREATE OR REPLACE FUNCTION public.push_claim(p_limit INTEGER DEFAULT 50)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v JSONB;
+BEGIN
+  UPDATE public.push_queue SET status = 'pending' WHERE status = 'sending' AND claimed_at < now() - INTERVAL '5 minutes';
+  WITH alvo AS (
+    SELECT q.id FROM public.push_queue q
+     WHERE q.status = 'pending' AND q.next_attempt_at <= now()
+     ORDER BY q.next_attempt_at LIMIT least(greatest(p_limit, 1), 200)
+     FOR UPDATE SKIP LOCKED
+  ), marcados AS (
+    UPDATE public.push_queue q SET status = 'sending', claimed_at = now(), attempts = q.attempts + 1
+      FROM alvo WHERE q.id = alvo.id RETURNING q.*
+  )
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'id', m.id, 'endpoint', s.endpoint, 'p256dh', s.p256dh, 'auth', s.auth,
+      'payload', public.push_text(n.type, n.actor_id, n.user_id, n.title, n.message)
+                 || jsonb_build_object('link', coalesce(n.link, '/notificacoes'), 'tag', coalesce(n.type, 'vybe') || ':' || coalesce(n.reference_id, n.id::text), 'id', n.id))), '[]')
+    INTO v
+    FROM marcados m JOIN public.push_subscriptions s ON s.id = m.subscription_id JOIN public.notifications n ON n.id = m.notification_id;
+  RETURN v;
+END;
+$$;
+
+-- p_results: [{id, ok, status, error}]
+CREATE OR REPLACE FUNCTION public.push_complete(p_results JSONB)
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r JSONB; q public.push_queue; n INTEGER := 0;
+BEGIN
+  FOR r IN SELECT * FROM jsonb_array_elements(p_results) LOOP
+    SELECT * INTO q FROM public.push_queue WHERE id = (r ->> 'id')::bigint;
+    IF q.id IS NULL THEN CONTINUE; END IF;
+    IF (r ->> 'ok')::boolean THEN
+      UPDATE public.push_queue SET status = 'sent', sent_at = now(), http_status = (r ->> 'status')::int, error = NULL WHERE id = q.id;
+      UPDATE public.push_subscriptions SET last_success_at = now(), failures = 0 WHERE id = q.subscription_id;
+    ELSIF (r ->> 'status')::int IN (404, 410) THEN
+      -- inscrição expirada ou revogada no aparelho: desativa e não tenta mais
+      UPDATE public.push_queue SET status = 'skipped', http_status = (r ->> 'status')::int, error = left(r ->> 'error', 300) WHERE id = q.id;
+      UPDATE public.push_subscriptions SET active = false, updated_at = now() WHERE id = q.subscription_id;
+    ELSE
+      UPDATE public.push_queue SET
+        status = CASE WHEN q.attempts >= 5 THEN 'failed' ELSE 'pending' END,
+        next_attempt_at = now() + (CASE q.attempts WHEN 1 THEN 1 WHEN 2 THEN 5 WHEN 3 THEN 15 ELSE 60 END) * INTERVAL '1 minute',
+        http_status = nullif(r ->> 'status', '')::int, error = left(r ->> 'error', 300)
+       WHERE id = q.id;
+      UPDATE public.push_subscriptions SET failures = failures + 1,
+             active = CASE WHEN failures + 1 >= 20 THEN false ELSE active END WHERE id = q.subscription_id;
+    END IF;
+    n := n + 1;
+  END LOOP;
+  RETURN n;
+END;
+$$;
+
+-- Limpeza: fila antiga e aparelhos inativos há muito tempo
+CREATE OR REPLACE FUNCTION public.push_cleanup() RETURNS VOID
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  DELETE FROM public.push_queue WHERE created_at < now() - INTERVAL '30 days';
+  DELETE FROM public.push_subscriptions WHERE NOT active AND updated_at < now() - INTERVAL '90 days';
+$$;
+
+-- 10.9 Comunicados administrativos (avisos da plataforma por push e na central)
+CREATE TABLE IF NOT EXISTS public.admin_broadcasts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(80) NOT NULL CHECK (length(trim(title)) >= 3),
+  body VARCHAR(300) NOT NULL CHECK (length(trim(body)) >= 3),
+  audience VARCHAR(20) NOT NULL CHECK (audience IN ('all', 'active_30d', 'event', 'community', 'verified')),
+  audience_ref UUID,
+  link TEXT,
+  scheduled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sent_at TIMESTAMPTZ,
+  recipients INTEGER,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  cancelled_at TIMESTAMPTZ
+);
+ALTER TABLE public.admin_broadcasts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS admin_broadcasts_staff ON public.admin_broadcasts;
+CREATE POLICY admin_broadcasts_staff ON public.admin_broadcasts FOR SELECT TO authenticated USING (public.is_staff());
+REVOKE INSERT, UPDATE, DELETE ON public.admin_broadcasts FROM anon, authenticated;
+
+-- Dispara os comunicados vencidos (agora ou programados). Público só por critérios não sensíveis.
+CREATE OR REPLACE FUNCTION public.dispatch_broadcasts() RETURNS INTEGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE b public.admin_broadcasts; total INTEGER := 0; n INTEGER;
+BEGIN
+  FOR b IN SELECT * FROM public.admin_broadcasts WHERE sent_at IS NULL AND cancelled_at IS NULL AND scheduled_at <= now() FOR UPDATE SKIP LOCKED LOOP
+    INSERT INTO public.notifications (user_id, actor_id, type, title, message, reference_id, link, dedupe_key)
+    SELECT p.id, NULL, 'admin_broadcast', b.title, b.body, b.id::text, coalesce(b.link, '/notificacoes'), 'broadcast:' || b.id
+      FROM public.profiles p
+     WHERE p.status::text <> 'suspended'
+       AND CASE b.audience
+             WHEN 'all' THEN true
+             WHEN 'active_30d' THEN EXISTS (SELECT 1 FROM public.user_presence up WHERE up.user_id = p.id AND up.last_seen_at > now() - INTERVAL '30 days')
+             WHEN 'verified' THEN coalesce(p.is_verified, false)
+             WHEN 'event' THEN EXISTS (SELECT 1 FROM public.event_attendees ea WHERE ea.event_id = b.audience_ref AND ea.user_id = p.id AND ea.status IN ('going', 'interested'))
+             WHEN 'community' THEN EXISTS (SELECT 1 FROM public.community_members cm WHERE cm.community_id = b.audience_ref AND cm.user_id = p.id)
+           END
+    ON CONFLICT DO NOTHING;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    UPDATE public.admin_broadcasts SET sent_at = now(), recipients = n WHERE id = b.id;
+    total := total + n;
+  END LOOP;
+  RETURN total;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_create_broadcast(p_title TEXT, p_body TEXT, p_audience TEXT, p_ref UUID, p_link TEXT, p_when TIMESTAMPTZ, justification TEXT)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v UUID;
+BEGIN
+  IF NOT public.is_superadmin() THEN RAISE EXCEPTION 'Somente o superadministrador (com MFA) envia comunicados.'; END IF;
+  IF coalesce(length(trim(justification)), 0) < 5 THEN RAISE EXCEPTION 'Informe a justificativa do comunicado.'; END IF;
+  IF p_link IS NOT NULL AND p_link !~ '^/[a-z0-9/_-]*$' THEN RAISE EXCEPTION 'O destino precisa ser um endereço interno do Vybelog.'; END IF;
+  INSERT INTO public.admin_broadcasts (title, body, audience, audience_ref, link, scheduled_at, created_by)
+  VALUES (trim(p_title), trim(p_body), p_audience, p_ref, p_link, coalesce(p_when, now()), auth.uid())
+  RETURNING id INTO v;
+  INSERT INTO public.admin_audit_logs (admin_id, admin_role, action, target_type, target_id, reason)
+  VALUES (auth.uid(), public.admin_role_of(auth.uid()), 'broadcast_created', 'broadcast', v::text, trim(justification));
+  IF coalesce(p_when, now()) <= now() THEN PERFORM public.dispatch_broadcasts(); END IF;
+  RETURN v;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_cancel_broadcast(p_id UUID, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_superadmin() THEN RAISE EXCEPTION 'Somente o superadministrador (com MFA).'; END IF;
+  UPDATE public.admin_broadcasts SET cancelled_at = now() WHERE id = p_id AND sent_at IS NULL;
+  INSERT INTO public.admin_audit_logs (admin_id, admin_role, action, target_type, target_id, reason)
+  VALUES (auth.uid(), public.admin_role_of(auth.uid()), 'broadcast_cancelled', 'broadcast', p_id::text, coalesce(nullif(trim(justification), ''), 'Comunicado cancelado'));
+END;
+$$;
+
+-- Histórico com o resultado do envio (equipe administrativa)
+CREATE OR REPLACE FUNCTION public.admin_broadcast_history()
+RETURNS TABLE (id UUID, title TEXT, body TEXT, audience TEXT, scheduled_at TIMESTAMPTZ, sent_at TIMESTAMPTZ, cancelled_at TIMESTAMPTZ,
+               recipients INTEGER, read_count BIGINT, push_sent BIGINT, push_failed BIGINT, push_pending BIGINT)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
+  RETURN QUERY
+    SELECT b.id, b.title::text, b.body::text, b.audience::text, b.scheduled_at, b.sent_at, b.cancelled_at, b.recipients,
+           (SELECT count(*) FROM public.notifications n WHERE n.dedupe_key = 'broadcast:' || b.id AND n.read),
+           (SELECT count(*) FROM public.push_queue q JOIN public.notifications n ON n.id = q.notification_id WHERE n.dedupe_key = 'broadcast:' || b.id AND q.status = 'sent'),
+           (SELECT count(*) FROM public.push_queue q JOIN public.notifications n ON n.id = q.notification_id WHERE n.dedupe_key = 'broadcast:' || b.id AND q.status = 'failed'),
+           (SELECT count(*) FROM public.push_queue q JOIN public.notifications n ON n.id = q.notification_id WHERE n.dedupe_key = 'broadcast:' || b.id AND q.status IN ('pending', 'sending'))
+      FROM public.admin_broadcasts b ORDER BY b.created_at DESC LIMIT 100;
+END;
+$$;
+
+-- Painel do push (equipe): aparelhos, envios e falhas recentes
+CREATE OR REPLACE FUNCTION public.admin_push_stats()
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
+  RETURN jsonb_build_object(
+    'devices', (SELECT count(*) FROM public.push_subscriptions WHERE active),
+    'users_with_push', (SELECT count(DISTINCT user_id) FROM public.push_subscriptions WHERE active),
+    'sent_7d', (SELECT count(*) FROM public.push_queue WHERE status = 'sent' AND sent_at > now() - INTERVAL '7 days'),
+    'failed_7d', (SELECT count(*) FROM public.push_queue WHERE status = 'failed' AND created_at > now() - INTERVAL '7 days'),
+    'pending', (SELECT count(*) FROM public.push_queue WHERE status IN ('pending', 'sending')),
+    'last_errors', coalesce((SELECT jsonb_agg(x) FROM (SELECT q.created_at, q.http_status, q.error FROM public.push_queue q WHERE q.status = 'failed' ORDER BY q.created_at DESC LIMIT 10) x), '[]'));
+END;
+$$;
+
+-- 10.10 Permissões das funções
+REVOKE EXECUTE ON FUNCTION public.push_send_time(UUID, TEXT), public.push_text(TEXT, UUID, UUID, TEXT, TEXT), public.push_enqueue(), public.push_wake(),
+  public.notify_on_message(), public.push_claim(INTEGER), public.push_complete(JSONB), public.push_cleanup(), public.dispatch_broadcasts(),
+  public.notifications_fill()
+  FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.push_subscribe(TEXT, TEXT, TEXT, TEXT), public.push_unsubscribe(UUID, TEXT), public.my_push_devices(),
+  public.save_notification_preferences(JSONB), public.mark_conversation_notifications_read(UUID),
+  public.admin_create_broadcast(TEXT, TEXT, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT), public.admin_cancel_broadcast(UUID, TEXT),
+  public.admin_broadcast_history(), public.admin_push_stats()
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.push_subscribe(TEXT, TEXT, TEXT, TEXT), public.push_unsubscribe(UUID, TEXT), public.my_push_devices(),
+  public.save_notification_preferences(JSONB), public.mark_conversation_notifications_read(UUID),
+  public.admin_create_broadcast(TEXT, TEXT, TEXT, UUID, TEXT, TIMESTAMPTZ, TEXT), public.admin_cancel_broadcast(UUID, TEXT),
+  public.admin_broadcast_history(), public.admin_push_stats()
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION public.push_claim(INTEGER), public.push_complete(JSONB) TO service_role;
+
+-- 10.11 Agendamentos: novas tentativas (1 min), comunicados programados (1 min) e limpeza (diária)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_net') THEN
+    CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
+    CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
+    PERFORM cron.schedule('vybelog-push-fila', '* * * * *',
+      $c$SELECT public.dispatch_broadcasts(); SELECT public.push_wake() WHERE EXISTS (SELECT 1 FROM public.push_queue WHERE status = 'pending' AND next_attempt_at <= now())$c$);
+    PERFORM cron.schedule('vybelog-push-limpeza', '30 6 * * *', 'SELECT public.push_cleanup()');
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Agendamentos do push não criados: %', SQLERRM;
+END $$;
