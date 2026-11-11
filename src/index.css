@@ -42,7 +42,8 @@ button:not(:disabled):active {
 
 /* Entrada suave ao trocar de tela */
 .tela-entrada {
-  animation: tela-entrada 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* sem "both": depois de terminar a animação some e não prende janelas fixas numa camada abaixo do menu */
+  animation: tela-entrada 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 @keyframes tela-entrada {
   from { opacity: 0; }

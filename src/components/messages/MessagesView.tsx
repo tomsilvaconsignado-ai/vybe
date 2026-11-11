@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../../context/AppContext';
 import {
   MessageSquare,
@@ -88,6 +89,8 @@ export const MessagesView: React.FC = () => {
   // Conversa em tela cheia no celular (sem a barra de navegação), acompanhando o teclado
   const telaCheia = celular && Boolean(selectedConversationId && activeConv);
   const alturaVisivel = useAlturaVisivel(telaCheia);
+  // no celular a conversa é desenhada direto no <body>: nenhuma camada da página (cabeçalho, menu) fica por cima
+  const emTelaCheia = (n: React.ReactElement) => (telaCheia ? createPortal(n, document.body) : n);
   useEffect(() => {
     if (!telaCheia) return;
     const antes = document.body.style.overflow;
@@ -325,7 +328,7 @@ export const MessagesView: React.FC = () => {
         </div>
 
         {/* Conversa aberta: no celular vira tela cheia por cima de tudo */}
-        {activeConv && otherParticipant ? (
+        {activeConv && otherParticipant ? emTelaCheia(
           <div
             className={`flex-1 min-w-0 min-h-0 flex flex-col bg-[#120d20] ${selectedConversationId ? 'flex' : 'hidden md:flex'} ${telaCheia ? 'fixed inset-x-0 top-0 z-[45]' : ''}`}
             style={telaCheia ? { height: alturaVisivel ? `${alturaVisivel}px` : '100dvh' } : undefined}
