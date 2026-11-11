@@ -14,6 +14,7 @@ import {
   Shield,
   MessageSquareHeart
 } from 'lucide-react';
+import { Seletor } from '../common/Seletor';
 
 const PROFILE_OPTIONS: { type: ProfileType; label: string }[] = [
   { type: 'couple', label: 'Casal' },
@@ -112,7 +113,7 @@ export const LandingPage: React.FC = () => {
                 Eu sou:
               </label>
               <div className="relative mb-5">
-                <select
+                <Seletor
                   id="landing-profile-type"
                   value={profileType}
                   onChange={(e) => setProfileType(e.target.value as ProfileType | '')}
@@ -122,7 +123,7 @@ export const LandingPage: React.FC = () => {
                   {PROFILE_OPTIONS.map(opt => (
                     <option key={opt.type} value={opt.type}>{opt.label}</option>
                   ))}
-                </select>
+                </Seletor>
                 <ChevronDown className="w-5 h-5 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
 

@@ -5,6 +5,7 @@ import { Ad, AdPlacement } from '../../types';
 import { deleteAd, fetchAllAds, saveAd } from '../../lib/events';
 import { uploadPublicMedia } from '../../lib/supabase';
 import { notify, askConfirm } from '../common/Feedback';
+import { Seletor } from '../common/Seletor';
 
 const PLACEMENT_LABEL: Record<AdPlacement, string> = {
   feed: 'Feed (entre publicações)',
@@ -193,9 +194,9 @@ export const AdminAdsTab: React.FC = () => {
               <input type="url" className={`${inputClass} col-span-2`} placeholder="Link (https://...)" value={editing.linkUrl ?? ''} onChange={e => set('linkUrl', e.target.value)} aria-label="Link" />
               <input maxLength={40} className={inputClass} placeholder="Botão" value={editing.ctaLabel ?? ''} onChange={e => set('ctaLabel', e.target.value)} aria-label="Texto do botão" />
             </div>
-            <select className={inputClass} value={editing.placement} onChange={e => set('placement', e.target.value as AdPlacement)} aria-label="Espaço">
+            <Seletor className={inputClass} value={editing.placement} onChange={e => set('placement', e.target.value as AdPlacement)} aria-label="Espaço">
               {Object.entries(PLACEMENT_LABEL).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-            </select>
+            </Seletor>
             {editing.placement === 'carousel' && (
               <p className="text-[11px] text-zinc-400">
                 Cada anúncio do carrossel vira um slide que troca a cada 6 segundos (pausa com o mouse em cima). Use imagem na proporção 4:3.

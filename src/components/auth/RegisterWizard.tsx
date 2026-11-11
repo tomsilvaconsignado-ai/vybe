@@ -22,6 +22,7 @@ import { defaultAvatar } from '../../lib/profiles';
 import { GENDER_OPTIONS, INTEREST_OPTIONS, OBJECTIVE_OPTIONS, ORIENTATION_OPTIONS } from '../../lib/profileOptions';
 import { notify } from '../common/Feedback';
 import { Captcha, CaptchaHandle, captchaEnabled } from './Captcha';
+import { Seletor } from '../common/Seletor';
 
 export const RegisterWizard: React.FC = () => {
   const { setAuthModalType, register, setPrivacyTermsModalOpen, registerProfileType } = useApp();
@@ -394,17 +395,17 @@ export const RegisterWizard: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] text-zinc-400">Gênero *</label>
-                    <select value={gender} onChange={e => setGender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                    <Seletor value={gender} onChange={e => setGender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       <option value="">Selecione...</option>
                       {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
+                    </Seletor>
                   </div>
                   <div>
                     <label className="text-[11px] text-zinc-400">Orientação *</label>
-                    <select value={orientation} onChange={e => setOrientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                    <Seletor value={orientation} onChange={e => setOrientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       <option value="">Selecione...</option>
                       {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    </Seletor>
                   </div>
                 </div>
                 <p className="text-[11px] text-zinc-500">Gênero e orientação aparecem no seu perfil para todos os membros.</p>
@@ -444,16 +445,16 @@ export const RegisterWizard: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] text-zinc-400">Gênero Parceiro 1</label>
-                    <select value={partner1Gender} onChange={e => setPartner1Gender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                    <Seletor value={partner1Gender} onChange={e => setPartner1Gender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
+                    </Seletor>
                   </div>
                   <div>
                     <label className="text-[11px] text-zinc-400">Orientação Parceiro 1 *</label>
-                    <select value={partner1Orientation} onChange={e => setPartner1Orientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                    <Seletor value={partner1Orientation} onChange={e => setPartner1Orientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       <option value="">Selecione...</option>
                       {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    </Seletor>
                   </div>
                 </div>
 
@@ -482,16 +483,16 @@ export const RegisterWizard: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] text-zinc-400">Gênero Parceiro 2</label>
-                    <select value={partner2Gender} onChange={e => setPartner2Gender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                    <Seletor value={partner2Gender} onChange={e => setPartner2Gender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
+                    </Seletor>
                   </div>
                   <div>
                     <label className="text-[11px] text-zinc-400">Orientação Parceiro 2 *</label>
-                    <select value={partner2Orientation} onChange={e => setPartner2Orientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
+                    <Seletor value={partner2Orientation} onChange={e => setPartner2Orientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       <option value="">Selecione...</option>
                       {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    </Seletor>
                   </div>
                 </div>
 
@@ -651,7 +652,7 @@ export const RegisterWizard: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-300 mb-1">Ritmo de Conexão:</label>
-                  <select
+                  <Seletor
                     value={pacePreference}
                     onChange={e => setPacePreference(e.target.value as any)}
                     className="w-full p-2 bg-zinc-900 border border-purple-900/30 rounded-xl text-xs text-zinc-200 focus:outline-none"
@@ -659,11 +660,11 @@ export const RegisterWizard: React.FC = () => {
                     <option value="slow_chat">Conversa lenta e calma</option>
                     <option value="flexible">Flexível / Depende da química</option>
                     <option value="spontaneous">Espontâneo / Direto</option>
-                  </select>
+                  </Seletor>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-zinc-300 mb-1">Preferência de Encontro:</label>
-                  <select
+                  <Seletor
                     value={meetingPreference}
                     onChange={e => setMeetingPreference(e.target.value as any)}
                     className="w-full p-2 bg-zinc-900 border border-purple-900/30 rounded-xl text-xs text-zinc-200 focus:outline-none"
@@ -671,7 +672,7 @@ export const RegisterWizard: React.FC = () => {
                     <option value="virtual_first">Virtual primeiro (Drink online)</option>
                     <option value="in_person">Presencial (Bar / Lounge)</option>
                     <option value="undecided">A combinar</option>
-                  </select>
+                  </Seletor>
                 </div>
               </div>
 

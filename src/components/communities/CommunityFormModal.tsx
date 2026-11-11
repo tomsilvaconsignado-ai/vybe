@@ -6,6 +6,7 @@ import { ACCESS_INFO, COMMUNITY_CATEGORIES, createCommunity, updateCommunity, ty
 import { uploadPublicMedia } from '../../lib/supabase';
 import { notify } from '../common/Feedback';
 import type { Community, CommunityAccess } from '../../types';
+import { Seletor } from '../common/Seletor';
 
 const ICONES = ['💬', '🍷', '🔥', '✨', '🌱', '🎭', '💜', '🌙', '🏖️', '🎉', '📍', '🧭'];
 
@@ -93,9 +94,9 @@ export const CommunityFormModal: React.FC<{ community?: Community; aoFechar: () 
           </label>
           <label className="block">
             <span className="block text-[11px] font-bold text-zinc-400 mb-1.5">Categoria</span>
-            <select value={d.category} onChange={e => muda({ category: e.target.value as Community['category'] })} className={campo}>
+            <Seletor value={d.category} onChange={e => muda({ category: e.target.value as Community['category'] })} className={campo}>
               {COMMUNITY_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            </select>
+            </Seletor>
           </label>
 
           <fieldset>

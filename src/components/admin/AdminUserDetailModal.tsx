@@ -23,6 +23,7 @@ import { notify, askText } from '../common/Feedback';
 import { AdminThumb, viewAdminMedia } from './AdminImageViewer';
 import { fetchUserPosts } from '../../lib/social';
 import { adminUserAlbumItems, AdminAlbumItem } from '../../lib/admin';
+import { Seletor } from '../common/Seletor';
 
 interface AdminUserDetailModalProps {
   user: AdminUserRecord | null;
@@ -491,7 +492,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                   <span className="text-xs font-bold text-amber-300 block">Papel na Equipe Administrativa</span>
                   <p className="text-[11px] text-zinc-400">Moderadores precisam ativar o MFA no primeiro acesso ao painel.</p>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <select
+                    <Seletor
                       value={selectedRole}
                       onChange={e => setSelectedRole(e.target.value)}
                       className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white"
@@ -500,7 +501,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                       <option value="moderator">Moderador</option>
                       <option value="support">Suporte (somente leitura)</option>
                       <option value="auditor">Auditor (somente leitura)</option>
-                    </select>
+                    </Seletor>
                     <input
                       type="text"
                       placeholder="Justificativa"

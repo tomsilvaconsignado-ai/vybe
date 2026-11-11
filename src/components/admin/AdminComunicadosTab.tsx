@@ -5,6 +5,7 @@ import { Megaphone, Send, CalendarClock, XCircle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { AUDIENCE_LABEL, cancelBroadcast, createBroadcast, fetchBroadcastHistory, type BroadcastAudience, type BroadcastDraft, type BroadcastRecord } from '../../lib/adminPainel';
 import { askConfirm, askText, notify } from '../common/Feedback';
+import { Seletor } from '../common/Seletor';
 
 const VAZIO: BroadcastDraft = { title: '', body: '', audience: 'all', ref: null, link: '', when: null, justification: '' };
 const quando = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -67,21 +68,21 @@ export const AdminComunicadosTab: React.FC = () => {
             </label>
             <label className="block">
               <span className="block text-[11px] font-bold text-zinc-400 mb-1">Público</span>
-              <select value={d.audience} onChange={e => muda({ audience: e.target.value as BroadcastAudience, ref: null })} className={campo}>
+              <Seletor value={d.audience} onChange={e => muda({ audience: e.target.value as BroadcastAudience, ref: null })} className={campo}>
                 {(Object.keys(AUDIENCE_LABEL) as BroadcastAudience[]).map(a => <option key={a} value={a}>{AUDIENCE_LABEL[a]}</option>)}
-              </select>
+              </Seletor>
             </label>
             {d.audience === 'event' && (
-              <select required value={d.ref ?? ''} onChange={e => muda({ ref: e.target.value || null })} className={campo} aria-label="Evento">
+              <Seletor required value={d.ref ?? ''} onChange={e => muda({ ref: e.target.value || null })} className={campo} aria-label="Evento">
                 <option value="">Escolha o evento</option>
                 {eventosAbertos.map(ev => <option key={ev.id} value={ev.id}>{ev.title} · {ev.city}</option>)}
-              </select>
+              </Seletor>
             )}
             {d.audience === 'community' && (
-              <select required value={d.ref ?? ''} onChange={e => muda({ ref: e.target.value || null })} className={campo} aria-label="Comunidade">
+              <Seletor required value={d.ref ?? ''} onChange={e => muda({ ref: e.target.value || null })} className={campo} aria-label="Comunidade">
                 <option value="">Escolha a comunidade</option>
                 {communities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              </Seletor>
             )}
             <label className="block">
               <span className="block text-[11px] font-bold text-zinc-400 mb-1">Ao tocar, abrir (opcional)</span>

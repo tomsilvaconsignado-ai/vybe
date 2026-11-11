@@ -37,6 +37,25 @@ export function useDigitando(conversaId: string | null, eu: string) {
   return { outroDigitando, avisarDigitando, avisarParou };
 }
 
+/** Altura realmente visível no celular (encolhe quando o teclado abre, inclusive no iPhone) */
+export function useAlturaVisivel(ativo: boolean) {
+  const [altura, setAltura] = useState<number | null>(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!ativo || !vv) { setAltura(null); return; }
+    const medir = () => {
+      setAltura(vv.height);
+      // o iPhone rola a página ao abrir o teclado; mantém a conversa encaixada no topo
+      if (window.scrollY) window.scrollTo(0, 0);
+    };
+    medir();
+    vv.addEventListener('resize', medir);
+    vv.addEventListener('scroll', medir);
+    return () => { vv.removeEventListener('resize', medir); vv.removeEventListener('scroll', medir); };
+  }, [ativo]);
+  return altura;
+}
+
 /** Tipo da mídia pelo caminho do arquivo (o link assinado mantém a extensão) */
 export function tipoDaMidia(url: string): 'image' | 'video' | 'audio' {
   const ext = (url.split('?')[0]?.split('.').pop() ?? '').toLowerCase();
@@ -58,8 +77,9 @@ export const MidiaDaMensagem: React.FC<{ url: string; temTexto: boolean; aoAmpli
 };
 
 /** Botão de gravar áudio: toca para começar, toca de novo para enviar; X cancela. Até 2 minutos. */
-export const GravadorDeAudio: React.FC<{ desabilitado: boolean; aoGravar: (arquivo: File) => void }> = ({ desabilitado, aoGravar }) => {
-  const [gravando, setGravando] = useState(false);
+export const GravadorDeAudio: React.FC<{ desabilitado: boolean; aoGravar: (arquivo: File) => void; aoMudarEstado?: (gravando: boolean) => void }> = ({ desabilitado, aoGravar, aoMudarEstado }) => {
+  const [gravando, setGravandoInterno] = useState(false);
+  const setGravando = (v: boolean) => { setGravandoInterno(v); aoMudarEstado?.(v); };
   const [segundos, setSegundos] = useState(0);
   const gravador = useRef<MediaRecorder | null>(null);
   const partes = useRef<Blob[]>([]);
@@ -98,15 +118,20 @@ export const GravadorDeAudio: React.FC<{ desabilitado: boolean; aoGravar: (arqui
     relogio.current = window.setInterval(() => setSegundos(s => s + 1), 1000);
   };
 
+  // Gravando: ocupa a barra inteira (cancelar · tempo · enviar)
   if (gravando) return (
-    <div className="flex items-center gap-1.5">
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold text-rose-300"><span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />{Math.floor(segundos / 60)}:{String(segundos % 60).padStart(2, '0')}</span>
-      <button type="button" onClick={() => parar(true)} className="p-2 rounded-xl text-zinc-400 hover:text-white cursor-pointer" aria-label="Cancelar áudio"><X className="w-4 h-4" /></button>
-      <button type="button" onClick={() => parar(false)} className="p-2 rounded-xl text-rose-300 hover:text-white cursor-pointer" aria-label="Enviar áudio"><Square className="w-4 h-4 fill-current" /></button>
+    <div className="flex-1 min-w-0 flex items-center gap-2">
+      <button type="button" onClick={() => parar(true)} className="w-10 h-10 shrink-0 rounded-full text-zinc-400 hover:text-rose-300 hover:bg-zinc-800 flex items-center justify-center cursor-pointer" aria-label="Cancelar áudio"><X className="w-5 h-5" /></button>
+      <div className="flex-1 min-w-0 h-10 px-4 rounded-full bg-zinc-900/90 border border-rose-500/30 flex items-center gap-2" role="status">
+        <span className="w-2.5 h-2.5 shrink-0 rounded-full bg-rose-500 animate-pulse" />
+        <span className="text-sm font-semibold text-rose-200 tabular-nums">{Math.floor(segundos / 60)}:{String(segundos % 60).padStart(2, '0')}</span>
+        <span className="text-xs text-zinc-400 truncate">Gravando áudio…</span>
+      </div>
+      <button type="button" onClick={() => parar(false)} className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-purple-600 to-rose-600 text-white flex items-center justify-center shadow cursor-pointer" aria-label="Enviar áudio"><Square className="w-4 h-4 fill-current" /></button>
     </div>
   );
   return (
-    <button type="button" onClick={iniciar} disabled={desabilitado} className="p-2 rounded-xl text-zinc-400 hover:text-fuchsia-300 transition-colors cursor-pointer disabled:opacity-40"
+    <button type="button" onClick={iniciar} disabled={desabilitado} className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-purple-600 to-rose-600 text-white flex items-center justify-center shadow transition-opacity cursor-pointer disabled:opacity-40"
       title={desabilitado ? 'Áudios são liberados depois que a conversa for aceita' : 'Gravar áudio'} aria-label="Gravar áudio">
       <Mic className="w-5 h-5" />
     </button>

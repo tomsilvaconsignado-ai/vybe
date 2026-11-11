@@ -15,6 +15,7 @@ import {
   reviewCommunityRequest, setCommunityRole, unbanCommunityMember, type PessoaDaComunidade
 } from '../../lib/comunidades';
 import type { Community, CommunityRole } from '../../types';
+import { Seletor } from '../common/Seletor';
 
 type Aba = 'posts' | 'sobre' | 'membros' | 'pedidos';
 const PAPEL: Record<CommunityRole, string> = { admin: 'Administrador', moderator: 'Moderador', member: 'Membro' };
@@ -328,7 +329,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
                 {m.role === 'admin' && <Crown className="w-4 h-4 text-amber-300" aria-label="Administrador" />}
                 {m.role === 'moderator' && <Shield className="w-4 h-4 text-sky-300" aria-label="Moderador" />}
                 {m.userId !== currentUser.id && c.myRole === 'admin' && (
-                  <select aria-label={`Ações para ${m.displayName}`} value="" onChange={e => acaoMembro(m, e.target.value as 'mod')}
+                  <Seletor aria-label={`Ações para ${m.displayName}`} value="" onChange={e => acaoMembro(m, e.target.value as 'mod')}
                     className="bg-zinc-900 border border-zinc-800 rounded-lg text-[11px] text-zinc-300 px-1.5 py-1 cursor-pointer">
                     <option value="">Gerenciar</option>
                     {m.role !== 'admin' && <option value="admin">Tornar administrador</option>}
@@ -336,7 +337,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
                     {m.role !== 'member' && <option value="membro">Tornar membro</option>}
                     {m.role !== 'admin' && <option value="remover">Remover</option>}
                     {m.role !== 'admin' && <option value="banir">Banir</option>}
-                  </select>
+                  </Seletor>
                 )}
                 {m.userId !== currentUser.id && c.myRole === 'moderator' && m.role === 'member' && (
                   <>

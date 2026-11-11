@@ -271,3 +271,15 @@ video {
 @media (prefers-reduced-motion: reduce) {
   [class*="animate-[vybe-sobe"] { animation: none !important; }
 }
+
+/* Seletor da marca (components/common/Seletor.tsx) */
+.seletor-fundo { animation: fade-in 0.18s ease-out both; }
+.seletor-gaveta { animation: sheet-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.seletor-menu { animation: seletor-abre 0.16s cubic-bezier(0.22, 1, 0.36, 1) both; transform-origin: top center; }
+@keyframes seletor-abre {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seletor-fundo, .seletor-gaveta, .seletor-menu { animation: none !important; }
+}

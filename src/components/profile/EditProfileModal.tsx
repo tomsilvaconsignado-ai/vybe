@@ -13,6 +13,7 @@ import {
 } from '../../lib/profileOptions';
 import { notify } from '../common/Feedback';
 import { Captcha, CaptchaHandle, captchaEnabled } from '../auth/Captcha';
+import { Seletor } from '../common/Seletor';
 
 export type EditProfileTab = 'data' | 'preferences' | 'account';
 
@@ -391,25 +392,25 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 </div>
                 <div>
                   <label className={labelClass}>Tipo de perfil</label>
-                  <select value={profileType} onChange={e => setProfileType(e.target.value as ProfileType)} className={inputClass}>
+                  <Seletor value={profileType} onChange={e => setProfileType(e.target.value as ProfileType)} className={inputClass}>
                     {PROFILE_TYPE_OPTIONS.map(opt => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
-                  </select>
+                  </Seletor>
                 </div>
                 {!isGroup && (
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelClass}>Gênero * (visível a todos)</label>
-                      <select value={gender} onChange={e => setGender(e.target.value)} className={inputClass}>
+                      <Seletor value={gender} onChange={e => setGender(e.target.value)} className={inputClass}>
                         <option value="">Selecione...</option>
                         {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                      </select>
+                      </Seletor>
                     </div>
                     <div>
                       <label className={labelClass}>Orientação * (visível a todos)</label>
-                      <select value={orientation} onChange={e => setOrientation(e.target.value)} className={inputClass}>
+                      <Seletor value={orientation} onChange={e => setOrientation(e.target.value)} className={inputClass}>
                         <option value="">Selecione...</option>
                         {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
+                      </Seletor>
                     </div>
                   </div>
                 )}
@@ -445,13 +446,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                         <input type="number" min={18} max={99} aria-label="Idade" value={partner.age} onChange={e => updatePartner(i, { age: Number(e.target.value) })} className={inputClass} />
                       </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <select value={partner.gender} onChange={e => updatePartner(i, { gender: e.target.value })} className={inputClass} aria-label="Gênero">
+                        <Seletor value={partner.gender} onChange={e => updatePartner(i, { gender: e.target.value })} className={inputClass} aria-label="Gênero">
                           {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                        <select value={partner.orientation || ''} onChange={e => updatePartner(i, { orientation: e.target.value || undefined })} className={inputClass} aria-label="Orientação">
+                        </Seletor>
+                        <Seletor value={partner.orientation || ''} onChange={e => updatePartner(i, { orientation: e.target.value || undefined })} className={inputClass} aria-label="Orientação">
                           <option value="">Orientação * (visível a todos)</option>
                           {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                        </select>
+                        </Seletor>
                       </div>
                       {!partner.id && (
                         <label className="flex items-start gap-2 cursor-pointer">
@@ -525,19 +526,19 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>Ritmo de conexão</label>
-                    <select value={pacePreference} onChange={e => setPacePreference(e.target.value as CompatibilityPreferences['pacePreference'])} className={inputClass}>
+                    <Seletor value={pacePreference} onChange={e => setPacePreference(e.target.value as CompatibilityPreferences['pacePreference'])} className={inputClass}>
                       <option value="slow_chat">Conversa lenta e calma</option>
                       <option value="flexible">Flexível / depende da química</option>
                       <option value="spontaneous">Espontâneo / direto</option>
-                    </select>
+                    </Seletor>
                   </div>
                   <div>
                     <label className={labelClass}>Primeiro encontro</label>
-                    <select value={meetingPreference} onChange={e => setMeetingPreference(e.target.value as CompatibilityPreferences['meetingPreference'])} className={inputClass}>
+                    <Seletor value={meetingPreference} onChange={e => setMeetingPreference(e.target.value as CompatibilityPreferences['meetingPreference'])} className={inputClass}>
                       <option value="virtual_first">Virtual primeiro</option>
                       <option value="in_person">Presencial</option>
                       <option value="undecided">A combinar</option>
-                    </select>
+                    </Seletor>
                   </div>
                 </div>
                 <div>
@@ -586,9 +587,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                   </div>
                   <div>
                     <label className={labelClass}>Distância</label>
-                    <select value={maxDistanceKm} onChange={e => setMaxDistanceKm(Number(e.target.value))} className={inputClass}>
+                    <Seletor value={maxDistanceKm} onChange={e => setMaxDistanceKm(Number(e.target.value))} className={inputClass}>
                       {[10, 25, 50, 100, 300, 1000].map(km => <option key={km} value={km}>{km === 1000 ? 'Qualquer' : `${km} km`}</option>)}
-                    </select>
+                    </Seletor>
                   </div>
                 </div>
               </Section>

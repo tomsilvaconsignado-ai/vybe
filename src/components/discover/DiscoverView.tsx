@@ -19,6 +19,7 @@ import {
 import { ProfileType } from '../../types';
 import { calculateCompatibility } from '../../utils/compatibility';
 import { useEstadoSalvo } from '../../lib/estadoSalvo';
+import { Seletor } from '../common/Seletor';
 
 interface DiscoverViewProps {
   initialFilter?: 'all' | 'couples' | 'singles';
@@ -381,7 +382,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
             {/* Sort by */}
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Ordenar por:</label>
-              <select
+              <Seletor
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value as any)}
                 className="w-full p-2 bg-zinc-900 border border-purple-900/40 rounded-xl text-xs text-zinc-200 focus:outline-none"
@@ -389,7 +390,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                 <option value="compatibility">Maior sintonia</option>
                 <option value="distance">Menor Distância Geográfica</option>
                 <option value="recent">Atividade Mais Recente</option>
-              </select>
+              </Seletor>
             </div>
 
             {/* Verified only checkbox */}

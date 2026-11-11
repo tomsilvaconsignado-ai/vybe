@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { uploadPublicMedia } from '../../lib/supabase';
 import { EVENT_CATEGORY_LABELS, EventDraft, submitEvent } from '../../lib/events';
 import { EventCategory } from '../../types';
+import { Seletor } from '../common/Seletor';
 
 const inputClass = 'w-full px-3.5 py-2.5 bg-zinc-900/80 border border-purple-900/30 rounded-xl text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500';
 
@@ -109,9 +110,9 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
             <input required maxLength={150} className={inputClass} placeholder="Nome do evento" value={draft.title} onChange={e => set('title', e.target.value)} aria-label="Nome do evento" />
 
             <div className="grid grid-cols-2 gap-2">
-              <select className={inputClass} value={draft.category} onChange={e => set('category', e.target.value as EventCategory)} aria-label="Categoria">
+              <Seletor className={inputClass} value={draft.category} onChange={e => set('category', e.target.value as EventCategory)} aria-label="Categoria">
                 {Object.entries(EVENT_CATEGORY_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-              </select>
+              </Seletor>
               <input maxLength={120} className={inputClass} placeholder="Valor (ex: Casal R$ 120)" value={draft.priceInfo} onChange={e => set('priceInfo', e.target.value)} aria-label="Valor" />
             </div>
 

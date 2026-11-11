@@ -43,6 +43,7 @@ import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminMessageInvestigationModal } from './AdminMessageInvestigationModal';
 import { notify, askText } from '../common/Feedback';
 import { useEstadoSalvo } from '../../lib/estadoSalvo';
+import { Seletor } from '../common/Seletor';
 
 export const AdminPortal: React.FC = () => {
   const { 
@@ -395,7 +396,7 @@ export const AdminPortal: React.FC = () => {
               <h3 className="text-sm font-bold text-white">Fila de Atendimento de Denúncias</h3>
               
               {/* Filter by priority */}
-              <select
+              <Seletor
                 value={reportPriorityFilter}
                 onChange={e => setReportPriorityFilter(e.target.value as any)}
                 className="px-2.5 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300"
@@ -404,7 +405,7 @@ export const AdminPortal: React.FC = () => {
                 <option value="urgent">Urgentes</option>
                 <option value="high">Altas</option>
                 <option value="medium">Médias</option>
-              </select>
+              </Seletor>
             </div>
 
             {filteredReports.map(rep => (
@@ -580,7 +581,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <select
+              <Seletor
                 value={userStatusFilter}
                 onChange={e => setUserStatusFilter(e.target.value as any)}
                 className="px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200"
@@ -590,7 +591,7 @@ export const AdminPortal: React.FC = () => {
                 <option value="warned">Advertidos</option>
                 <option value="restricted">Restritos</option>
                 <option value="suspended">Suspensos</option>
-              </select>
+              </Seletor>
 
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
@@ -688,7 +689,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <select
+              <Seletor
                 value={mediaStatusFilter}
                 onChange={e => setMediaStatusFilter(e.target.value as any)}
                 className="px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200"
@@ -697,7 +698,7 @@ export const AdminPortal: React.FC = () => {
                 <option value="approved">Aprovadas</option>
                 <option value="flagged">Sinalizadas / Denunciadas</option>
                 <option value="removed">Removidas</option>
-              </select>
+              </Seletor>
             </div>
           </div>
 
