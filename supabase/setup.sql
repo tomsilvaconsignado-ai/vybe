@@ -3373,3 +3373,48 @@ GRANT EXECUTE ON FUNCTION public.profile_id_by_username(TEXT) TO authenticated;
 
 REVOKE EXECUTE ON FUNCTION public.prepare_comment_reply(), public.notify_mentions(TEXT, UUID, UUID, UUID), public.notify_on_post_text()
   FROM PUBLIC, anon, authenticated;
+
+-- ==============================================================================
+-- 12. CHAT (vídeo e áudio no direct, "entregue" e busca nas conversas)
+-- "Digitando" e "online na conversa" usam o Realtime (presença/transmissão), sem gravar no banco.
+-- ==============================================================================
+
+-- 12.1 Vídeo e áudio no direct (mesmas regras das fotos: conversa aceita, pasta própria, sem apagar)
+CREATE OR REPLACE FUNCTION public.is_chat_media_path(u TEXT, conv UUID, sender UUID)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE AS $$
+  SELECT u ~ ('^chat-media/' || conv::text || '/' || sender::text || '/[A-Za-z0-9_-]{1,80}\.(jpg|jpeg|png|webp|gif|mp4|mov|webm|m4a|ogg|mp3)$');
+$$;
+
+UPDATE storage.buckets SET file_size_limit = 26214400,
+  allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm',
+                             'audio/webm', 'audio/mp4', 'audio/mpeg', 'audio/ogg', 'audio/x-m4a']
+ WHERE id = 'chat-media';
+
+-- 12.2 Entregue: o app do destinatário confirma o recebimento (vira "visualizada" ao abrir a conversa)
+CREATE OR REPLACE FUNCTION public.mark_messages_delivered()
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE n INTEGER;
+BEGIN
+  UPDATE public.messages m SET status = 'delivered'
+   WHERE m.status = 'sent' AND m.sender_id <> auth.uid()
+     AND m.conversation_id IN (SELECT cp.conversation_id FROM public.conversation_participants cp WHERE cp.user_id = auth.uid());
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END;
+$$;
+
+-- 12.3 Busca nas próprias conversas (texto das mensagens), com as regras de acesso de quem busca
+CREATE OR REPLACE FUNCTION public.search_my_messages(p_query TEXT, p_limit INTEGER DEFAULT 30)
+RETURNS TABLE (message_id UUID, conversation_id UUID, sender_id UUID, content TEXT, created_at TIMESTAMPTZ)
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = public AS $$
+  SELECT m.id, m.conversation_id, m.sender_id, left(m.content, 200), m.created_at
+    FROM public.messages m
+   WHERE length(trim(p_query)) >= 2
+     AND m.conversation_id IN (SELECT cp.conversation_id FROM public.conversation_participants cp WHERE cp.user_id = auth.uid() AND NOT cp.is_archived)
+     AND m.content ILIKE '%' || replace(replace(replace(trim(p_query), '\', '\\'), '%', '\%'), '_', '\_') || '%'
+   ORDER BY m.created_at DESC
+   LIMIT least(greatest(p_limit, 1), 50);
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.mark_messages_delivered(), public.search_my_messages(TEXT, INTEGER) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.mark_messages_delivered(), public.search_my_messages(TEXT, INTEGER) TO authenticated;

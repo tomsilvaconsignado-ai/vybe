@@ -639,5 +639,24 @@ r && r.rows.every(x => visiveisV.includes(x.post_id)) && !r.rows.some(x => x.pos
 r = await as(ids.b, `SELECT public.profile_id_by_username('ALICE_NOVA') AS id`);
 r.rows[0].id === ids.a ? ok('@usuario leva ao perfil certo') : bad('busca por @usuario');
 
+console.log('\nChat: entregue, busca e mídia');
+await as(ids.a, `INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, 'mensagem para busca pitanga')`, [convAB, ids.a]);
+r = await expectOk('B confirma o recebimento', ids.b, `SELECT public.mark_messages_delivered() AS n`);
+r = await db.query(`SELECT status FROM messages WHERE conversation_id = $1 AND sender_id = $2 ORDER BY created_at DESC LIMIT 1`, [convAB, ids.a]);
+r.rows[0].status === 'delivered' ? ok('mensagem fica como entregue') : bad('entregue: ' + r.rows[0].status);
+await expectOk('B abre a conversa', ids.b, `SELECT public.mark_conversation_read($1)`, [convAB]);
+r = await db.query(`SELECT status FROM messages WHERE conversation_id = $1 AND sender_id = $2 ORDER BY created_at DESC LIMIT 1`, [convAB, ids.a]);
+r.rows[0].status === 'read' ? ok('e depois como visualizada') : bad('visualizada: ' + r.rows[0].status);
+r = await as(ids.b, `SELECT * FROM public.search_my_messages('PITANGA')`);
+r.rows.length === 1 && r.rows[0].conversation_id === convAB ? ok('busca encontra a mensagem nas próprias conversas') : bad('busca: ' + JSON.stringify(r.rows));
+r = await as(ids.v, `SELECT * FROM public.search_my_messages('pitanga')`);
+r.rows.length === 0 ? ok('quem não participa não encontra mensagens alheias') : bad('busca vazou mensagens');
+r = await as(ids.b, `SELECT * FROM public.search_my_messages('_%')`);
+r.rows.every(x => x.content.includes('_%')) ? ok('caracteres especiais da busca são tratados como texto') : bad('busca com curinga');
+const audio = `chat-media/${convAB}/${ids.a}/audio1.webm`;
+await expectOk('áudio do direct no caminho certo é aceito', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', $3)`, [convAB, ids.a, audio]);
+await expectFail('mídia em pasta de outra pessoa é recusada', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', $3)`, [convAB, ids.a, `chat-media/${convAB}/${ids.b}/x.mp4`]);
+await expectFail('extensão não permitida é recusada', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', $3)`, [convAB, ids.a, `chat-media/${convAB}/${ids.a}/x.exe`]);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

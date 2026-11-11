@@ -61,7 +61,8 @@ import {
   startConversation,
   acceptConversation,
   declineConversation,
-  markConversationRead
+  markConversationRead,
+  markMessagesDelivered
 } from '../lib/messaging';
 import {
   fetchNotifications,
@@ -440,6 +441,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setFeedHasMore(feed.length >= FEED_PAGE_SIZE);
     setConversations(loadedConversations);
     setNotifications(loadedNotifications);
+    markMessagesDelivered();
     touchLastActive(userId);
     requestAvatarReminder();
   };
@@ -677,6 +679,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const me = currentUser.id;
     if (!me) return;
 
+    const recargaStatus: Record<string, number> = {};
     const channel = supabase
       .channel(`vybe-live-${me}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
@@ -684,11 +687,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (conversationMessagesRef.current[row.conversation_id]) {
           loadConversationMessagesRef.current(row.conversation_id);
         }
+        if (row.sender_id !== me) markMessagesDelivered();
         if (row.sender_id !== me && conversaNaTelaRef.current === row.conversation_id) {
           // chegou na conversa que está aberta: o aviso não fica pendente
           setTimeout(() => markConversationNotificationsRead(row.conversation_id), 800);
         }
         refreshConversationsRef.current();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, payload => {
+        // entregue / visualizada: atualiza as confirmações da conversa aberta
+        const row = payload.new as { conversation_id: string };
+        if (!conversationMessagesRef.current[row.conversation_id]) return;
+        window.clearTimeout(recargaStatus[row.conversation_id]);
+        recargaStatus[row.conversation_id] = window.setTimeout(() => loadConversationMessagesRef.current(row.conversation_id), 400);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, () => {
         refreshConversationsRef.current();

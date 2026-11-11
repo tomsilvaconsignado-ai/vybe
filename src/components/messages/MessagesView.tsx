@@ -24,6 +24,8 @@ import { OnlineDot, activityLabel } from '../common/OnlineDot';
 import { EmojiPicker, isEmojiOnly } from '../common/EmojiPicker';
 import { CHAT_MEDIA_ACCEPT, uploadChatMedia } from '../../lib/messaging';
 import { useEstadoSalvo } from '../../lib/estadoSalvo';
+import { GravadorDeAudio, MidiaDaMensagem, tipoDaMidia, useDigitando } from './ChatExtras';
+import { searchMyMessages, type MessageSearchHit } from '../../lib/messaging';
 
 export const MessagesView: React.FC = () => {
   const { 
@@ -63,6 +65,19 @@ export const MessagesView: React.FC = () => {
   const inputLocked = awaitingMyAcceptance || introAlreadySent;
 
   const [isSending, setIsSending] = useState(false);
+  const { outroDigitando, avisarDigitando, avisarParou } = useDigitando(activeConv?.id ?? null, currentUser.id);
+  const [busca, setBusca] = useState('');
+  const [achados, setAchados] = useState<MessageSearchHit[]>([]);
+  useEffect(() => {
+    if (busca.trim().length < 2) { setAchados([]); return; }
+    const t = setTimeout(() => searchMyMessages(busca).then(setAchados), 300);
+    return () => clearTimeout(t);
+  }, [busca]);
+  const nomeBate = (c: typeof conversations[number]) => {
+    const q = busca.trim().toLowerCase();
+    return !q || c.participants.some(p => p.displayName.toLowerCase().includes(q) || p.username.toLowerCase().includes(q));
+  };
+  const resumoMidia = (url?: string) => !url ? '' : tipoDaMidia(url) === 'audio' ? '🎤 Áudio' : tipoDaMidia(url) === 'video' ? '🎬 Vídeo' : '📷 Foto';
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -90,7 +105,7 @@ export const MessagesView: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!CHAT_MEDIA_ACCEPT.split(',').includes(file.type)) {
-      notify('Envie uma imagem JPG, PNG, WebP ou GIF.');
+      notify('Envie uma foto (JPG, PNG, WebP), GIF ou vídeo (MP4/MOV).');
       e.target.value = '';
       return;
     }
@@ -133,10 +148,20 @@ export const MessagesView: React.FC = () => {
       mediaPath = path;
     }
     await sendMessage(activeConv.id, inputText, mediaPath);
+    avisarParou();
     setIsSending(false);
     setInputText('');
     clearAttachment();
     setShowEmoji(false);
+  };
+
+  const enviarAudio = async (arquivo: File) => {
+    if (!activeConv) return;
+    setIsSending(true);
+    const { path, error } = await uploadChatMedia(activeConv.id, currentUser.id, arquivo);
+    if (error || !path) notify(error ?? 'Não foi possível enviar o áudio.');
+    else await sendMessage(activeConv.id, '', path);
+    setIsSending(false);
   };
 
   return (
@@ -154,6 +179,29 @@ export const MessagesView: React.FC = () => {
           <div className="p-4 border-b border-purple-900/30">
             <h2 className="text-lg font-extrabold text-white mb-3">Mensagens Privadas</h2>
             
+            <input
+              type="search"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              placeholder="Buscar pessoas ou mensagens"
+              aria-label="Buscar nas conversas"
+              className="w-full mb-3 px-3.5 py-2 rounded-xl bg-zinc-900/80 border border-purple-900/30 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
+            />
+            {achados.length > 0 && (
+              <ul className="mb-3 max-h-56 overflow-y-auto rounded-xl border border-purple-900/30 divide-y divide-purple-950/30">
+                {achados.map(h => {
+                  const conv = conversations.find(c => c.id === h.conversation_id);
+                  return (
+                    <li key={h.message_id}>
+                      <button type="button" onClick={() => { setSelectedConversationId(h.conversation_id); setBusca(''); }} className="w-full text-left px-3 py-2 hover:bg-zinc-900/60 cursor-pointer">
+                        <p className="text-[11px] font-bold text-zinc-200">{conv?.participants[0]?.displayName ?? 'Conversa'}</p>
+                        <p className="text-[11px] text-zinc-400 truncate">{h.content}</p>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
             <div className="flex bg-zinc-900/80 p-1 rounded-xl">
               <button
                 onClick={() => setActiveTab('chats')}
@@ -181,7 +229,7 @@ export const MessagesView: React.FC = () => {
           <div className="flex-1 overflow-y-auto divide-y divide-purple-950/20">
             {activeTab === 'chats' ? (
               activeConversations.length > 0 ? (
-                activeConversations.map(conv => {
+                activeConversations.filter(nomeBate).map(conv => {
                   const part = conv.participants[0];
                   const isSelected = conv.id === activeConv?.id;
 
@@ -213,7 +261,7 @@ export const MessagesView: React.FC = () => {
                           <span className="text-[10px] text-zinc-400">{conv.lastMessage?.createdAt || ''}</span>
                         </div>
                         <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                          {conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? '📷 Foto' : 'Iniciar conversa...')}
+                          {conv.lastMessage?.content || resumoMidia(conv.lastMessage?.mediaUrl) || 'Iniciar conversa...'}
                         </p>
                       </div>
 
@@ -232,7 +280,7 @@ export const MessagesView: React.FC = () => {
               )
             ) : (
               pendingRequests.length > 0 ? (
-                pendingRequests.map(conv => {
+                pendingRequests.filter(nomeBate).map(conv => {
                   const part = conv.participants[0];
                   const isSelected = conv.id === activeConv?.id;
 
@@ -255,7 +303,7 @@ export const MessagesView: React.FC = () => {
                           <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-950 text-rose-300">Nova</span>
                         </div>
                         <p className="text-[11px] text-zinc-400 truncate mt-0.5">
-                          {conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? '📷 Foto' : 'Solicitou mensagem')}
+                          {conv.lastMessage?.content || resumoMidia(conv.lastMessage?.mediaUrl) || 'Solicitou mensagem'}
                         </p>
                       </div>
                     </div>
@@ -304,7 +352,9 @@ export const MessagesView: React.FC = () => {
                     </h3>
                     <p className="text-[11px] text-zinc-400">
                       @{otherParticipant.username}
-                      {isOnline(otherParticipant.id) ? (
+                      {outroDigitando ? (
+                        <span className="text-fuchsia-300 font-semibold"> • digitando…</span>
+                      ) : isOnline(otherParticipant.id) ? (
                         <span className="text-emerald-400 font-semibold"> • Online agora</span>
                       ) : otherParticipant.lastActive && canSeeActivity({}) ? (
                         <> • {activityLabel(otherParticipant.lastActive)}</>
@@ -401,9 +451,11 @@ export const MessagesView: React.FC = () => {
                       <p className={`text-4xl leading-tight ${discreetBlur ? 'blur-sm hover:blur-none transition' : ''}`}>{msg.content}</p>
                       <span className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1">
                         {msg.createdAt}
-                        {isMine && (msg.status === 'read'
-                          ? <><span>• Lida</span><CheckCheck className="w-3 h-3 text-purple-400" /></>
-                          : <Check className="w-3 h-3 text-zinc-500" />)}
+{isMine && (msg.status === 'read'
+                          ? <><span>• Visualizada</span><CheckCheck className="w-3 h-3 text-fuchsia-400" /></>
+                          : msg.status === 'delivered'
+                            ? <><span>• Entregue</span><CheckCheck className="w-3 h-3 text-zinc-500" /></>
+                            : <><span>• Enviada</span><Check className="w-3 h-3 text-zinc-500" /></>)}
                       </span>
                     </div>
                   );
@@ -415,30 +467,35 @@ export const MessagesView: React.FC = () => {
                         ? 'bg-gradient-to-r from-purple-600 to-rose-600 text-white rounded-br-none shadow-md'
                         : 'bg-zinc-900 text-zinc-200 border border-purple-900/30 rounded-bl-none'
                     } ${discreetBlur ? 'blur-sm hover:blur-none transition' : ''}`}>
-                      {msg.mediaUrl && (
-                        <button type="button" onClick={() => setViewerUrl(msg.mediaUrl!)} className={`block cursor-zoom-in ${msg.content ? 'mb-2' : ''}`}>
-                          <img src={msg.mediaUrl} alt="Imagem enviada" loading="lazy" className="rounded-xl max-h-64 max-w-full object-cover" />
-                        </button>
-                      )}
+                      {msg.mediaUrl && <MidiaDaMensagem url={msg.mediaUrl} temTexto={!!msg.content} aoAmpliar={setViewerUrl} />}
                       {msg.content && <p>{msg.content}</p>}
                     </div>
                     <span className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1">
                       {msg.createdAt}
-                      {isMine && (msg.status === 'read'
-                        ? <><span>• Lida</span><CheckCheck className="w-3 h-3 text-purple-400" /></>
-                        : <Check className="w-3 h-3 text-zinc-500" />)}
+{isMine && (msg.status === 'read'
+                          ? <><span>• Visualizada</span><CheckCheck className="w-3 h-3 text-fuchsia-400" /></>
+                          : msg.status === 'delivered'
+                            ? <><span>• Entregue</span><CheckCheck className="w-3 h-3 text-zinc-500" /></>
+                            : <><span>• Enviada</span><Check className="w-3 h-3 text-zinc-500" /></>)}
                     </span>
                   </div>
                 );
               })}
 
+              {outroDigitando && (
+                <div className="flex items-center gap-1 px-3 py-2 w-fit rounded-2xl bg-zinc-900 border border-purple-900/30" aria-label="digitando">
+                  {[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
+                </div>
+              )}
             </div>
 
             {/* Message Input Box */}
             {attachment && (
               <div className="px-3 pt-3 border-t border-purple-900/30 bg-[#150e24] flex items-center gap-3">
                 <div className="relative">
-                  <img src={attachment.preview} alt="Imagem a enviar" className="h-20 w-20 rounded-xl object-cover border border-purple-700/50" />
+                  {attachment.file.type.startsWith('video/')
+                    ? <video src={attachment.preview} muted playsInline className="h-20 w-20 rounded-xl object-cover border border-purple-700/50" />
+                    : <img src={attachment.preview} alt="Imagem a enviar" className="h-20 w-20 rounded-xl object-cover border border-purple-700/50" />}
                   <button
                     type="button"
                     onClick={clearAttachment}
@@ -449,7 +506,7 @@ export const MessagesView: React.FC = () => {
                   </button>
                 </div>
                 <span className="text-[11px] text-zinc-400">
-                  {attachment.file.type === 'image/gif' ? 'GIF pronto para enviar' : 'Foto pronta para enviar'}. Escreva uma legenda se quiser.
+                  {attachment.file.type === 'image/gif' ? 'GIF pronto para enviar' : attachment.file.type.startsWith('video/') ? 'Vídeo pronto para enviar' : 'Foto pronta para enviar'}. Escreva uma legenda se quiser.
                 </span>
               </div>
             )}
@@ -484,12 +541,13 @@ export const MessagesView: React.FC = () => {
                 onClick={() => fileRef.current?.click()}
                 disabled={mediaLocked || isSending}
                 className="p-2 rounded-xl text-zinc-400 hover:text-fuchsia-300 transition-colors cursor-pointer disabled:opacity-40"
-                title={mediaLocked ? 'Fotos e GIFs são liberados depois que a conversa for aceita' : 'Enviar foto ou GIF'}
-                aria-label="Enviar foto ou GIF"
+                title={mediaLocked ? 'Fotos, vídeos e áudios são liberados depois que a conversa for aceita' : 'Enviar foto, GIF ou vídeo'}
+                aria-label="Enviar foto, GIF ou vídeo"
               >
                 <Image className="w-5 h-5" />
               </button>
               <input ref={fileRef} type="file" accept={CHAT_MEDIA_ACCEPT} onChange={handlePickFile} className="hidden" />
+              <GravadorDeAudio desabilitado={mediaLocked || isSending} aoGravar={enviarAudio} />
 
               <input
                 ref={inputRef}
@@ -501,7 +559,7 @@ export const MessagesView: React.FC = () => {
                 }
                 disabled={inputLocked}
                 value={inputText}
-                onChange={e => setInputText(e.target.value)}
+                onChange={e => { setInputText(e.target.value); if (e.target.value) avisarDigitando(); }}
                 enterKeyHint="send"
                 className="flex-1 px-4 py-2.5 bg-zinc-900/90 border border-purple-900/40 rounded-full text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
               />

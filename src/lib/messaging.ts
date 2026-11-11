@@ -9,22 +9,32 @@ import { ChatMessage, Conversation } from '../types';
 // 'chat-media/<caminho>' e cada participante abre por um link assinado de curta duração.
 
 const CHAT_MEDIA_PREFIX = 'chat-media/';
-const CHAT_MEDIA_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
-export const CHAT_MEDIA_ACCEPT = Object.keys(CHAT_MEDIA_TYPES).join(',');
-const CHAT_MEDIA_MAX_BYTES = 10 * 1024 * 1024;
+const CHAT_IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
+const CHAT_MEDIA_TYPES: Record<string, string> = {
+  ...CHAT_IMAGE_TYPES,
+  'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm',
+  'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg',
+};
+export const CHAT_MEDIA_ACCEPT = Object.keys(CHAT_IMAGE_TYPES).concat(['video/mp4', 'video/quicktime']).join(',');
+const CHAT_MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 
 export async function uploadChatMedia(conversationId: string, me: string, file: File): Promise<{ path: string | null; error: string | null }> {
-  const ext = CHAT_MEDIA_TYPES[file.type];
-  if (!ext) return { path: null, error: 'Envie uma imagem JPG, PNG, WebP ou GIF.' };
-  if (file.size > CHAT_MEDIA_MAX_BYTES) return { path: null, error: 'A imagem pode ter no máximo 10 MB.' };
-  let clean: File;
-  try {
-    clean = await stripImageMetadata(file);   // GIF fica como está (mantém a animação)
-  } catch (e) {
-    return { path: null, error: (e as Error).message };
+  const tipo = file.type.split(';')[0]!;
+  const ext = CHAT_MEDIA_TYPES[tipo];
+  if (!ext) return { path: null, error: 'Envie uma foto, GIF, vídeo (MP4/MOV) ou áudio.' };
+  if (file.size > CHAT_MEDIA_MAX_BYTES) return { path: null, error: 'O arquivo pode ter no máximo 25 MB.' };
+  let clean: File = file;
+  if (CHAT_IMAGE_TYPES[tipo]) {
+    try {
+      clean = await stripImageMetadata(file);   // GIF fica como está (mantém a animação)
+    } catch (e) {
+      return { path: null, error: (e as Error).message };
+    }
   }
-  const path = `${conversationId}/${me}/${crypto.randomUUID().replace(/-/g, '')}.${ext}`;
-  const { error } = await supabase.storage.from('chat-media').upload(path, clean, { contentType: file.type, upsert: false });
+  // áudios levam o prefixo "audio-" (o .webm serve para áudio e para vídeo)
+  const nome = (tipo.startsWith('audio/') ? 'audio-' : '') + crypto.randomUUID().replace(/-/g, '');
+  const path = `${conversationId}/${me}/${nome}.${ext}`;
+  const { error } = await supabase.storage.from('chat-media').upload(path, clean, { contentType: tipo, upsert: false });
   if (error) {
     return { path: null, error: error.message.includes('row-level security')
       ? 'Fotos e GIFs são liberados depois que a conversa for aceita.'
@@ -169,6 +179,19 @@ export async function acceptConversation(conversationId: string) {
 export async function declineConversation(conversationId: string) {
   const { error } = await supabase.rpc('decline_message_request', { conv: conversationId });
   return error?.message ?? null;
+}
+
+/** O app recebeu as mensagens: o remetente passa a ver "entregue" */
+export async function markMessagesDelivered() {
+  await supabase.rpc('mark_messages_delivered');
+}
+
+export interface MessageSearchHit { message_id: string; conversation_id: string; sender_id: string; content: string; created_at: string }
+/** Busca nas próprias conversas (o banco só procura nas conversas de quem busca) */
+export async function searchMyMessages(q: string): Promise<MessageSearchHit[]> {
+  if (q.trim().length < 2) return [];
+  const { data, error } = await supabase.rpc('search_my_messages', { p_query: q.trim(), p_limit: 30 });
+  return error ? [] : (data as MessageSearchHit[]);
 }
 
 export async function markConversationRead(conversationId: string) {
