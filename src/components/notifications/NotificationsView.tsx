@@ -15,7 +15,9 @@ import {
   Settings2,
   Megaphone,
   AtSign,
-  Reply
+  Reply,
+  Hash,
+  CalendarHeart
 } from 'lucide-react';
 
 export const NotificationsView: React.FC = () => {
@@ -57,6 +59,13 @@ export const NotificationsView: React.FC = () => {
         return <AtSign className="w-4 h-4 text-sky-400" />;
       case 'comment_reply':
         return <Reply className="w-4 h-4 text-sky-400" />;
+      case 'group_join_request':
+      case 'group_request_approved':
+      case 'group_invite':
+      case 'group_role':
+        return <Hash className="w-4 h-4 text-fuchsia-400" />;
+      case 'event_invite':
+        return <CalendarHeart className="w-4 h-4 text-rose-400" />;
       default:
         return <Bell className="w-4 h-4 text-purple-400" />;
     }

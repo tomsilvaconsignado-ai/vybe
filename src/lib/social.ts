@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { mapProfileRow, avatarOrDefault } from './profiles';
-import { Community, Post, PostComment, UserProfile } from '../types';
+import { Post, PostComment, UserProfile } from '../types';
 
 // ----------------- FORMATAÇÃO ----------------- //
 
@@ -219,7 +219,7 @@ export async function acceptConnectionRequest(me: string, requester: string) {
 
 const AUTHOR_COLUMNS = 'id, username, display_name, avatar_url, profile_type, is_verified, city, state, location_privacy';
 
-const POST_SELECT = `
+export const POST_SELECT = `
   *,
   author:profiles!posts_user_id_fkey(${AUTHOR_COLUMNS}),
   post_polls(id, question, options, post_poll_votes(user_id, option_id)),
@@ -228,7 +228,7 @@ const POST_SELECT = `
   my_save:post_saves(user_id)
 `;
 
-function mapPostRow(row: any, me: string): Post {
+export function mapPostRow(row: any, me: string): Post {
   const author = row.author;
   const poll = Array.isArray(row.post_polls) ? row.post_polls[0] : row.post_polls;
   const votes: { user_id: string; option_id: string }[] = poll?.post_poll_votes ?? [];
@@ -417,42 +417,7 @@ export async function insertPollVote(me: string, postId: string, optionId: strin
 
 // ----------------- COMUNIDADES ----------------- //
 
-export async function fetchCommunities(me: string): Promise<Community[]> {
-  const [{ data, error }, { data: memberships }] = await Promise.all([
-    supabase.from('communities').select('*').order('members_count', { ascending: false }),
-    supabase.from('community_members').select('community_id').eq('user_id', me)
-  ]);
-  const joined = new Set((memberships ?? []).map(m => m.community_id));
-
-  if (error) {
-    console.error('[Vybelog] Falha ao carregar comunidades:', error.message);
-    return [];
-  }
-
-  return (data as any[]).map(c => ({
-    id: c.id,
-    name: c.name,
-    slug: c.slug,
-    description: c.description,
-    coverUrl: c.cover_url,
-    iconUrl: c.icon_url,
-    category: c.category,
-    rules: c.rules ?? [],
-    membersCount: c.members_count,
-    isJoined: joined.has(c.id),
-    isPrivate: c.is_private,
-    postsCount: c.posts_count,
-    moderators: []
-  }));
-}
-
-export async function setCommunityMembership(me: string, communityId: string, join: boolean) {
-  const { error } = join
-    ? await supabase.from('community_members').insert({ community_id: communityId, user_id: me })
-    : await supabase.from('community_members').delete().eq('community_id', communityId).eq('user_id', me);
-  if (error?.message.includes('row-level security')) return 'Esta comunidade é privada e exige convite da moderação.';
-  return error?.message ?? null;
-}
+// fetchCommunities e a entrada/saída de comunidades ficam em lib/comunidades.ts
 
 // Publicações de um perfil (independe do feed, que traz só as mais recentes de todos)
 export async function fetchUserPosts(userId: string, me: string): Promise<Post[]> {

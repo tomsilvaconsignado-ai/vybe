@@ -658,5 +658,63 @@ await expectOk('áudio do direct no caminho certo é aceito', ids.a, `INSERT INT
 await expectFail('mídia em pasta de outra pessoa é recusada', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', $3)`, [convAB, ids.a, `chat-media/${convAB}/${ids.b}/x.mp4`]);
 await expectFail('extensão não permitida é recusada', ids.a, `INSERT INTO messages (conversation_id, sender_id, content, media_url) VALUES ($1, $2, '', $3)`, [convAB, ids.a, `chat-media/${convAB}/${ids.a}/x.exe`]);
 
+console.log('\nComunidades e convites para eventos');
+r = await expectOk('A cria uma comunidade com aprovação', ids.a, `SELECT public.create_community('Clube Teste', 'Uma comunidade para testes.', 'discussions', '🧪', '', ARRAY['Respeito'], 'approval') AS id`);
+const comA = r.rows[0].id;
+r = await db.query(`SELECT role FROM community_members WHERE community_id = $1 AND user_id = $2`, [comA, ids.a]);
+r.rows[0]?.role === 'admin' ? ok('quem cria vira administrador') : bad('criador sem papel de admin');
+await expectFail('capa de fora do app é recusada', ids.a, `SELECT public.create_community('Clube X', 'Descrição de teste.', 'discussions', '🧪', 'https://exemplo.com/x.jpg', '{}', 'public')`);
+await expectFail('B não entra direto em comunidade com aprovação', ids.b, `INSERT INTO community_members (community_id, user_id) VALUES ($1, $2)`, [comA, ids.b]);
+await expectOk('B pede para entrar', ids.b, `SELECT public.community_join($1, 'oi') AS s`, [comA]);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'group_join_request'`, [ids.a]);
+r.rows[0].n === 1 ? ok('administração recebe o pedido') : bad('pedido sem aviso: ' + r.rows[0].n);
+await expectOk('A publica na comunidade', ids.a, `INSERT INTO posts (user_id, content, community_id) VALUES ($1, 'post do clube', $2)`, [ids.a, comA]);
+r = await as(ids.b, `SELECT count(*)::int AS n FROM posts WHERE community_id = $1`, [comA]);
+r.rows[0].n === 0 ? ok('quem não é membro não vê publicações de comunidade fechada') : bad('publicação fechada vazou');
+await expectFail('não membro não publica na comunidade', ids.b, `INSERT INTO posts (user_id, content, community_id) VALUES ($1, 'intruso', $2)`, [ids.b, comA]);
+await expectFail('não moderador não aprova pedidos', ids.b, `SELECT public.community_review_request($1, $2, true)`, [comA, ids.b]);
+await expectOk('A aprova o pedido de B', ids.a, `SELECT public.community_review_request($1, $2, true)`, [comA, ids.b]);
+r = await as(ids.b, `SELECT count(*)::int AS n FROM posts WHERE community_id = $1`, [comA]);
+r.rows[0].n === 1 ? ok('depois de aprovado, B vê as publicações') : bad('membro sem acesso');
+r = await as(ids.b, `SELECT count(*)::int AS n FROM community_members WHERE community_id = $1`, [comA]);
+r.rows[0].n === 2 ? ok('membros veem a lista de membros') : bad('lista de membros: ' + r.rows[0].n);
+r = await as(ids.v, `SELECT count(*)::int AS n FROM community_members WHERE community_id = $1`, [comA]);
+r.rows[0].n === 0 ? ok('quem está fora não vê quem participa') : bad('lista de membros vazou');
+await expectFail('membro comum não muda funções', ids.b, `SELECT public.community_set_role($1, $2, 'admin')`, [comA, ids.b]);
+await expectOk('A promove B a moderador', ids.a, `SELECT public.community_set_role($1, $2, 'moderator')`, [comA, ids.b]);
+await expectFail('moderador não remove administrador', ids.b, `SELECT public.community_remove_member($1, $2, false, '')`, [comA, ids.a]);
+await expectFail('o único administrador não pode se rebaixar', ids.a, `SELECT public.community_set_role($1, $2, 'member')`, [comA, ids.a]);
+
+r = await expectOk('A cria comunidade secreta', ids.a, `SELECT public.create_community('Secreta', 'Só para convidados.', 'lifestyle', '🔒', '', '{}', 'private') AS id`);
+const comS = r.rows[0].id;
+r = await as(ids.mod, `SELECT count(*)::int AS n FROM communities WHERE id = $1`, [comS]);
+r.rows[0].n === 0 ? ok('comunidade secreta fica oculta para quem não é membro') : bad('secreta visível');
+await expectFail('pedido em comunidade secreta é recusado', ids.mod, `SELECT public.community_join($1, '')`, [comS]);
+await expectOk('A convida mod', ids.a, `SELECT public.community_invite($1, $2)`, [comS, ids.mod]);
+r = await as(ids.mod, `SELECT count(*)::int AS n FROM communities WHERE id = $1`, [comS]);
+r.rows[0].n === 1 ? ok('o convidado passa a ver a comunidade') : bad('convidado não vê');
+r = await as(ids.mod, `SELECT public.community_join($1, '') AS s`, [comS]);
+r.rows[0].s === 'joined' ? ok('convite aceito: entra direto') : bad('convite: ' + r.rows[0].s);
+await expectFail('membro comum não convida em comunidade secreta', ids.mod, `SELECT public.community_invite($1, $2)`, [comS, ids.b]);
+await db.query('INSERT INTO user_blocks (blocker_id, blocked_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [ids.v, ids.a]);
+await expectFail('não dá para convidar quem bloqueou', ids.a, `SELECT public.community_invite($1, $2)`, [comS, ids.v]);
+await expectOk('A remove e bane mod', ids.a, `SELECT public.community_remove_member($1, $2, true, 'teste')`, [comS, ids.mod]);
+await expectFail('banido não volta pelo convite antigo', ids.mod, `SELECT public.community_join($1, '')`, [comS]);
+await expectOk('A sai da comunidade (é o último admin)', ids.a, `DELETE FROM community_members WHERE community_id = $1 AND user_id = $2`, [comA, ids.a]);
+r = await db.query(`SELECT role FROM community_members WHERE community_id = $1 AND user_id = $2`, [comA, ids.b]);
+r.rows[0]?.role === 'admin' ? ok('o moderador mais antigo assume a administração') : bad('comunidade ficou sem admin');
+await expectFail('ex-membro não exclui a comunidade', ids.a, `SELECT public.delete_community($1)`, [comA]);
+await expectOk('o novo admin exclui a comunidade', ids.b, `SELECT public.delete_community($1)`, [comA]);
+
+r = await db.query(`INSERT INTO events (created_by, title, starts_at, venue_name, city, status) VALUES ($1, 'Festa teste', now() + interval '3 days', 'Casa', 'São Paulo', 'approved') RETURNING id`, [ids.mod]);
+const evT = r.rows[0].id;
+r = await expectOk('A convida B (conexão) e a vítima (que bloqueou A) para o evento', ids.a, `SELECT public.invite_to_event($1, ARRAY[$2, $3]::uuid[]) AS n`, [evT, ids.b, ids.v]);
+r.rows[0].n === 1 ? ok('só a conexão recebe o convite') : bad('convites enviados: ' + r.rows[0].n);
+r = await db.query(`SELECT link FROM notifications WHERE user_id = $1 AND type = 'event_invite'`, [ids.b]);
+r.rows[0]?.link === '/eventos/' + evT ? ok('o aviso abre o evento') : bad('link do convite: ' + JSON.stringify(r.rows));
+await expectFail('evento pendente não aceita convites', ids.a, `SELECT public.invite_to_event($1, ARRAY[$2]::uuid[])`,
+  [(await db.query(`INSERT INTO events (created_by, title, starts_at, venue_name, city) VALUES ($1, 'Pendente', now() + interval '3 days', 'Casa', 'SP') RETURNING id`, [ids.mod])).rows[0].id, ids.b]);
+await db.query('DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2', [ids.v, ids.a]);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

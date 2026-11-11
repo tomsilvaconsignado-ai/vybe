@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarHeart, Plus, X, MapPin, CalendarDays, Ticket, Shirt, Users, ExternalLink, Trash2, Maximize2 } from 'lucide-react';
+import { CalendarHeart, Plus, X, MapPin, CalendarDays, Ticket, Shirt, Users, ExternalLink, Trash2, Maximize2, Share2, UserPlus } from 'lucide-react';
+import { ConvidarPessoas } from '../common/ConvidarPessoas';
+import { inviteToEvent } from '../../lib/comunidades';
+import { linkDoEvento } from '../../lib/rotas';
 import { useApp } from '../../context/AppContext';
 import { VybeEvent } from '../../types';
 import { EventCard, EventRsvpButtons, RSVP_LABEL } from './EventCard';
@@ -11,6 +14,27 @@ import { notify, askConfirm } from '../common/Feedback';
 import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 type Filter = 'upcoming' | 'city' | 'going' | 'mine';
+type Periodo = 'todos' | 'hoje' | 'fim' | 'semana' | 'mes';
+
+/** O evento acontece (começa ou está em andamento) dentro do período escolhido? */
+function noPeriodo(e: VybeEvent, p: Periodo, agora = new Date()): boolean {
+  if (p === 'todos') return true;
+  const ini = new Date(agora); ini.setHours(0, 0, 0, 0);
+  const fim = new Date(ini);
+  if (p === 'hoje') fim.setDate(fim.getDate() + 1);
+  else if (p === 'semana') fim.setDate(fim.getDate() + 7);
+  else if (p === 'mes') fim.setMonth(fim.getMonth() + 1);
+  else {
+    // fim de semana: de sexta até o fim de domingo (se já for fim de semana, o atual)
+    const dia = ini.getDay();
+    const ateSexta = dia === 0 ? -2 : dia === 6 ? -1 : 5 - dia;
+    ini.setDate(ini.getDate() + ateSexta);
+    fim.setTime(ini.getTime()); fim.setDate(fim.getDate() + 3);
+  }
+  const comeca = new Date(e.startsAt);
+  const termina = e.endsAt ? new Date(e.endsAt) : comeca;
+  return comeca < fim && termina >= ini;
+}
 
 export const EventsView: React.FC = () => {
   const { events, currentUser, refreshEvents, selectedEventId, setSelectedEventId } = useApp();
@@ -21,10 +45,13 @@ export const EventsView: React.FC = () => {
   const setOpenEvent = (e: VybeEvent | null) => setSelectedEventId(e?.id ?? null);
   const [artFullscreen, setArtFullscreen] = useState(false);
   const [showHidden, setShowHidden] = useEstadoSalvo('eventos.ocultos', false);
+  const [periodo, setPeriodo] = useEstadoSalvo<Periodo>('eventos.periodo', 'todos');
+  const [convidando, setConvidando] = useState(false);
+  const myState = currentUser.state.trim().toLowerCase();
 
   const myCity = currentUser.city.trim().toLowerCase();
   const { filtered, hiddenCount } = useMemo(() => {
-    const approved = events.filter(e => e.status === 'approved').sort((a, b) =>
+    const approved = events.filter(e => e.status === 'approved' && noPeriodo(e, periodo)).sort((a, b) =>
       Number(b.isFeatured) - Number(a.isFeatured) || a.startsAt.localeCompare(b.startsAt));
     // "Não tenho interesse" tira o evento das listas (dá para mostrar de novo)
     const withoutHidden = (list: VybeEvent[]) => (showHidden ? list : list.filter(e => e.myStatus !== 'not_interested'));
@@ -32,7 +59,10 @@ export const EventsView: React.FC = () => {
     let base: VybeEvent[] = [];
     switch (filter) {
       case 'city':
-        base = approved.filter(e => e.city.trim().toLowerCase() === myCity);
+        // perto de você: primeiro a sua cidade, depois o resto do seu estado
+        base = approved
+          .filter(e => (myCity && e.city.trim().toLowerCase() === myCity) || (myState && e.state.trim().toLowerCase() === myState))
+          .sort((a, b) => Number(b.city.trim().toLowerCase() === myCity) - Number(a.city.trim().toLowerCase() === myCity));
         list = withoutHidden(base);
         break;
       case 'going':
@@ -46,11 +76,11 @@ export const EventsView: React.FC = () => {
         list = withoutHidden(base);
     }
     return { filtered: list, hiddenCount: base.filter(e => e.myStatus === 'not_interested').length };
-  }, [events, filter, myCity, currentUser.id, showHidden]);
+  }, [events, filter, myCity, myState, currentUser.id, showHidden, periodo]);
 
   const filters: { id: Filter; label: string }[] = [
     { id: 'upcoming', label: 'Próximos' },
-    { id: 'city', label: myCity ? `Em ${currentUser.city}` : 'Minha cidade' },
+    { id: 'city', label: 'Perto de você' },
     { id: 'going', label: 'Minha agenda' },
     { id: 'mine', label: 'Enviados por mim' }
   ];
@@ -102,6 +132,20 @@ export const EventsView: React.FC = () => {
         ))}
       </div>
 
+      {filter !== 'mine' && (
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mt-3" role="group" aria-label="Período">
+          {([['todos', 'Qualquer data'], ['hoje', 'Hoje'], ['fim', 'Fim de semana'], ['semana', 'Próximos 7 dias'], ['mes', 'Este mês']] as [Periodo, string][]).map(([id, label]) => (
+            <button key={id} type="button" onClick={() => setPeriodo(id)} aria-pressed={periodo === id}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap cursor-pointer ${periodo === id ? 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/50' : 'text-zinc-500 border border-zinc-800 hover:text-zinc-300'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {filter === 'city' && !myCity && !myState && (
+        <p className="text-xs text-zinc-400 -mt-2">Adicione sua cidade e estado no perfil para ver os eventos perto de você.</p>
+      )}
+
       <AdSlot placement="events" variant="feed" />
 
       {filtered.length > 0 ? (
@@ -112,7 +156,7 @@ export const EventsView: React.FC = () => {
         <div className="p-10 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
           <CalendarHeart className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
           <h3 className="text-base font-bold text-white mb-1">
-            {filter === 'mine' ? 'Você ainda não divulgou eventos' : filter === 'going' ? 'Nada na sua agenda' : 'Nenhum evento por aqui ainda'}
+            {filter === 'mine' ? 'Você ainda não divulgou eventos' : filter === 'going' ? 'Nada na sua agenda' : periodo !== 'todos' ? 'Nenhum evento nesse período' : 'Nenhum evento por aqui ainda'}
           </h3>
           <p className="text-xs text-zinc-400 max-w-sm mx-auto">
             {filter === 'going' ? 'Abra um evento e toque em "Vou" para ele aparecer aqui.' : 'Conhece uma festa ou casa liberal? Divulgue para a comunidade.'}
@@ -165,6 +209,22 @@ export const EventsView: React.FC = () => {
                 {detail.goingCount} {detail.goingCount === 1 ? 'pessoa vai' : 'pessoas vão'}
                 {detail.myStatus ? ` · ${RSVP_LABEL[detail.myStatus]}` : ''}
               </p>
+              {detail.status === 'approved' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setConvidando(true)} className="py-2.5 rounded-xl text-xs font-bold text-zinc-200 bg-zinc-900/60 border border-purple-900/40 flex items-center justify-center gap-1.5 cursor-pointer">
+                    <UserPlus className="w-3.5 h-3.5" /> Convidar
+                  </button>
+                  <button type="button" onClick={async () => {
+                    const url = linkDoEvento(location.origin, detail.id);
+                    try {
+                      if (navigator.share) await navigator.share({ title: detail.title, url });
+                      else { await navigator.clipboard.writeText(url); notify('Link do evento copiado!'); }
+                    } catch { /* cancelado */ }
+                  }} className="py-2.5 rounded-xl text-xs font-bold text-zinc-200 bg-zinc-900/60 border border-purple-900/40 flex items-center justify-center gap-1.5 cursor-pointer">
+                    <Share2 className="w-3.5 h-3.5" /> Compartilhar
+                  </button>
+                </div>
+              )}
               {detail.status === 'approved' ? (
                 <EventRsvpButtons event={detail} onBack={closeDetail} />
               ) : (
@@ -191,6 +251,19 @@ export const EventsView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {detail && convidando && (
+        <ConvidarPessoas
+          titulo="Convidar para o evento"
+          ajuda="O convite chega para suas conexões e para quem segue você de volta."
+          aoFechar={() => setConvidando(false)}
+          aoConvidar={async ids => {
+            const { sent, error } = await inviteToEvent(detail.id, ids);
+            if (error) notify(error);
+            else notify(sent ? `${sent} ${sent === 1 ? 'convite enviado' : 'convites enviados'}.` : 'Essas pessoas já foram convidadas ou não podem receber convites.');
+          }}
+        />
       )}
 
       {detail && artFullscreen && (

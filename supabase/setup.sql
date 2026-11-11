@@ -3418,3 +3418,489 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.mark_messages_delivered(), public.search_my_messages(TEXT, INTEGER) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.mark_messages_delivered(), public.search_my_messages(TEXT, INTEGER) TO authenticated;
+
+-- ==============================================================================
+-- 13. COMUNIDADES E EVENTOS (criação pelos usuários, pedidos, convites, moderação e convites para eventos)
+-- Acesso: 'public' (entra quem quiser), 'approval' (pede e a moderação aprova),
+--         'private' (secreta: só por convite e oculta para quem não é membro).
+-- As comunidades marcadas como privadas nas versões anteriores passam a ser "com aprovação".
+-- ==============================================================================
+
+-- 13.1 Tipo de acesso
+ALTER TABLE public.communities ADD COLUMN IF NOT EXISTS access VARCHAR(20) NOT NULL DEFAULT 'public';
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'communities_access_check') THEN
+    ALTER TABLE public.communities ADD CONSTRAINT communities_access_check CHECK (access IN ('public', 'approval', 'private'));
+  END IF;
+END $$;
+UPDATE public.communities SET access = 'approval' WHERE is_private AND access = 'public';
+
+CREATE OR REPLACE FUNCTION public.communities_sync_private() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.is_private := NEW.access <> 'public';
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS communities_sync_private ON public.communities;
+CREATE TRIGGER communities_sync_private BEFORE INSERT OR UPDATE ON public.communities
+  FOR EACH ROW EXECUTE FUNCTION public.communities_sync_private();
+
+-- 13.2 Pedidos, convites e banimentos (gravados só pelas funções abaixo)
+CREATE TABLE IF NOT EXISTS public.community_requests (
+  community_id UUID NOT NULL REFERENCES public.communities(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  message VARCHAR(300) NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (community_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_community_requests_user ON public.community_requests(user_id);
+
+CREATE TABLE IF NOT EXISTS public.community_invites (
+  community_id UUID NOT NULL REFERENCES public.communities(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  invited_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (community_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_community_invites_user ON public.community_invites(user_id);
+CREATE INDEX IF NOT EXISTS idx_community_invites_by ON public.community_invites(invited_by, created_at);
+
+CREATE TABLE IF NOT EXISTS public.community_bans (
+  community_id UUID NOT NULL REFERENCES public.communities(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  banned_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reason VARCHAR(300) NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (community_id, user_id)
+);
+
+ALTER TABLE public.community_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_invites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_bans ENABLE ROW LEVEL SECURITY;
+
+-- 13.3 Papéis e visibilidade
+CREATE OR REPLACE FUNCTION public.community_role(c UUID, u UUID DEFAULT auth.uid())
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT role FROM public.community_members WHERE community_id = c AND user_id = u;
+$$;
+
+-- Quem pode ver as publicações da comunidade: todos, se aberta; só membros, se fechada
+CREATE OR REPLACE FUNCTION public.can_see_community(c UUID, u UUID DEFAULT auth.uid())
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT c IS NULL
+      OR EXISTS (SELECT 1 FROM public.communities x WHERE x.id = c AND x.access = 'public')
+      OR EXISTS (SELECT 1 FROM public.community_members m WHERE m.community_id = c AND m.user_id = u);
+$$;
+
+CREATE OR REPLACE FUNCTION public.community_is_moderator(c UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT coalesce(public.community_role(c) IN ('admin', 'moderator'), false);
+$$;
+
+DROP POLICY IF EXISTS "communities_select" ON public.communities;
+CREATE POLICY "communities_select" ON public.communities FOR SELECT TO authenticated
+  USING (
+    access <> 'private'
+    OR public.is_staff()
+    OR public.community_role(id) IS NOT NULL
+    OR EXISTS (SELECT 1 FROM public.community_invites i WHERE i.community_id = communities.id AND i.user_id = auth.uid())
+  );
+
+-- membros se enxergam entre si (lista de membros); quem está fora não vê quem participa
+DROP POLICY IF EXISTS "community_members_select" ON public.community_members;
+CREATE POLICY "community_members_select" ON public.community_members FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.is_staff() OR public.community_role(community_id) IS NOT NULL);
+DROP POLICY IF EXISTS "community_members_join" ON public.community_members;
+CREATE POLICY "community_members_join" ON public.community_members FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = auth.uid() AND role = 'member' AND public.can_interact()
+    AND EXISTS (SELECT 1 FROM public.communities c WHERE c.id = community_id AND c.access = 'public')
+    AND NOT EXISTS (SELECT 1 FROM public.community_bans b WHERE b.community_id = community_members.community_id AND b.user_id = auth.uid())
+  );
+
+DROP POLICY IF EXISTS "community_requests_select" ON public.community_requests;
+CREATE POLICY "community_requests_select" ON public.community_requests FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.community_is_moderator(community_id) OR public.is_staff());
+DROP POLICY IF EXISTS "community_invites_select" ON public.community_invites;
+CREATE POLICY "community_invites_select" ON public.community_invites FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR invited_by = auth.uid() OR public.community_is_moderator(community_id) OR public.is_staff());
+DROP POLICY IF EXISTS "community_bans_select" ON public.community_bans;
+CREATE POLICY "community_bans_select" ON public.community_bans FOR SELECT TO authenticated
+  USING (public.community_is_moderator(community_id) OR public.is_staff());
+
+-- Publicações de comunidade fechada: só membros veem; publicar exige ser membro;
+-- administradores e moderadores da comunidade podem remover publicações dela
+DROP POLICY IF EXISTS "posts_select" ON public.posts;
+CREATE POLICY "posts_select" ON public.posts FOR SELECT TO authenticated
+  USING (
+    user_id = auth.uid()
+    OR public.is_staff()
+    OR (
+      moderation_status IN ('approved', 'pending_review')
+      AND NOT public.is_blocked_between(user_id, auth.uid())
+      AND (visibility = 'public' OR public.are_connected(user_id, auth.uid()))
+      AND (community_id IS NULL OR public.can_see_community(community_id))
+    )
+  );
+DROP POLICY IF EXISTS "posts_insert" ON public.posts;
+CREATE POLICY "posts_insert" ON public.posts FOR INSERT TO authenticated
+  WITH CHECK (
+    user_id = auth.uid()
+    AND public.can_interact()
+    AND coalesce((SELECT (restrictions ->> 'cannotPost')::boolean FROM public.profiles WHERE id = auth.uid()), false) = false
+    AND (community_id IS NULL OR public.community_role(community_id) IS NOT NULL)
+  );
+DROP POLICY IF EXISTS "posts_delete" ON public.posts;
+CREATE POLICY "posts_delete" ON public.posts FOR DELETE TO authenticated
+  USING (user_id = auth.uid() OR (community_id IS NOT NULL AND public.community_is_moderator(community_id)));
+
+-- Menções em comunidade fechada só avisam quem consegue ver a publicação
+CREATE OR REPLACE FUNCTION public.notify_mentions(p_text TEXT, p_actor UUID, p_post UUID, p_comment UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  alvo RECORD;
+  post public.posts;
+  nome TEXT;
+BEGIN
+  IF p_text IS NULL OR position('@' IN p_text) = 0 THEN RETURN; END IF;
+  SELECT * INTO post FROM public.posts WHERE id = p_post;
+  SELECT display_name INTO nome FROM public.profiles WHERE id = p_actor;
+  FOR alvo IN
+    SELECT DISTINCT p.id FROM public.profiles p
+     WHERE p.username IN (SELECT lower(m[1]) FROM regexp_matches(p_text, '@([A-Za-z0-9_]{3,50})', 'g') AS m LIMIT 10)
+       AND p.id <> p_actor
+       AND NOT public.is_blocked_between(p.id, p_actor)
+       AND (post.visibility = 'public' OR p.id = post.user_id OR public.are_connected(p.id, post.user_id))
+       AND (post.community_id IS NULL OR public.can_see_community(post.community_id, p.id))
+  LOOP
+    INSERT INTO public.notifications (user_id, actor_id, type, title, message, reference_id, dedupe_key)
+    VALUES (alvo.id, p_actor, 'mention', 'Você foi mencionado',
+            coalesce(nome, 'Alguém') || CASE WHEN p_comment IS NULL THEN ' mencionou você em uma publicação.' ELSE ' mencionou você em um comentário.' END,
+            p_post::text || CASE WHEN p_comment IS NULL THEN '' ELSE '#' || p_comment END,
+            'mention:' || coalesce(p_comment, p_post)::text || ':' || alvo.id)
+    ON CONFLICT DO NOTHING;
+  END LOOP;
+END;
+$$;
+
+-- 13.4 Se o último administrador sair, a comunidade não fica sem dono:
+-- o moderador (ou membro) mais antigo assume
+CREATE OR REPLACE FUNCTION public.community_keep_admin() RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE herdeiro UUID;
+BEGIN
+  IF OLD.role <> 'admin' THEN RETURN NULL; END IF;
+  IF EXISTS (SELECT 1 FROM public.community_members WHERE community_id = OLD.community_id AND role = 'admin') THEN RETURN NULL; END IF;
+  SELECT user_id INTO herdeiro FROM public.community_members
+   WHERE community_id = OLD.community_id
+   ORDER BY (role = 'moderator') DESC, joined_at
+   LIMIT 1;
+  IF herdeiro IS NOT NULL THEN
+    UPDATE public.community_members SET role = 'admin' WHERE community_id = OLD.community_id AND user_id = herdeiro;
+  END IF;
+  RETURN NULL;
+END;
+$$;
+DROP TRIGGER IF EXISTS community_keep_admin ON public.community_members;
+CREATE TRIGGER community_keep_admin AFTER DELETE ON public.community_members
+  FOR EACH ROW EXECUTE FUNCTION public.community_keep_admin();
+
+-- 13.5 Avisos de comunidade
+CREATE OR REPLACE FUNCTION public.community_notify(p_user UUID, p_actor UUID, p_type TEXT, p_title TEXT, p_msg TEXT, p_community UUID, p_dedupe TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.notifications (user_id, actor_id, type, title, message, reference_id, dedupe_key)
+  VALUES (p_user, p_actor, p_type, p_title, p_msg, p_community::text, p_dedupe)
+  ON CONFLICT DO NOTHING;
+$$;
+REVOKE EXECUTE ON FUNCTION public.community_notify(UUID, UUID, TEXT, TEXT, TEXT, UUID, TEXT) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.community_check_fields(p_name TEXT, p_description TEXT, p_category TEXT, p_icon TEXT, p_cover TEXT, p_rules TEXT[], p_access TEXT)
+RETURNS VOID LANGUAGE plpgsql IMMUTABLE AS $$
+BEGIN
+  IF length(trim(coalesce(p_name, ''))) NOT BETWEEN 3 AND 80 THEN RAISE EXCEPTION 'O nome precisa ter de 3 a 80 caracteres.'; END IF;
+  IF length(trim(coalesce(p_description, ''))) NOT BETWEEN 10 AND 1000 THEN RAISE EXCEPTION 'A descrição precisa ter de 10 a 1000 caracteres.'; END IF;
+  IF p_category NOT IN ('regional', 'lifestyle', 'beginners', 'events', 'discussions') THEN RAISE EXCEPTION 'Categoria inválida.'; END IF;
+  IF p_access NOT IN ('public', 'approval', 'private') THEN RAISE EXCEPTION 'Tipo de acesso inválido.'; END IF;
+  IF length(coalesce(p_icon, '')) NOT BETWEEN 1 AND 8 THEN RAISE EXCEPTION 'Ícone inválido.'; END IF;
+  IF NOT public.is_app_media_url(p_cover) THEN RAISE EXCEPTION 'A capa precisa ser enviada pelo app.'; END IF;
+  IF coalesce(array_length(p_rules, 1), 0) > 10 OR EXISTS (SELECT 1 FROM unnest(p_rules) r WHERE length(r) > 200) THEN
+    RAISE EXCEPTION 'Use até 10 regras de até 200 caracteres.';
+  END IF;
+END;
+$$;
+
+-- 13.6 Criar, editar e excluir
+CREATE OR REPLACE FUNCTION public.create_community(p_name TEXT, p_description TEXT, p_category TEXT, p_icon TEXT, p_cover TEXT, p_rules TEXT[], p_access TEXT)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE novo UUID; base TEXT;
+BEGIN
+  IF auth.uid() IS NULL OR NOT public.can_interact() THEN RAISE EXCEPTION 'Sua conta não pode criar comunidades agora.'; END IF;
+  PERFORM public.community_check_fields(p_name, p_description, p_category, p_icon, p_cover, p_rules, p_access);
+  IF (SELECT count(*) FROM public.communities WHERE created_by = auth.uid() AND created_at > now() - interval '1 day') >= 3 THEN
+    RAISE EXCEPTION 'Você pode criar até 3 comunidades por dia.';
+  END IF;
+  IF (SELECT count(*) FROM public.community_members WHERE user_id = auth.uid() AND role = 'admin') >= 20 THEN
+    RAISE EXCEPTION 'Você já administra o máximo de 20 comunidades.';
+  END IF;
+  base := trim(BOTH '-' FROM regexp_replace(lower(trim(p_name)), '[^a-z0-9]+', '-', 'g'));
+  INSERT INTO public.communities (name, slug, description, cover_url, icon_url, category, rules, access, created_by)
+  VALUES (trim(p_name), left(coalesce(nullif(base, ''), 'comunidade'), 120) || '-' || substr(md5(random()::text), 1, 6),
+          trim(p_description), coalesce(p_cover, ''), p_icon, p_category,
+          coalesce((SELECT array_agg(trim(r)) FROM unnest(p_rules) r WHERE trim(r) <> ''), '{}'), p_access, auth.uid())
+  RETURNING id INTO novo;
+  INSERT INTO public.community_members (community_id, user_id, role) VALUES (novo, auth.uid(), 'admin');
+  RETURN novo;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.update_community(p_id UUID, p_name TEXT, p_description TEXT, p_category TEXT, p_icon TEXT, p_cover TEXT, p_rules TEXT[], p_access TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF coalesce(public.community_role(p_id), '') <> 'admin' AND NOT public.is_superadmin() THEN
+    RAISE EXCEPTION 'Só a administração da comunidade pode editar.';
+  END IF;
+  PERFORM public.community_check_fields(p_name, p_description, p_category, p_icon, p_cover, p_rules, p_access);
+  UPDATE public.communities
+     SET name = trim(p_name), description = trim(p_description), category = p_category, icon_url = p_icon,
+         cover_url = coalesce(p_cover, cover_url), access = p_access,
+         rules = coalesce((SELECT array_agg(trim(r)) FROM unnest(p_rules) r WHERE trim(r) <> ''), '{}')
+   WHERE id = p_id;
+  -- ao abrir a comunidade, quem estava esperando aprovação entra
+  IF p_access = 'public' THEN
+    INSERT INTO public.community_members (community_id, user_id)
+    SELECT community_id, user_id FROM public.community_requests WHERE community_id = p_id
+    ON CONFLICT DO NOTHING;
+    DELETE FROM public.community_requests WHERE community_id = p_id;
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.delete_community(p_id UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF coalesce(public.community_role(p_id), '') <> 'admin' AND NOT public.is_superadmin() THEN
+    RAISE EXCEPTION 'Só a administração da comunidade pode excluir.';
+  END IF;
+  DELETE FROM public.communities WHERE id = p_id;
+END;
+$$;
+
+-- 13.7 Entrar, pedir para entrar e convites
+CREATE OR REPLACE FUNCTION public.community_join(p_id UUID, p_message TEXT DEFAULT '')
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE com public.communities; nome TEXT; mod RECORD;
+BEGIN
+  IF auth.uid() IS NULL OR NOT public.can_interact() THEN RAISE EXCEPTION 'Sua conta não pode entrar em comunidades agora.'; END IF;
+  SELECT * INTO com FROM public.communities WHERE id = p_id;
+  IF com.id IS NULL THEN RAISE EXCEPTION 'Comunidade não encontrada.'; END IF;
+  IF EXISTS (SELECT 1 FROM public.community_bans WHERE community_id = p_id AND user_id = auth.uid()) THEN
+    RAISE EXCEPTION 'Você não pode entrar nesta comunidade.';
+  END IF;
+  IF public.community_role(p_id) IS NOT NULL THEN RETURN 'already'; END IF;
+
+  IF com.access = 'public' OR EXISTS (SELECT 1 FROM public.community_invites WHERE community_id = p_id AND user_id = auth.uid()) THEN
+    INSERT INTO public.community_members (community_id, user_id) VALUES (p_id, auth.uid()) ON CONFLICT DO NOTHING;
+    DELETE FROM public.community_invites WHERE community_id = p_id AND user_id = auth.uid();
+    DELETE FROM public.community_requests WHERE community_id = p_id AND user_id = auth.uid();
+    RETURN 'joined';
+  END IF;
+  IF com.access = 'private' THEN RAISE EXCEPTION 'Esta comunidade é só para convidados.'; END IF;
+
+  IF EXISTS (SELECT 1 FROM public.community_requests WHERE community_id = p_id AND user_id = auth.uid()) THEN RETURN 'requested'; END IF;
+  IF (SELECT count(*) FROM public.community_requests WHERE user_id = auth.uid() AND created_at > now() - interval '1 day') >= 20 THEN
+    RAISE EXCEPTION 'Muitos pedidos hoje. Tente amanhã.';
+  END IF;
+  INSERT INTO public.community_requests (community_id, user_id, message) VALUES (p_id, auth.uid(), left(coalesce(trim(p_message), ''), 300));
+  SELECT display_name INTO nome FROM public.profiles WHERE id = auth.uid();
+  FOR mod IN SELECT user_id FROM public.community_members WHERE community_id = p_id AND role IN ('admin', 'moderator') LOOP
+    PERFORM public.community_notify(mod.user_id, auth.uid(), 'group_join_request', 'Pedido para entrar',
+      coalesce(nome, 'Alguém') || ' pediu para entrar em ' || com.name || '.', p_id, 'group_join_request:' || p_id || ':' || auth.uid());
+  END LOOP;
+  RETURN 'requested';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.community_cancel_request(p_id UUID)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  DELETE FROM public.community_requests WHERE community_id = p_id AND user_id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION public.community_review_request(p_id UUID, p_user UUID, p_approve BOOLEAN)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE nome_com TEXT;
+BEGIN
+  IF NOT public.community_is_moderator(p_id) THEN RAISE EXCEPTION 'Só a moderação da comunidade pode responder pedidos.'; END IF;
+  DELETE FROM public.community_requests WHERE community_id = p_id AND user_id = p_user;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Pedido não encontrado.'; END IF;
+  IF p_approve THEN
+    INSERT INTO public.community_members (community_id, user_id) VALUES (p_id, p_user) ON CONFLICT DO NOTHING;
+    SELECT name INTO nome_com FROM public.communities WHERE id = p_id;
+    PERFORM public.community_notify(p_user, auth.uid(), 'group_request_approved', 'Pedido aprovado',
+      'Você agora participa de ' || nome_com || '.', p_id, 'group_request_approved:' || p_id || ':' || p_user);
+  END IF;
+  -- a recusa é silenciosa: quem pediu só deixa de ver o pedido pendente
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.community_invite(p_id UUID, p_user UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE com public.communities; nome TEXT;
+BEGIN
+  IF NOT public.can_interact() THEN RAISE EXCEPTION 'Sua conta não pode convidar agora.'; END IF;
+  SELECT * INTO com FROM public.communities WHERE id = p_id;
+  IF public.community_role(p_id) IS NULL OR (com.access <> 'public' AND NOT public.community_is_moderator(p_id)) THEN
+    RAISE EXCEPTION 'Você não pode convidar para esta comunidade.';
+  END IF;
+  IF p_user = auth.uid() OR public.is_blocked_between(p_user, auth.uid()) OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user) THEN
+    RAISE EXCEPTION 'Não é possível convidar esta pessoa.';
+  END IF;
+  IF public.community_role(p_id, p_user) IS NOT NULL THEN RAISE EXCEPTION 'Esta pessoa já participa.'; END IF;
+  IF EXISTS (SELECT 1 FROM public.community_bans WHERE community_id = p_id AND user_id = p_user) THEN RAISE EXCEPTION 'Não é possível convidar esta pessoa.'; END IF;
+  IF (SELECT count(*) FROM public.community_invites WHERE invited_by = auth.uid() AND created_at > now() - interval '1 day') >= 30 THEN
+    RAISE EXCEPTION 'Você já enviou muitos convites hoje.';
+  END IF;
+  INSERT INTO public.community_invites (community_id, user_id, invited_by) VALUES (p_id, p_user, auth.uid()) ON CONFLICT DO NOTHING;
+  IF FOUND THEN
+    SELECT display_name INTO nome FROM public.profiles WHERE id = auth.uid();
+    PERFORM public.community_notify(p_user, auth.uid(), 'group_invite', 'Convite para comunidade',
+      coalesce(nome, 'Alguém') || ' convidou você para ' || com.name || '.', p_id, 'group_invite:' || p_id || ':' || p_user);
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.community_decline_invite(p_id UUID)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  DELETE FROM public.community_invites WHERE community_id = p_id AND user_id = auth.uid();
+$$;
+
+-- 13.8 Gestão de membros
+CREATE OR REPLACE FUNCTION public.community_set_role(p_id UUID, p_user UUID, p_role TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE atual TEXT; nome_com TEXT;
+BEGIN
+  IF coalesce(public.community_role(p_id), '') <> 'admin' AND NOT public.is_superadmin() THEN
+    RAISE EXCEPTION 'Só a administração da comunidade muda funções.';
+  END IF;
+  IF p_role NOT IN ('admin', 'moderator', 'member') THEN RAISE EXCEPTION 'Função inválida.'; END IF;
+  atual := public.community_role(p_id, p_user);
+  IF atual IS NULL THEN RAISE EXCEPTION 'Esta pessoa não participa da comunidade.'; END IF;
+  IF atual = 'admin' AND p_role <> 'admin'
+     AND (SELECT count(*) FROM public.community_members WHERE community_id = p_id AND role = 'admin') <= 1 THEN
+    RAISE EXCEPTION 'A comunidade precisa de pelo menos um administrador.';
+  END IF;
+  UPDATE public.community_members SET role = p_role WHERE community_id = p_id AND user_id = p_user;
+  IF p_role IN ('admin', 'moderator') AND atual <> p_role THEN
+    SELECT name INTO nome_com FROM public.communities WHERE id = p_id;
+    PERFORM public.community_notify(p_user, auth.uid(), 'group_role', 'Nova função na comunidade',
+      'Você agora é ' || CASE p_role WHEN 'admin' THEN 'administrador' ELSE 'moderador' END || ' de ' || nome_com || '.',
+      p_id, 'group_role:' || p_id || ':' || p_user || ':' || p_role);
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.community_remove_member(p_id UUID, p_user UUID, p_ban BOOLEAN DEFAULT false, p_reason TEXT DEFAULT '')
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE eu TEXT; alvo TEXT;
+BEGIN
+  eu := public.community_role(p_id);
+  alvo := public.community_role(p_id, p_user);
+  IF p_user = auth.uid() THEN RAISE EXCEPTION 'Para sair, use a opção Sair da comunidade.'; END IF;
+  IF NOT (eu = 'admin' AND coalesce(alvo, 'member') <> 'admin') AND NOT (eu = 'moderator' AND coalesce(alvo, 'member') = 'member') THEN
+    RAISE EXCEPTION 'Você não pode remover esta pessoa.';
+  END IF;
+  DELETE FROM public.community_members WHERE community_id = p_id AND user_id = p_user;
+  DELETE FROM public.community_requests WHERE community_id = p_id AND user_id = p_user;
+  DELETE FROM public.community_invites WHERE community_id = p_id AND user_id = p_user;
+  IF p_ban THEN
+    INSERT INTO public.community_bans (community_id, user_id, banned_by, reason)
+    VALUES (p_id, p_user, auth.uid(), left(coalesce(p_reason, ''), 300))
+    ON CONFLICT (community_id, user_id) DO UPDATE SET banned_by = EXCLUDED.banned_by, reason = EXCLUDED.reason, created_at = now();
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.community_unban(p_id UUID, p_user UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.community_is_moderator(p_id) THEN RAISE EXCEPTION 'Só a moderação da comunidade pode desfazer o banimento.'; END IF;
+  DELETE FROM public.community_bans WHERE community_id = p_id AND user_id = p_user;
+END;
+$$;
+
+-- 13.9 Convites para eventos (só para conexões ou quem se segue mutuamente)
+CREATE TABLE IF NOT EXISTS public.event_invites (
+  event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  invited_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_event_invites_by ON public.event_invites(invited_by, created_at);
+ALTER TABLE public.event_invites ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "event_invites_select" ON public.event_invites;
+CREATE POLICY "event_invites_select" ON public.event_invites FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR invited_by = auth.uid());
+
+CREATE OR REPLACE FUNCTION public.invite_to_event(p_event UUID, p_users UUID[])
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE ev public.events; nome TEXT; u UUID; n INTEGER := 0;
+BEGIN
+  IF auth.uid() IS NULL OR NOT public.can_interact() THEN RAISE EXCEPTION 'Sua conta não pode convidar agora.'; END IF;
+  SELECT * INTO ev FROM public.events WHERE id = p_event;
+  IF ev.id IS NULL OR ev.status <> 'approved' OR coalesce(ev.ends_at, ev.starts_at) < now() THEN
+    RAISE EXCEPTION 'Este evento não está disponível para convites.';
+  END IF;
+  IF coalesce(array_length(p_users, 1), 0) > 50 THEN RAISE EXCEPTION 'Convide até 50 pessoas por vez.'; END IF;
+  IF (SELECT count(*) FROM public.event_invites WHERE invited_by = auth.uid() AND created_at > now() - interval '1 day')
+     + coalesce(array_length(p_users, 1), 0) > 100 THEN
+    RAISE EXCEPTION 'Você já enviou muitos convites hoje.';
+  END IF;
+  SELECT display_name INTO nome FROM public.profiles WHERE id = auth.uid();
+  FOREACH u IN ARRAY coalesce(p_users, '{}') LOOP
+    CONTINUE WHEN u = auth.uid() OR public.is_blocked_between(u, auth.uid());
+    CONTINUE WHEN NOT (public.are_connected(u, auth.uid())
+      OR (EXISTS (SELECT 1 FROM public.follows WHERE follower_id = u AND following_id = auth.uid())
+          AND EXISTS (SELECT 1 FROM public.follows WHERE follower_id = auth.uid() AND following_id = u)));
+    INSERT INTO public.event_invites (event_id, user_id, invited_by) VALUES (p_event, u, auth.uid()) ON CONFLICT DO NOTHING;
+    IF FOUND THEN
+      n := n + 1;
+      INSERT INTO public.notifications (user_id, actor_id, type, title, message, reference_id, dedupe_key)
+      VALUES (u, auth.uid(), 'event_invite', 'Convite para evento',
+              coalesce(nome, 'Alguém') || ' convidou você para ' || ev.title || '.', p_event::text, 'event_invite:' || p_event || ':' || u)
+      ON CONFLICT DO NOTHING;
+    END IF;
+  END LOOP;
+  RETURN n;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION
+  public.create_community(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT[], TEXT),
+  public.update_community(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT[], TEXT),
+  public.delete_community(UUID),
+  public.community_join(UUID, TEXT),
+  public.community_cancel_request(UUID),
+  public.community_review_request(UUID, UUID, BOOLEAN),
+  public.community_invite(UUID, UUID),
+  public.community_decline_invite(UUID),
+  public.community_set_role(UUID, UUID, TEXT),
+  public.community_remove_member(UUID, UUID, BOOLEAN, TEXT),
+  public.community_unban(UUID, UUID),
+  public.invite_to_event(UUID, UUID[])
+FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION
+  public.create_community(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT[], TEXT),
+  public.update_community(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT[], TEXT),
+  public.delete_community(UUID),
+  public.community_join(UUID, TEXT),
+  public.community_cancel_request(UUID),
+  public.community_review_request(UUID, UUID, BOOLEAN),
+  public.community_invite(UUID, UUID),
+  public.community_decline_invite(UUID),
+  public.community_set_role(UUID, UUID, TEXT),
+  public.community_remove_member(UUID, UUID, BOOLEAN, TEXT),
+  public.community_unban(UUID, UUID),
+  public.invite_to_event(UUID, UUID[])
+TO authenticated;
+GRANT SELECT ON public.community_requests, public.community_invites, public.community_bans, public.event_invites TO authenticated;

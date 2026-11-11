@@ -47,8 +47,6 @@ import {
   removeFollower as removeFollowerRow,
   sendConnectionRequest,
   acceptConnectionRequest,
-  fetchCommunities,
-  setCommunityMembership,
   BlockedUser,
   fetchBlockedUsers,
   blockUser as blockUserRequest,
@@ -64,6 +62,7 @@ import {
   markConversationRead,
   markMessagesDelivered
 } from '../lib/messaging';
+import { fetchCommunities, joinCommunity, leaveCommunity } from '../lib/comunidades';
 import {
   fetchNotifications,
   fetchNotification,
@@ -209,7 +208,8 @@ interface AppContextType {
   revokeAlbumAccess: (albumId: string, requesterUserId: string) => Promise<boolean>;
 
   // Community Actions
-  toggleJoinCommunity: (communityId: string) => void;
+  toggleJoinCommunity: (communityId: string, message?: string) => Promise<void>;
+  refreshCommunities: () => Promise<void>;
 
   // Stories, eventos e publicidade
   storyGroups: StoryGroup[];
@@ -437,7 +437,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     fetchCompatibilityMap(visibleProfiles.map(p => p.id)).then(setCompatibilityMap);
     applySocialGraph(graph);
     setPosts(feed);
-    setFeedFilter('all');
+    setFeedFilter('foryou');
     setFeedHasMore(feed.length >= FEED_PAGE_SIZE);
     setConversations(loadedConversations);
     setNotifications(loadedNotifications);
@@ -708,6 +708,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const nova = payload.new as { id: string; type?: string };
         // aviso de mensagem é para o push; na tela, a conversa já mostra o "não lido"
         if (nova.type && MESSAGE_NOTIFICATION_TYPES.includes(nova.type)) return;
+        // convite ou aprovação de comunidade: a lista precisa mostrar a comunidade (inclusive secreta)
+        if (nova.type?.startsWith('group_')) refreshCommunities();
         const notification = await fetchNotification(nova.id);
         if (notification) setNotifications(prev => [notification, ...prev.filter(n => n.id !== notification.id)]);
       })
@@ -1170,20 +1172,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const toggleJoinCommunity = async (communityId: string) => {
+  const refreshCommunities = async () => {
+    if (currentUser.id) setCommunities(await fetchCommunities(currentUser.id));
+  };
+
+  // Participar: entra direto (aberta ou convidado) ou envia o pedido (com aprovação); se já participa, sai
+  const toggleJoinCommunity = async (communityId: string, message = '') => {
     const community = communities.find(c => c.id === communityId);
     if (!community) return;
-    const join = !community.isJoined;
-    setCommunities(prev => prev.map(c => c.id !== communityId ? c : {
-      ...c,
-      isJoined: join,
-      membersCount: Math.max(0, c.membersCount + (join ? 1 : -1))
-    }));
-    const error = await setCommunityMembership(currentUser.id, communityId, join);
-    if (error) {
-      notify(error);
-      setCommunities(await fetchCommunities(currentUser.id));
+    if (community.isJoined) {
+      setCommunities(prev => prev.map(c => c.id !== communityId ? c : { ...c, isJoined: false, myRole: null, membersCount: Math.max(0, c.membersCount - 1) }));
+      const error = await leaveCommunity(currentUser.id, communityId);
+      if (error) notify(error);
+    } else {
+      const { status, error } = await joinCommunity(communityId, message);
+      if (error) notify(error);
+      else if (status === 'requested') notify('Pedido enviado! A moderação da comunidade vai analisar.');
+      else if (status === 'joined') notify(`Bem-vindo(a) a ${community.name}!`);
     }
+    await refreshCommunities();
   };
 
   const refreshConversations = async () => {
@@ -1423,6 +1430,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveAlbumAccess,
         revokeAlbumAccess,
         toggleJoinCommunity,
+        refreshCommunities,
         storyGroups,
         refreshStories,
         events,

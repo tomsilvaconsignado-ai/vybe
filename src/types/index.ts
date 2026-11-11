@@ -146,6 +146,9 @@ export interface Post {
   communityId?: string;
 }
 
+export type CommunityAccess = 'public' | 'approval' | 'private';
+export type CommunityRole = 'admin' | 'moderator' | 'member';
+
 export interface Community {
   id: string;
   name: string;
@@ -158,6 +161,15 @@ export interface Community {
   membersCount: number;
   isJoined: boolean;
   isPrivate: boolean;
+  /** aberta, com aprovação ou secreta */
+  access: CommunityAccess;
+  /** minha função (null = não participo) */
+  myRole: CommunityRole | null;
+  /** pedi para entrar e aguardo a moderação */
+  requested: boolean;
+  /** fui convidado */
+  invited: boolean;
+  createdBy?: string;
   postsCount: number;
   moderators: string[];
 }
