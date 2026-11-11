@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { HeartHandshake, Check } from 'lucide-react';
 import { ProfileCard } from '../discover/ProfileCard';
+import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 export const ConnectionsView: React.FC = () => {
   const {
@@ -11,7 +12,7 @@ export const ConnectionsView: React.FC = () => {
     outgoingConnectionRequests,
     acceptConnection
   } = useApp();
-  const [tab, setTab] = useState<'connected' | 'incoming' | 'outgoing'>('connected');
+  const [tab, setTab] = useEstadoSalvo<'connected' | 'incoming' | 'outgoing'>('conexoes.aba', 'connected');
 
   const connectedProfiles = profiles.filter(p => connections.includes(p.id));
   const incomingProfiles = profiles.filter(p => incomingConnectionRequests.includes(p.id));

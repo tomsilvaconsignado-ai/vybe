@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { linkDaPublicacao } from '../../lib/rotas';
 import {
   Heart,
   MessageCircle,
@@ -31,7 +32,7 @@ interface PostCardProps {
 const CAPTION_PREVIEW_CHARS = 140;
 
 /** Link direto da publicação (abre a publicação ao entrar no Vybelog) */
-export const postLink = (postId: string) => `${window.location.origin}/?post=${postId}`;
+export const postLink = (postId: string) => linkDaPublicacao(window.location.origin, postId);
 
 export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, position, total }) => {
   const {

@@ -13,11 +13,15 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Community } from '../../types';
+import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 export const CommunitiesView: React.FC = () => {
   const { communities, toggleJoinCommunity, setSelectedProfileId } = useApp();
-  const [selectedCommunity, setSelectedCommunity] = useState<Community | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string>('all');
+  // a comunidade aberta e a categoria sobrevivem ao F5 (guarda o id; o objeto vem da lista atual)
+  const [selectedCommunityId, setSelectedCommunityId] = useEstadoSalvo<string | null>('comunidades.aberta', null);
+  const selectedCommunity = communities.find(c => c.id === selectedCommunityId) ?? null;
+  const setSelectedCommunity = (c: Community | null) => setSelectedCommunityId(c?.id ?? null);
+  const [activeCategory, setActiveCategory] = useEstadoSalvo<string>('comunidades.categoria', 'all');
 
   const filteredCommunities = communities.filter(c => {
     if (activeCategory === 'all') return true;

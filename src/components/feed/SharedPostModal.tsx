@@ -4,17 +4,16 @@ import { useApp } from '../../context/AppContext';
 import { fetchPost } from '../../lib/social';
 import { PostCard } from './PostCard';
 
-// Link compartilhado (?post=<id>): ao entrar no Vybelog, a publicação abre por cima do feed.
-// O parâmetro sai da barra de endereço ao fechar, para não reabrir ao recarregar.
-const lerPostDaUrl = () => new URLSearchParams(window.location.search).get('post');
+// Publicação aberta pelo endereço /publicacao/<id> (link compartilhado, notificação ou F5), por cima
+// da tela atual. Fechar volta para a tela de baixo (o endereço acompanha).
 
 export const SharedPostModal: React.FC = () => {
-  const { currentUser, posts, postCache, cachePosts } = useApp();
-  const [postId, setPostId] = useState<string | null>(lerPostDaUrl);
+  const { currentUser, posts, postCache, cachePosts, openPostId: postId, setOpenPostId } = useApp();
   const [estado, setEstado] = useState<'carregando' | 'pronto' | 'indisponivel'>('carregando');
 
   useEffect(() => {
     if (!postId || !currentUser.id) return;
+    setEstado('carregando');
     let ativo = true;
     fetchPost(postId, currentUser.id).then(p => {
       if (!ativo) return;
@@ -33,10 +32,7 @@ export const SharedPostModal: React.FC = () => {
   if (!postId) return null;
 
   function fechar() {
-    const url = new URL(window.location.href);
-    url.searchParams.delete('post');
-    window.history.replaceState(null, '', url.pathname + url.search + url.hash);
-    setPostId(null);
+    setOpenPostId(null);
   }
 
   // estado atualizado (curtidas, comentários) vem do feed ou do cache

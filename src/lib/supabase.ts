@@ -34,8 +34,8 @@ export const supabase = createClient(
 );
 
 // URL para onde os links de e-mail (confirmação / redefinição de senha) retornam.
-// Usa o caminho atual para funcionar também em subpastas (ex.: GitHub Pages).
-export const authRedirectUrl = (): string => `${window.location.origin}${window.location.pathname}`;
+// Sempre a raiz do app: cada tela agora tem endereço próprio e só a raiz precisa estar liberada no Supabase Auth.
+export const authRedirectUrl = (): string => `${window.location.origin}/`;
 
 // Traduz as mensagens de erro mais comuns do Supabase Auth
 export function translateAuthError(message: string | undefined | null): string {

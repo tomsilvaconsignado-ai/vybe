@@ -23,6 +23,7 @@ import { askConfirm, notify } from '../common/Feedback';
 import { OnlineDot, activityLabel } from '../common/OnlineDot';
 import { EmojiPicker, isEmojiOnly } from '../common/EmojiPicker';
 import { CHAT_MEDIA_ACCEPT, uploadChatMedia } from '../../lib/messaging';
+import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 export const MessagesView: React.FC = () => {
   const { 
@@ -43,7 +44,7 @@ export const MessagesView: React.FC = () => {
   } = useApp();
 
   const [inputText, setInputText] = useState('');
-  const [activeTab, setActiveTab] = useState<'chats' | 'requests'>('chats');
+  const [activeTab, setActiveTab] = useEstadoSalvo<'chats' | 'requests'>('mensagens.aba', 'chats');
   const [discreetBlur, setDiscreetBlur] = useState(false);
 
   // Pedidos que EU recebi ficam em "Solicitações"; os que eu enviei aparecem nas conversas como "aguardando"

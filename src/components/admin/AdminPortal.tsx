@@ -40,6 +40,7 @@ import { ModerationReport, AdminUserRecord, AdminMediaRecord } from '../../types
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminMessageInvestigationModal } from './AdminMessageInvestigationModal';
 import { notify, askText } from '../common/Feedback';
+import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 export const AdminPortal: React.FC = () => {
   const { 
@@ -56,7 +57,7 @@ export const AdminPortal: React.FC = () => {
     adminMfaVerified
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'users' | 'reports' | 'media' | 'conversations' | 'events' | 'ads' | 'audit'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useEstadoSalvo<'dashboard' | 'users' | 'reports' | 'media' | 'conversations' | 'events' | 'ads' | 'audit'>('admin.aba', 'dashboard');
 
   // Modals state
   const [inspectingUser, setInspectingUser] = useState<AdminUserRecord | null>(null);
@@ -64,9 +65,9 @@ export const AdminPortal: React.FC = () => {
 
   // Filters state
   const [searchUserQuery, setSearchUserQuery] = useState('');
-  const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'warned' | 'restricted' | 'suspended'>('all');
-  const [mediaStatusFilter, setMediaStatusFilter] = useState<'all' | 'approved' | 'pending_review' | 'flagged' | 'removed'>('all');
-  const [reportPriorityFilter, setReportPriorityFilter] = useState<'all' | 'urgent' | 'high' | 'medium' | 'low'>('all');
+  const [userStatusFilter, setUserStatusFilter] = useEstadoSalvo<'all' | 'active' | 'warned' | 'restricted' | 'suspended'>('admin.usuarios.situacao', 'all');
+  const [mediaStatusFilter, setMediaStatusFilter] = useEstadoSalvo<'all' | 'approved' | 'pending_review' | 'flagged' | 'removed'>('admin.midia.situacao', 'all');
+  const [reportPriorityFilter, setReportPriorityFilter] = useEstadoSalvo<'all' | 'urgent' | 'high' | 'medium' | 'low'>('admin.denuncias.prioridade', 'all');
   const [selectedReport, setSelectedReport] = useState<ModerationReport | null>(null);
   useEffect(() => {
     setSelectedReport(prev => (prev ? reports.find(r => r.id === prev.id) ?? null : reports.find(r => r.status === 'pending') ?? null));

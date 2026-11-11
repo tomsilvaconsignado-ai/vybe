@@ -36,6 +36,9 @@ jobs:
       - name: Type check
         run: npm run lint
 
+      - name: Testes unitários (rotas)
+        run: npm test
+
       # Executa supabase/setup.sql num Postgres em memória e tenta os ataques conhecidos
       # (conexão forjada, entrar em conversa alheia, ler cofre, notificação falsa...).
       - name: Security tests (RLS do Supabase)

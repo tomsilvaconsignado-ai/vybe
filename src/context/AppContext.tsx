@@ -24,6 +24,8 @@ import { GUEST_USER, AdminRole, fetchOwnProfile, fetchAdminRole, saveOwnProfile,
 import { calculateCompatibility, CompatibilityBreakdown } from '../utils/compatibility';
 import { fetchCompatibilityMap } from '../lib/compatibility';
 import { touchPresence, fetchOnlineUsers } from '../lib/presence';
+import { caminhoDoEstado, estadoDoCaminho } from '../lib/rotas';
+import { iniciarRolagem, lembrarRolagem, restaurarRolagem } from '../lib/rolagem';
 import { getDevicePosition, locationPermissionGranted, saveMyLocation, clearMyLocation, fetchMyLocationStatus, fetchProfileDistances } from '../lib/geo';
 import {
   SocialGraph,
@@ -132,6 +134,9 @@ interface AppContextType {
   setSelectedProfileId: (id: string | null) => void;
   selectedConversationId: string | null;
   setSelectedConversationId: (id: string | null) => void;
+  /** publicação aberta por link (/publicacao/:id) */
+  openPostId: string | null;
+  setOpenPostId: (id: string | null) => void;
 
   // Data
   profiles: UserProfile[];
@@ -334,9 +339,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
   const [adminMediaList, setAdminMediaList] = useState<AdminMediaRecord[]>([]);
 
-  // UI state
-  const [activeTab, setActiveTabState] = useState<string>('feed');
-  const [selectedProfileId, setSelectedProfileIdState] = useState<string | null>(null);
+  // UI state — a tela inicial vem do endereço (F5, link direto, notificação)
+  const rotaInicial = useRef(estadoDoCaminho(window.location.pathname, window.location.search)).current;
+  const [activeTab, setActiveTabState] = useState<string>(rotaInicial.aba);
+  const [selectedProfileId, setSelectedProfileIdState] = useState<string | null>(rotaInicial.perfilId);
+  const [openPostId, setOpenPostId] = useState<string | null>(rotaInicial.postId);
+  // painel administrativo pedido pelo endereço: só abre depois de confirmado o papel administrativo
+  const adminPedidoPelaRota = useRef(rotaInicial.admin);
 
   // Ir para "Meu Perfil" pelo menu limpa o perfil visitado
   const setActiveTab = (tab: string) => {
@@ -353,7 +362,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.scrollTo({ top: 0 });
     }
   };
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(rotaInicial.conversaId);
   const [discoverSearch, setDiscoverSearch] = useState<string>('');
 
   const [connections, setConnections] = useState<string[]>([]);
@@ -679,6 +688,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAdminModeInternal(active);
   };
 
+  // ---------------------------------------------------------------- endereço ↔ tela
+  // Cada mudança de tela vira um endereço (pushState); voltar/avançar e F5 reconstroem a tela a partir
+  // dele. Deslogado, o endereço fica como está: depois do login a pessoa cai exatamente onde queria ir.
+  const vindoDoHistorico = useRef(false);
+  const primeiraSincronia = useRef(true);
+  const adminAutorizadoRef = useRef(isAuthorizedAdmin);
+  adminAutorizadoRef.current = isAuthorizedAdmin;
+
+  useEffect(() => iniciarRolagem(), []);
+
+  useEffect(() => {
+    const aoNavegarNoHistorico = () => {
+      const e = estadoDoCaminho(window.location.pathname, window.location.search);
+      vindoDoHistorico.current = true;
+      setIsAdminModeInternal(e.admin && adminAutorizadoRef.current);
+      setActiveTabState(e.aba);
+      setSelectedProfileIdState(e.perfilId);
+      setSelectedConversationId(e.conversaId);
+      setOpenPostId(e.postId);
+      restaurarRolagem();
+    };
+    window.addEventListener('popstate', aoNavegarNoHistorico);
+    return () => window.removeEventListener('popstate', aoNavegarNoHistorico);
+  }, []);
+
+  // /admin: abre o painel quando o papel administrativo for confirmado; sem papel, fica no feed
+  useEffect(() => {
+    if (authLoading || !adminPedidoPelaRota.current) return;
+    adminPedidoPelaRota.current = false;
+    if (isAuthorizedAdmin) setIsAdminModeInternal(true);
+  }, [authLoading, isAuthorizedAdmin]);
+
+  useEffect(() => {
+    if (authLoading || !isLoggedIn || adminPedidoPelaRota.current) return;
+    const caminho = caminhoDoEstado({ aba: activeTab, perfilId: selectedProfileId, conversaId: selectedConversationId, admin: isAdminMode, postId: openPostId });
+    if (vindoDoHistorico.current) {
+      vindoDoHistorico.current = false;
+      primeiraSincronia.current = false;
+      return;
+    }
+    const mudou = caminho !== window.location.pathname || window.location.search.includes('post=');
+    if (primeiraSincronia.current) {
+      primeiraSincronia.current = false;
+      if (mudou) window.history.replaceState(null, '', caminho);   // endereço antigo ou inválido: corrige sem criar histórico
+      restaurarRolagem(caminho);                                    // F5: volta para onde estava
+      return;
+    }
+    if (mudou) {
+      lembrarRolagem(window.location.pathname);
+      window.history.pushState(null, '', caminho);
+      window.scrollTo(0, 0);
+    }
+  }, [authLoading, isLoggedIn, activeTab, selectedProfileId, selectedConversationId, isAdminMode, openPostId]);
+
   const confirmAge = () => {
     setIsAgeConfirmed(true);
     localStorage.setItem('vybe_age_confirmed', 'true');
@@ -688,7 +751,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password, options: { captchaToken: captchaToken ?? undefined } });
     if (error) return translateAuthError(error.message);
     setAuthModalType(null);
-    setActiveTab('feed');
+    // continua na tela do endereço (link direto, F5); na página inicial, abre o feed
     return null;
   };
 
@@ -702,10 +765,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Com confirmação de e-mail ativa, o Supabase não devolve sessão até o usuário clicar no link
     const needsEmailConfirmation = !data.session;
-    if (!needsEmailConfirmation) {
-      setAuthModalType(null);
-      setActiveTab('feed');
-    }
+    if (!needsEmailConfirmation) setAuthModalType(null);
     return { error: null, needsEmailConfirmation };
   };
 
@@ -730,6 +790,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await supabase.auth.signOut();
     setIsAdminModeInternal(false);
     setActiveTab('feed');
+    setSelectedConversationId(null);
+    setOpenPostId(null);
+    primeiraSincronia.current = true;
+    window.history.replaceState(null, '', '/');
     // Continua no Vybelog, na tela de login
     setAuthModalType('login');
   };
@@ -1239,6 +1303,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedProfileId,
         selectedConversationId,
         setSelectedConversationId,
+        openPostId,
+        setOpenPostId,
         profiles: profilesWithDistance,
         hasLocation,
         enableLocation,

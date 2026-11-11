@@ -8,16 +8,17 @@ import { SubmitEventModal } from './SubmitEventModal';
 import { AdSlot } from '../ads/AdSlot';
 import { EVENT_CATEGORY_LABELS, deleteEvent, formatEventDate, recordEventView } from '../../lib/events';
 import { notify, askConfirm } from '../common/Feedback';
+import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 type Filter = 'upcoming' | 'city' | 'going' | 'mine';
 
 export const EventsView: React.FC = () => {
   const { events, currentUser, refreshEvents } = useApp();
-  const [filter, setFilter] = useState<Filter>('upcoming');
+  const [filter, setFilter] = useEstadoSalvo<Filter>('eventos.filtro', 'upcoming');
   const [submitOpen, setSubmitOpen] = useState(false);
   const [openEvent, setOpenEvent] = useState<VybeEvent | null>(null);
   const [artFullscreen, setArtFullscreen] = useState(false);
-  const [showHidden, setShowHidden] = useState(false);
+  const [showHidden, setShowHidden] = useEstadoSalvo('eventos.ocultos', false);
 
   const myCity = currentUser.city.trim().toLowerCase();
   const { filtered, hiddenCount } = useMemo(() => {

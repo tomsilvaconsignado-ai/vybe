@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { ProfileType } from '../../types';
 import { calculateCompatibility } from '../../utils/compatibility';
+import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 interface DiscoverViewProps {
   initialFilter?: 'all' | 'couples' | 'singles';
@@ -42,17 +43,17 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
     profiles, currentUser, getCompatibility, discoverSearch: searchQuery, setDiscoverSearch: setSearchQuery,
     hasLocation, enableLocation, ensureProfiles
   } = useApp();
-  const [selectedType, setSelectedType] = useState<string>(
+  const [selectedType, setSelectedType] = useEstadoSalvo<string>(`descobrir.${initialFilter}.tipo`,
     initialFilter === 'couples' ? 'couple' : initialFilter === 'singles' ? 'singles' : 'all'
   );
-  const [onlyVerified, setOnlyVerified] = useState<boolean>(false);
+  const [onlyVerified, setOnlyVerified] = useEstadoSalvo<boolean>(`descobrir.${initialFilter}.verificados`, false);
   const [nearbyOnly, setNearbyOnly] = useState<boolean>(() => readStored(NEARBY_KEY) === '1');
   const [radiusKm, setRadiusKm] = useState<number>(() => {
     const saved = Number(readStored(RADIUS_KEY));
     return RADIUS_OPTIONS.includes(saved) ? saved : 25;
   });
-  const [sortBy, setSortBy] = useState<'compatibility' | 'distance' | 'recent'>(() => (readStored(NEARBY_KEY) === '1' ? 'distance' : 'compatibility'));
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortBy, setSortBy] = useEstadoSalvo<'compatibility' | 'distance' | 'recent'>(`descobrir.${initialFilter}.ordem`, () => (readStored(NEARBY_KEY) === '1' ? 'distance' : 'compatibility'));
+  const [viewMode, setViewMode] = useEstadoSalvo<'grid' | 'list'>('descobrir.visualizacao', 'grid');
   const [showFiltersModal, setShowFiltersModal] = useState(false);
 
   // Como "perto" é decidido: raio pelo GPS (mais a mesma cidade do cadastro), só a cidade ou só o estado
