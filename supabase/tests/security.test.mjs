@@ -723,5 +723,24 @@ const st14 = r.rows[0].s;
 st14.users >= 5 && Array.isArray(st14.signups_14d) && st14.signups_14d.length === 14 ? ok('números e série de 14 dias') : bad('indicadores: ' + JSON.stringify(st14).slice(0, 200));
 st14.signups_14d.reduce((a, x) => a + Number(x.n), 0) >= 1 ? ok('cadastros recentes aparecem na série') : bad('série vazia');
 
+console.log('\nRevisão: privacidade das funções, índices e políticas');
+r = await expectOk('A cria comunidade com aprovação (revisão)', ids.a, `SELECT public.create_community('Clube Revisão', 'Comunidade para a revisão.', 'discussions', '🧪', '', '{}', 'approval') AS id`);
+const comR = r.rows[0].id;
+r = await as(ids.v, `SELECT public.community_role($1, $2) AS papel, public.can_see_community($1, $2) AS ve`, [comR, ids.a]);
+r.rows[0].papel === null && r.rows[0].ve === false ? ok('quem está fora não descobre quem participa pela API') : bad('vazou participação: ' + JSON.stringify(r.rows[0]));
+r = await as(ids.a, `SELECT public.community_role($1) AS papel`, [comR]);
+r.rows[0].papel === 'admin' ? ok('cada um continua vendo o próprio papel') : bad('papel próprio: ' + r.rows[0].papel);
+await expectOk('B pede para entrar (revisão)', ids.b, `SELECT public.community_join($1, '')`, [comR]);
+await expectOk('A aprova B (revisão)', ids.a, `SELECT public.community_review_request($1, $2, true)`, [comR, ids.b]);
+r = await as(ids.b, `SELECT public.community_role($1, $2) AS papel`, [comR, ids.a]);
+r.rows[0].papel === 'admin' ? ok('membros veem o papel dos colegas') : bad('papel do colega: ' + r.rows[0].papel);
+r = await db.query(`SELECT count(*)::int AS n FROM pg_policies WHERE schemaname = 'public' AND (qual ~ '(?<!SELECT )auth\\.uid\\(\\)' OR with_check ~ '(?<!SELECT )auth\\.uid\\(\\)')`);
+r.rows[0].n === 0 ? ok('todas as políticas calculam auth.uid() uma vez por consulta') : bad('políticas sem ajuste: ' + r.rows[0].n);
+r = await db.query(`SELECT count(*)::int AS n FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+  WHERE c.contype = 'f' AND n.nspname = 'public' AND array_length(c.conkey, 1) = 1
+    AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid AND i.indkey[0] = c.conkey[1])`);
+r.rows[0].n === 0 ? ok('toda chave estrangeira tem índice') : bad('chaves sem índice: ' + r.rows[0].n);
+await expectOk('A exclui a comunidade da revisão', ids.a, `SELECT public.delete_community($1)`, [comR]);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

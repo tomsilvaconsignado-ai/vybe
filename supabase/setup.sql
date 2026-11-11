@@ -3943,3 +3943,90 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.admin_platform_stats() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_platform_stats() TO authenticated;
+
+-- ==============================================================================
+-- 15. REVISÃO DE DESEMPENHO E SEGURANÇA (alertas do Supabase Advisor)
+-- Blocos genéricos e idempotentes: valem também para tabelas e políticas criadas no futuro.
+-- ==============================================================================
+
+-- 15.1 Privacidade das comunidades: as funções auxiliares não revelam quem participa de
+-- comunidades fechadas para quem está fora (antes dava para perguntar direto pela API)
+CREATE OR REPLACE FUNCTION public.community_role(c UUID, u UUID DEFAULT auth.uid())
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT m.role FROM public.community_members m
+   WHERE m.community_id = c AND m.user_id = u
+     AND (u = auth.uid() OR auth.uid() IS NULL
+          OR EXISTS (SELECT 1 FROM public.community_members eu WHERE eu.community_id = c AND eu.user_id = auth.uid()));
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_see_community(c UUID, u UUID DEFAULT auth.uid())
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT c IS NULL
+      OR EXISTS (SELECT 1 FROM public.communities x WHERE x.id = c AND x.access = 'public')
+      OR ((u = auth.uid() OR auth.uid() IS NULL
+           OR EXISTS (SELECT 1 FROM public.community_members eu WHERE eu.community_id = c AND eu.user_id = auth.uid()))
+          AND EXISTS (SELECT 1 FROM public.community_members m WHERE m.community_id = c AND m.user_id = u));
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.community_role(UUID, UUID), public.can_see_community(UUID, UUID), public.community_is_moderator(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.community_role(UUID, UUID), public.can_see_community(UUID, UUID), public.community_is_moderator(UUID) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.community_keep_admin(), public.communities_sync_private() FROM PUBLIC, anon, authenticated;
+
+-- 15.2 search_path fixo em todas as funções do schema public que ainda não têm
+-- (evita que um objeto com o mesmo nome em outro schema seja usado no lugar do certo)
+DO $$
+DECLARE f RECORD;
+BEGIN
+  FOR f IN
+    SELECT p.oid::regprocedure AS sig
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.prokind = 'f'
+       AND (p.proconfig IS NULL OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) c WHERE c LIKE 'search_path=%'))
+       AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+  LOOP
+    EXECUTE format('ALTER FUNCTION %s SET search_path = public, extensions, pg_temp', f.sig);
+  END LOOP;
+END $$;
+
+-- 15.3 Índice para toda chave estrangeira (de uma coluna) sem índice que a cubra
+DO $$
+DECLARE k RECORD; nome TEXT;
+BEGIN
+  FOR k IN
+    SELECT c.conrelid::regclass AS tabela, cl.relname AS tab, a.attname AS coluna
+      FROM pg_constraint c
+      JOIN pg_class cl ON cl.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = cl.relnamespace
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+     WHERE c.contype = 'f' AND n.nspname = 'public' AND array_length(c.conkey, 1) = 1
+       AND NOT EXISTS (SELECT 1 FROM pg_index i WHERE i.indrelid = c.conrelid AND i.indkey[0] = c.conkey[1])
+  LOOP
+    nome := left('idx_fk_' || k.tab || '_' || k.coluna, 63);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %s (%I)', nome, k.tabela, k.coluna);
+  END LOOP;
+END $$;
+
+-- Publicações de uma comunidade, das mais novas para as mais antigas
+CREATE INDEX IF NOT EXISTS idx_posts_community_recent ON public.posts (community_id, created_at DESC) WHERE community_id IS NOT NULL;
+
+-- 15.4 Políticas RLS: auth.uid() calculado uma vez por consulta, não uma vez por linha
+-- (troca auth.uid() por (SELECT auth.uid()); o sentido da regra não muda)
+DO $$
+DECLARE p RECORD; q TEXT; w TEXT; cmd TEXT;
+BEGIN
+  FOR p IN
+    SELECT schemaname, tablename, policyname, qual, with_check
+      FROM pg_policies
+     WHERE schemaname = 'public'
+       AND (qual ~ '(?<!SELECT )auth\.(uid|jwt|role)\(\)' OR with_check ~ '(?<!SELECT )auth\.(uid|jwt|role)\(\)')
+  LOOP
+    q := regexp_replace(p.qual, '(?<!SELECT )auth\.(uid|jwt|role)\(\)', '(SELECT auth.\1())', 'g');
+    w := regexp_replace(p.with_check, '(?<!SELECT )auth\.(uid|jwt|role)\(\)', '(SELECT auth.\1())', 'g');
+    cmd := format('ALTER POLICY %I ON %I.%I', p.policyname, p.schemaname, p.tablename);
+    IF q IS NOT NULL THEN cmd := cmd || format(' USING (%s)', q); END IF;
+    IF w IS NOT NULL THEN cmd := cmd || format(' WITH CHECK (%s)', w); END IF;
+    EXECUTE cmd;
+  END LOOP;
+END $$;
