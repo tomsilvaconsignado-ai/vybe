@@ -114,7 +114,13 @@ export async function exportOwnData(me: string): Promise<Record<string, unknown>
     eventos_criados: supabase.from('events').select('*').eq('created_by', me),
     presenca_em_eventos: supabase.from('event_attendees').select('*').eq('user_id', me),
     comentarios_em_eventos: supabase.from('event_comments').select('*').eq('user_id', me),
-    localizacao_aproximada: supabase.from('user_geo').select('*').eq('user_id', me).maybeSingle()
+    localizacao_aproximada: supabase.from('user_geo').select('*').eq('user_id', me).maybeSingle(),
+    comunidades_criadas: supabase.from('communities').select('*').eq('created_by', me),
+    pedidos_para_entrar_em_comunidades: supabase.from('community_requests').select('*').eq('user_id', me),
+    convites_de_comunidades: supabase.from('community_invites').select('*').or(`user_id.eq.${me},invited_by.eq.${me}`),
+    convites_para_eventos: supabase.from('event_invites').select('*').or(`user_id.eq.${me},invited_by.eq.${me}`),
+    preferencias_de_notificacao: supabase.from('notification_preferences').select('*').eq('user_id', me).maybeSingle(),
+    aparelhos_com_notificacoes: supabase.rpc('my_push_devices')
   };
 
   const entries = await Promise.all(Object.entries(queries).map(async ([key, query]) => {
