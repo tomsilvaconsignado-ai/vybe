@@ -41,9 +41,13 @@ const AdminPortal = named(() => import('./components/admin/AdminPortal'), 'Admin
 const EventsView = named(() => import('./components/events/EventsView'), 'EventsView');
 const NotificationPreferencesView = named(() => import('./components/notifications/NotificationPreferencesView'), 'NotificationPreferencesView');
 
+// Esqueleto da tela enquanto o código dela carrega (mais calmo que um spinner)
 const ViewLoading: React.FC = () => (
-  <div className="py-24 flex items-center justify-center">
-    <div className="w-8 h-8 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+  <div className="max-w-2xl mx-auto py-6 px-4 space-y-4" role="status" aria-label="Carregando">
+    <div className="vybe-skeleton h-8 w-48 rounded-xl" />
+    <div className="vybe-skeleton h-40 rounded-3xl" />
+    <div className="vybe-skeleton h-24 rounded-3xl" />
+    <div className="vybe-skeleton h-24 rounded-3xl" />
   </div>
 );
 
@@ -169,7 +173,10 @@ const AppContent: React.FC = () => {
       <div className="flex-1 max-w-[1440px] w-full mx-auto flex">
         <Sidebar />
         <main className="flex-1 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-10 min-w-0">
-          <Suspense fallback={<ViewLoading />}>{renderMainView()}</Suspense>
+          {/* troca de tela com entrada suave ("Para você" e "Seguindo" são a mesma tela) */}
+          <div key={activeTab === 'following' ? 'feed' : activeTab} className="tela-entrada">
+            <Suspense fallback={<ViewLoading />}>{renderMainView()}</Suspense>
+          </div>
         </main>
         {/* Coluna de destaques (eventos, publicidade, sugestões) nas telas sociais */}
         {['feed', 'following', 'discover', 'couples', 'singles', 'communities', 'notifications', 'connections'].includes(activeTab) && <RightRail />}

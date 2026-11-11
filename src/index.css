@@ -19,6 +19,57 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Seleção de texto e foco de teclado com a cor da marca */
+::selection {
+  background: rgba(217, 70, 239, 0.35);
+  color: #fff;
+}
+:where(a, button, input, textarea, select, summary, [role='button'], [tabindex]):focus-visible {
+  outline: 2px solid rgba(232, 121, 249, 0.85);
+  outline-offset: 2px;
+  border-radius: 0.6rem;
+}
+
+/* Toque: o botão "afunda" de leve ao ser pressionado */
+/* :where() = especificidade zero: as classes do Tailwind continuam valendo */
+:where(button:not(:disabled)) {
+  transition-property: color, background-color, border-color, opacity, box-shadow, scale;
+  transition-duration: 0.15s;
+}
+button:not(:disabled):active {
+  scale: 0.97;
+}
+
+/* Entrada suave ao trocar de tela */
+.tela-entrada {
+  animation: tela-entrada 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes tela-entrada {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Esqueleto de carregamento com brilho que passa */
+.vybe-skeleton {
+  background: linear-gradient(100deg, rgba(39, 30, 56, 0.55) 30%, rgba(76, 58, 105, 0.55) 50%, rgba(39, 30, 56, 0.55) 70%);
+  background-size: 300% 100%;
+  animation: vybe-brilho 1.4s ease-in-out infinite;
+}
+@keyframes vybe-brilho {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tela-entrada,
+  .vybe-skeleton {
+    animation: none !important;
+  }
+  button:not(:disabled):active {
+    scale: none;
+  }
+}
+
 /* Celular */
 button,
 a,
