@@ -1,5 +1,5 @@
-// Janela de publicidade: uma vez a cada acesso, revezando entre os anúncios ativos (com imagem) do
-// módulo Publicidade. Aparece só depois de um intervalo desde a janela da campanha de convite.
+// Janela de publicidade: uma vez a cada acesso, revezando entre os anúncios ativos que a administração
+// marcou como "Exibir na janela de publicidade" (com imagem) no módulo Publicidade. Aparece só depois de um intervalo desde a janela da campanha de convite.
 import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -20,7 +20,8 @@ export const AnuncioPopup: React.FC = () => {
   useEffect(() => {
     if (!currentUser.id || escolhido.current) return;
     try { if (sessionStorage.getItem(CHAVE_SESSAO) === '1') return; } catch { /* sem armazenamento */ }
-    const comImagem = ads.filter(a => a.imageUrl);
+    // só os anúncios que a administração escolheu para a janela (e que têm imagem)
+    const comImagem = ads.filter(a => a.showInPopup && a.imageUrl);
     if (!comImagem.length) return;
     const inicio = Date.now();
     const relogio = window.setInterval(() => {

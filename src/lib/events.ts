@@ -136,6 +136,7 @@ function mapAd(row: any): Ad {
     startsAt: row.starts_at,
     endsAt: row.ends_at ?? undefined,
     isActive: row.is_active,
+    showInPopup: !!row.show_in_popup,
     impressions: row.impressions,
     clicks: row.clicks
   };
@@ -171,7 +172,8 @@ export async function saveAd(me: string, ad: Partial<Ad> & { id?: string }) {
     placement: ad.placement,
     starts_at: ad.startsAt ? new Date(ad.startsAt).toISOString() : new Date().toISOString(),
     ends_at: ad.endsAt ? new Date(ad.endsAt).toISOString() : null,
-    is_active: ad.isActive ?? true
+    is_active: ad.isActive ?? true,
+    show_in_popup: ad.showInPopup ?? false
   };
   const { error } = ad.id
     ? await supabase.from('ads').update(row).eq('id', ad.id)

@@ -14,7 +14,7 @@ const PLACEMENT_LABEL: Record<AdPlacement, string> = {
   carousel: 'Carrossel (coluna lateral, em slides)'
 };
 
-const EMPTY: Partial<Ad> = { advertiser: '', title: '', body: '', imageUrl: '', linkUrl: '', ctaLabel: 'Saiba mais', placement: 'feed', isActive: true };
+const EMPTY: Partial<Ad> = { advertiser: '', title: '', body: '', imageUrl: '', linkUrl: '', ctaLabel: 'Saiba mais', placement: 'feed', isActive: true, showInPopup: false };
 const inputClass = 'w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500';
 
 // Converte ISO para o formato do <input type="datetime-local">
@@ -64,6 +64,12 @@ export const AdminAdsTab: React.FC = () => {
       return;
     }
     setEditing(null);
+    load();
+  };
+
+  const togglePopup = async (ad: Ad) => {
+    const error = await saveAd(currentUser.id, { ...ad, showInPopup: !ad.showInPopup });
+    if (error) notify(error);
     load();
   };
 
@@ -140,12 +146,18 @@ export const AdminAdsTab: React.FC = () => {
                     <span className={`px-2 py-0.5 rounded font-bold ${isRunning(ad) ? 'bg-emerald-950 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>
                       {isRunning(ad) ? 'No ar' : ad.isActive ? 'Fora do período' : 'Pausado'}
                     </span>
+                    {ad.showInPopup && <span className="ml-1 px-2 py-0.5 rounded font-bold bg-fuchsia-950 text-fuchsia-300" title="Aparece na janela de publicidade (uma vez por acesso)">Na janela</span>}
                   </td>
                   {canEdit && (
                     <td className="p-3">
                       <div className="flex items-center gap-1 justify-end">
                         <button type="button" onClick={() => toggleActive(ad)} className="px-2 py-1 rounded-lg text-[11px] font-semibold text-zinc-300 hover:bg-zinc-800 cursor-pointer">
                           {ad.isActive ? 'Pausar' : 'Ativar'}
+                        </button>
+                        <button type="button" onClick={() => togglePopup(ad)} disabled={!ad.imageUrl}
+                          title={!ad.imageUrl ? 'A janela exige imagem' : ad.showInPopup ? 'Tirar da janela de publicidade' : 'Exibir na janela de publicidade'}
+                          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-fuchsia-300 hover:bg-zinc-800 disabled:opacity-40 cursor-pointer">
+                          {ad.showInPopup ? 'Tirar da janela' : 'Pôr na janela'}
                         </button>
                         {ad.placement !== 'carousel' && (
                           <button
@@ -197,6 +209,13 @@ export const AdminAdsTab: React.FC = () => {
             <Seletor className={inputClass} value={editing.placement} onChange={e => set('placement', e.target.value as AdPlacement)} aria-label="Espaço">
               {Object.entries(PLACEMENT_LABEL).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </Seletor>
+            <label className="flex items-start gap-2.5 p-3 rounded-xl bg-fuchsia-950/30 border border-fuchsia-800/40 cursor-pointer">
+              <input type="checkbox" className="mt-0.5 accent-fuchsia-500" checked={!!editing.showInPopup} onChange={e => set('showInPopup', e.target.checked)} />
+              <span className="text-[11px] text-zinc-300">
+                <strong className="block text-xs text-white">Exibir na janela de publicidade</strong>
+                Abre uma vez a cada acesso de cada pessoa, revezando entre os anúncios marcados (precisa de imagem).
+              </span>
+            </label>
             {editing.placement === 'carousel' && (
               <p className="text-[11px] text-zinc-400">
                 Cada anúncio do carrossel vira um slide que troca a cada 6 segundos (pausa com o mouse em cima). Use imagem na proporção 4:3.

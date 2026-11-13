@@ -421,6 +421,8 @@ export interface Ad {
   startsAt: string;
   endsAt?: string;
   isActive: boolean;
+  /** a administração escolheu este anúncio para a janela de publicidade (uma vez por acesso) */
+  showInPopup: boolean;
   impressions: number;
   clicks: number;
 }

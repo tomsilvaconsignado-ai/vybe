@@ -4912,3 +4912,17 @@ RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $
 $$;
 REVOKE EXECUTE ON FUNCTION public.growth_public_info() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.growth_public_info() TO anon, authenticated;
+
+-- ==============================================================================
+-- 18. PUBLICIDADE: a administração escolhe quais anúncios aparecem na janela de publicidade
+-- (a janela abre uma vez por acesso, revezando entre os escolhidos). Anúncios novos começam fora;
+-- os que já existiam quando a opção foi criada continuam na janela.
+-- ==============================================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'public' AND table_name = 'ads' AND column_name = 'show_in_popup') THEN
+    ALTER TABLE public.ads ADD COLUMN show_in_popup BOOLEAN NOT NULL DEFAULT false;
+    UPDATE public.ads SET show_in_popup = true;
+  END IF;
+END $$;

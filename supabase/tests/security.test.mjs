@@ -888,5 +888,15 @@ r = await as(null, `SELECT public.growth_public_info() AS i`);
 await db.query(`DELETE FROM auth.users WHERE id = '00000000-0000-0000-0000-000000000951'`);
 await db.query(`DELETE FROM profiles WHERE id = '00000000-0000-0000-0000-000000000951'`);
 
+console.log('\nPublicidade: anúncios escolhidos para a janela');
+await db.query(`INSERT INTO ads (advertiser, title, image_url, placement) VALUES ('Teste', 'Anúncio da janela', 'x', 'feed')`);
+r = await db.query(`SELECT show_in_popup FROM ads WHERE title = 'Anúncio da janela'`);
+r.rows[0].show_in_popup === false ? ok('anúncio novo começa fora da janela de publicidade') : bad('anúncio novo já na janela');
+await expectFail('membro comum não coloca anúncio na janela', ids.b, `UPDATE ads SET show_in_popup = true WHERE title = 'Anúncio da janela'`);
+await expectOk('superadmin com MFA escolhe o anúncio para a janela', ids.admin, `UPDATE ads SET show_in_popup = true WHERE title = 'Anúncio da janela'`, [], 'aal2');
+r = await db.query(`SELECT show_in_popup FROM ads WHERE title = 'Anúncio da janela'`);
+r.rows[0].show_in_popup === true ? ok('o anúncio passa a aparecer na janela') : bad('não salvou');
+await db.query(`DELETE FROM ads WHERE title = 'Anúncio da janela'`);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);
