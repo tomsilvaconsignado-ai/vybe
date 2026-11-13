@@ -21,6 +21,7 @@ const PROFILE_OPTIONS: { type: ProfileType; label: string }[] = [
   { type: 'couple', label: 'Casal' },
   { type: 'single_female', label: 'Mulher solteira' },
   { type: 'single_male', label: 'Homem solteiro' },
+  { type: 'single_other', label: 'Pessoa solteira (não binária e outras identidades)' },
   { type: 'polyamorous', label: 'Poliamor / Tríade' },
 ];
 

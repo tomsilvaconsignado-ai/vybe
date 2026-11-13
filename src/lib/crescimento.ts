@@ -20,7 +20,7 @@ export interface PainelConvite {
 export interface PosicaoRanking { pos: number; user_id: string; display_name: string; username: string; avatar_url: string; valid_count: number; ambassador: boolean }
 
 export interface InfoPublica {
-  founders: { status: 'active' | 'paused' | 'ended'; limit: number; taken: number; remaining: number; benefits: string[] } | null;
+  founders: { status: 'active' | 'paused' | 'ended'; limit: number; taken: number; remaining: number; benefits: string[]; requirements?: string | null } | null;
   campaigns: { slug: string; title: string; description: string; ends_at: string | null }[];
 }
 

@@ -160,7 +160,8 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
 
     // Type filter
     if (selectedType === 'couple' && prof.profileType !== 'couple') return false;
-    if (selectedType === 'singles' && prof.profileType !== 'single_female' && prof.profileType !== 'single_male') return false;
+    if (selectedType === 'singles' && !['single_female', 'single_male', 'single_other'].includes(prof.profileType)) return false;
+    if (selectedType === 'single_other' && prof.profileType !== 'single_other') return false;
     if (selectedType === 'single_female' && prof.profileType !== 'single_female') return false;
     if (selectedType === 'single_male' && prof.profileType !== 'single_male') return false;
     if (selectedType === 'polyamorous' && prof.profileType !== 'polyamorous') return false;
@@ -266,6 +267,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
             { id: 'singles', label: 'Solteiros(as)' },
             { id: 'single_female', label: 'Mulheres' },
             { id: 'single_male', label: 'Homens' },
+            { id: 'single_other', label: 'Não binários e outros' },
             { id: 'polyamorous', label: 'Poliamor' },
           ].map(type => (
             <button

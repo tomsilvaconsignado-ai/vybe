@@ -569,6 +569,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                     { id: 'couples', label: 'Casais' },
                     { id: 'singles_female', label: 'Mulheres solteiras' },
                     { id: 'singles_male', label: 'Homens solteiros' },
+                    { id: 'singles_other', label: 'Pessoas não binárias e outras identidades' },
                     { id: 'all', label: 'Todos' }
                   ] as const).map(opt => (
                     <button key={opt.id} type="button" onClick={() => setInterestedIn(prev => toggle(prev, opt.id))} className={chipClass(interestedIn.includes(opt.id))}>

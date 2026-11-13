@@ -116,7 +116,7 @@ export const ConvideView: React.FC = () => {
         <button type="button" onClick={() => setActiveTab('founders')} className="w-full text-left p-4 rounded-3xl bg-gradient-to-r from-amber-900/30 to-purple-900/30 border border-amber-600/30 flex items-center gap-3 cursor-pointer">
           <Crown className="w-8 h-8 text-amber-300 shrink-0" />
           <span className="flex-1">
-            <span className="block text-sm font-bold text-white">{painel.founder_number ? `Você é o Membro Fundador nº ${painel.founder_number}` : 'Campanha Vybelog Fundadores'}</span>
+            <span className="block text-sm font-bold text-white">{painel.founder_number ? (currentUser.growth?.hasPhoto ? `Você é o Membro Fundador nº ${painel.founder_number}` : `Fundador nº ${painel.founder_number} reservado: coloque uma foto para ativar o selo`) : 'Campanha Vybelog Fundadores'}</span>
             <span className="block text-xs text-zinc-400">{info?.founders?.status === 'active' ? `${info.founders.remaining} vagas restantes · convide agora para garantir o selo a quem você ama` : 'Conheça a campanha'}</span>
           </span>
         </button>

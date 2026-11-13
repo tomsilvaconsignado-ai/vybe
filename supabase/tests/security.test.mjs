@@ -829,6 +829,7 @@ r.rows[0].n > 0 && r.rows[0].n === r.rows[0].d ? ok(`fundadores numerados sem re
 await db.query(`UPDATE growth_settings SET value = jsonb_set(value, '{limit}', to_jsonb((SELECT count(*) FROM profile_growth WHERE founder_number IS NOT NULL)::int + 1)) WHERE key = 'founders'`);
 await db.query(`INSERT INTO auth.users VALUES ($1,'n7@x.com',$2,now())`, [novoId(7), meta('convidado7')]);
 await db.query(`INSERT INTO auth.users VALUES ($1,'n8@x.com',$2,now())`, [novoId(8), meta('convidado8')]);
+await db.query(`UPDATE profiles SET avatar_url = 'x' WHERE id IN ($1, $2)`, [novoId(7), novoId(8)]);   // fundador exige foto (§17)
 await db.query(`SELECT public.growth_validate()`);
 r = await db.query(`SELECT (SELECT value ->> 'status' FROM growth_settings WHERE key = 'founders') AS s,
   (SELECT count(*)::int FROM profile_growth WHERE founder_number IS NOT NULL) AS n, (SELECT (value ->> 'limit')::int FROM growth_settings WHERE key = 'founders') AS l`);
@@ -865,6 +866,27 @@ Array.isArray(r.rows[0].h.new_members) && Array.isArray(r.rows[0].h.featured) ? 
 r.rows[0].h.featured.includes(ids.b) ? ok('o perfil VIP aparece nos destaques') : bad('VIP fora dos destaques');
 await db.query(`DELETE FROM auth.users WHERE id::text LIKE '00000000-0000-0000-0000-0000000009%'`);
 await db.query(`DELETE FROM profiles WHERE id::text LIKE '00000000-0000-0000-0000-0000000009%'`);
+
+console.log('\nInclusão de gênero e fundador com foto');
+await db.query(`INSERT INTO auth.users VALUES ('00000000-0000-0000-0000-000000000951','nb@x.com',$1,now())`,
+  [meta('pessoa_nb', { profile_type: 'single_other', gender: 'Não binário', orientation: 'Pansexual' })]);
+r = await db.query(`SELECT profile_type::text AS t, gender FROM profiles WHERE id = '00000000-0000-0000-0000-000000000951'`);
+r.rows[0]?.t === 'single_other' && r.rows[0].gender === 'Não binário' ? ok('cadastro como "Pessoa solteira" com gênero não binário') : bad('tipo: ' + JSON.stringify(r.rows));
+r = await db.query(`SELECT public.is_interested_in(ARRAY['singles_other'], 'single_other') AS a, public.is_interested_in(ARRAY['all'], 'single_other') AS b, public.is_interested_in(ARRAY['couples'], 'single_other') AS c`);
+r.rows[0].a && r.rows[0].b && !r.rows[0].c ? ok('compatibilidade reconhece o novo tipo de perfil') : bad('compatibilidade: ' + JSON.stringify(r.rows[0]));
+await db.query(`UPDATE growth_settings SET value = jsonb_set(value, '{status}', '"active"') || jsonb_build_object('limit', 100000) WHERE key = 'founders'`);
+await db.query(`UPDATE profiles SET avatar_url = '' WHERE id = '00000000-0000-0000-0000-000000000951'`);
+await db.query(`SELECT public.growth_validate()`);
+r = await db.query(`SELECT founder_number FROM profile_growth WHERE user_id = '00000000-0000-0000-0000-000000000951'`);
+!r.rows[0]?.founder_number ? ok('sem foto de perfil, a conta nova não recebe o número de fundador') : bad('fundador sem foto');
+await db.query(`UPDATE profiles SET avatar_url = 'x' WHERE id = '00000000-0000-0000-0000-000000000951'`);
+await db.query(`SELECT public.growth_validate()`);
+r = await db.query(`SELECT founder_number FROM profile_growth WHERE user_id = '00000000-0000-0000-0000-000000000951'`);
+r.rows[0]?.founder_number ? ok('ao colocar a foto, recebe o número de fundador') : bad('com foto não virou fundador');
+r = await as(null, `SELECT public.growth_public_info() AS i`);
+/foto/.test(r.rows[0].i.founders?.requirements ?? '') ? ok('o requisito da foto aparece nas informações públicas da campanha') : bad('requisito ausente');
+await db.query(`DELETE FROM auth.users WHERE id = '00000000-0000-0000-0000-000000000951'`);
+await db.query(`DELETE FROM profiles WHERE id = '00000000-0000-0000-0000-000000000951'`);
 
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

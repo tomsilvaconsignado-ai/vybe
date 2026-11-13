@@ -2,6 +2,7 @@ export type ProfileType =
   | 'couple'             // Casal
   | 'single_female'      // Mulher solteira
   | 'single_male'        // Homem solteiro
+  | 'single_other'       // Pessoa solteira (não binária, fluida e outras identidades)
   | 'joint_profile'      // Perfil conjunto (dupla/trio consensual)
   | 'polyamorous';       // Poliamor / Outro formato consensual
 
@@ -25,7 +26,7 @@ export type PreferenceExtras = Record<string, string | string[]>;
 
 export interface CompatibilityPreferences {
   objectives: string[];              // e.g. ['conhecer_casais', 'amizades', 'conhecer_terceira_pessoa']
-  interestedIn: ('couples' | 'singles_female' | 'singles_male' | 'all')[];
+  interestedIn: ('couples' | 'singles_female' | 'singles_male' | 'singles_other' | 'all')[];
   ageRange: [number, number];        // e.g. [25, 45]
   maxDistanceKm: number;             // e.g. 50
   meetingPreference: 'in_person' | 'virtual_first' | 'undecided';
@@ -64,6 +65,8 @@ export interface MediaAlbum {
 
 export interface ProfileGrowth {
   founderNumber: number | null;
+  /** o selo de Fundador só aparece com foto de perfil (sem foto, o número fica reservado) */
+  hasPhoto: boolean;
   ambassador: boolean;
   vip: boolean;
   featured: boolean;

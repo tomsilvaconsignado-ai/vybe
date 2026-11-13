@@ -4773,3 +4773,142 @@ BEGIN
     UPDATE public.growth_settings SET value = value - 'notify' WHERE key = 'founders';
   END IF;
 END $$;
+
+-- ==============================================================================
+-- 17. INCLUSÃO DE GÊNERO E FUNDADOR COM FOTO
+-- * Novo tipo de perfil "Pessoa solteira" (single_other): para identidades não binárias, fluidas e
+--   outras que não se encaixam em "mulher" ou "homem" (mulheres e homens trans escolhem esses tipos
+--   e informam o gênero exato). A lista de gêneros e orientações fica no app (texto livre no banco).
+-- * Selo de Fundador exige foto de perfil: novos fundadores só recebem o número com foto; quem já
+--   tem o número reservado e ainda não tem foto ativa o selo ao colocar a foto (o app só exibe o selo
+--   para perfis com foto).
+-- ==============================================================================
+ALTER TYPE public.profile_type_enum ADD VALUE IF NOT EXISTS 'single_other';
+
+CREATE OR REPLACE FUNCTION public.is_interested_in(looking TEXT[], target_type profile_type_enum)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = public, extensions, pg_temp AS $$
+  SELECT CASE
+    WHEN looking IS NULL THEN false
+    WHEN 'all' = ANY(looking) THEN true
+    WHEN target_type::text = 'couple'        AND 'couples'        = ANY(looking) THEN true
+    WHEN target_type::text = 'single_female' AND 'singles_female' = ANY(looking) THEN true
+    WHEN target_type::text = 'single_male'   AND 'singles_male'   = ANY(looking) THEN true
+    WHEN target_type::text = 'single_other'  AND 'singles_other'  = ANY(looking) THEN true
+    WHEN target_type::text = 'joint_profile' AND 'couples'        = ANY(looking) THEN true
+    WHEN target_type::text = 'polyamorous' THEN true
+    ELSE false
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.growth_validate()
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  regras JSONB := coalesce((SELECT value FROM public.growth_settings WHERE key = 'referral_rules'), '{}');
+  cap INTEGER := coalesce((regras ->> 'daily_valid_cap')::int, 10);
+  horas INTEGER := coalesce((regras ->> 'return_hours')::int, 12);
+  fund JSONB := coalesce((SELECT value FROM public.growth_settings WHERE key = 'founders'), '{}');
+  r RECORD; n INTEGER := 0; v_hoje INTEGER; v_prox INTEGER; v_vagas INTEGER;
+BEGIN
+  UPDATE public.growth_referrals g SET status = 'rejected', reason = 'Conta da pessoa convidada suspensa ou bloqueada', validated_at = now()
+    FROM public.profiles p WHERE p.id = g.referred_id AND g.status = 'pending' AND p.status::text IN ('suspended', 'blocked');
+
+  FOR r IN
+    SELECT g.referred_id, g.referrer_id FROM public.growth_referrals g
+      JOIN public.profiles p ON p.id = g.referred_id
+      JOIN auth.users u ON u.id = g.referred_id
+      LEFT JOIN public.user_presence up ON up.user_id = g.referred_id
+     WHERE g.status = 'pending' AND g.referrer_id IS NOT NULL
+       AND u.email_confirmed_at IS NOT NULL
+       AND coalesce(p.avatar_url, '') <> ''
+       AND p.status::text IN ('active', 'warned')
+       AND greatest(coalesce(up.last_seen_at, '-infinity'::timestamptz), p.last_active_at) >= p.created_at + make_interval(hours => horas)
+     ORDER BY g.created_at
+  LOOP
+    SELECT count(*) INTO v_hoje FROM public.growth_referrals
+     WHERE referrer_id = r.referrer_id AND status = 'valid' AND validated_at >= date_trunc('day', now());
+    CONTINUE WHEN v_hoje >= cap;
+    UPDATE public.growth_referrals SET status = 'valid', validated_at = now() WHERE referred_id = r.referred_id AND status = 'pending';
+    PERFORM public.growth_notify(r.referrer_id, 'growth_referral_valid', 'Indicação confirmada!',
+      'Uma pessoa que você convidou completou o cadastro no Vybelog.', 'growth_valid:' || r.referred_id);
+    PERFORM public.growth_apply_rewards(r.referrer_id);
+    n := n + 1;
+  END LOOP;
+
+  -- Fundadores: contas confirmadas, ativas e COM FOTO de perfil, por ordem de cadastro, até o limite
+  IF fund ->> 'status' = 'active' THEN
+    SELECT coalesce(max(founder_number), 0) INTO v_prox FROM public.profile_growth;
+    v_vagas := greatest(coalesce((fund ->> 'limit')::int, 0) - (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL), 0);
+    FOR r IN
+      SELECT p.id FROM public.profiles p JOIN auth.users u ON u.id = p.id
+        LEFT JOIN public.profile_growth pg ON pg.user_id = p.id
+       WHERE pg.founder_number IS NULL AND u.email_confirmed_at IS NOT NULL AND p.status::text IN ('active', 'warned')
+         AND coalesce(p.avatar_url, '') <> ''
+       ORDER BY p.created_at LIMIT v_vagas
+    LOOP
+      v_prox := v_prox + 1;
+      INSERT INTO public.profile_growth (user_id) VALUES (r.id) ON CONFLICT (user_id) DO NOTHING;
+      UPDATE public.profile_growth SET founder_number = v_prox, founder_at = now(),
+             badges = CASE WHEN 'fundador' = ANY (badges) THEN badges ELSE badges || 'fundador'::text END, updated_at = now()
+       WHERE user_id = r.id;
+      INSERT INTO public.growth_grants (user_id, kind, amount, label, source) VALUES (r.id, 'badge', 0, 'Membro Fundador nº ' || v_prox, 'founder');
+      IF coalesce((fund ->> 'notify')::boolean, true) THEN
+        PERFORM public.growth_notify(r.id, 'growth_founder', 'Você é Membro Fundador!',
+          'Você é o Membro Fundador nº ' || v_prox || ' do Vybelog. O selo já aparece no seu perfil.', 'growth_founder:' || r.id);
+      END IF;
+    END LOOP;
+    IF (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL) >= coalesce((fund ->> 'limit')::int, 0) THEN
+      UPDATE public.growth_settings SET value = jsonb_set(value, '{status}', '"ended"'), updated_at = now() WHERE key = 'founders';
+    END IF;
+  END IF;
+  RETURN n;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.growth_validate() FROM PUBLIC, anon, authenticated;
+
+-- Destaques: o membro da semana inclui pessoas solteiras de qualquer gênero
+CREATE OR REPLACE FUNCTION public.growth_highlights()
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE me UUID := auth.uid();
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
+  RETURN jsonb_build_object(
+    'featured', coalesce((SELECT jsonb_agg(x.user_id) FROM (
+        SELECT pg.user_id FROM public.profile_growth pg JOIN public.profiles p ON p.id = pg.user_id
+         WHERE (pg.featured_until > now() OR pg.vip_until > now()) AND p.status::text IN ('active', 'warned') AND pg.user_id <> me
+           AND NOT public.is_blocked_between(pg.user_id, me)
+         ORDER BY pg.featured_until DESC NULLS LAST, pg.vip_until DESC NULLS LAST LIMIT 12) x), '[]'),
+    'couple_of_week', (SELECT s.alvo FROM public.growth_week_scores(me) s JOIN public.profiles p ON p.id = s.alvo
+                        WHERE p.profile_type::text IN ('couple', 'joint_profile', 'polyamorous') ORDER BY s.pontos DESC LIMIT 1),
+    'member_of_week', (SELECT s.alvo FROM public.growth_week_scores(me) s JOIN public.profiles p ON p.id = s.alvo
+                        WHERE p.profile_type::text IN ('single_female', 'single_male', 'single_other') ORDER BY s.pontos DESC LIMIT 1),
+    'new_members', coalesce((SELECT jsonb_agg(x.id) FROM (
+        SELECT p.id FROM public.profiles p WHERE p.created_at > now() - interval '21 days' AND coalesce(p.avatar_url, '') <> ''
+           AND p.status::text IN ('active', 'warned') AND p.id <> me AND NOT public.is_blocked_between(p.id, me)
+         ORDER BY p.created_at DESC LIMIT 12) x), '[]'),
+    'popular', coalesce((SELECT jsonb_agg(x.id) FROM (
+        SELECT p.id FROM public.profiles p WHERE p.status::text IN ('active', 'warned') AND p.id <> me AND coalesce(p.avatar_url, '') <> ''
+           AND NOT public.is_blocked_between(p.id, me)
+         ORDER BY p.followers_count DESC, p.last_active_at DESC LIMIT 12) x), '[]'));
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.growth_highlights() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.growth_highlights() TO authenticated;
+
+-- Requisito da campanha visível para todos (página da campanha e cadastro)
+UPDATE public.growth_settings
+   SET value = jsonb_set(value, '{requirements}', '"E-mail confirmado e foto de perfil. Sem foto, o número de fundador fica reservado e o selo aparece quando você colocar a foto."')
+ WHERE key = 'founders' AND NOT (value ? 'requirements');
+
+CREATE OR REPLACE FUNCTION public.growth_public_info()
+RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT jsonb_build_object(
+    'founders', (SELECT jsonb_build_object('status', f.value ->> 'status', 'limit', (f.value ->> 'limit')::int,
+                   'taken', (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL),
+                   'remaining', greatest((f.value ->> 'limit')::int - (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL), 0),
+                   'benefits', f.value -> 'benefits', 'requirements', f.value ->> 'requirements')
+                 FROM public.growth_settings f WHERE f.key = 'founders'),
+    'campaigns', coalesce((SELECT jsonb_agg(jsonb_build_object('slug', c.slug, 'title', c.title, 'description', c.description, 'ends_at', c.ends_at) ORDER BY c.starts_at DESC)
+                  FROM public.growth_campaigns c WHERE c.active AND c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now())), '[]'));
+$$;
+REVOKE EXECUTE ON FUNCTION public.growth_public_info() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.growth_public_info() TO anon, authenticated;

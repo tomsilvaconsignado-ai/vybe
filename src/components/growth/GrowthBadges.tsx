@@ -8,7 +8,7 @@ interface Selo { chave: string; rotulo: string; curto: string; icone: React.Reac
 export function selosDoPerfil(g: ProfileGrowth | undefined): Selo[] {
   if (!g) return [];
   const selos: Selo[] = [];
-  if (g.founderNumber) selos.push({ chave: 'fundador', rotulo: `Fundador nº ${g.founderNumber}`, curto: 'Fundador', icone: <Crown className="w-3 h-3" />,
+  if (g.founderNumber && g.hasPhoto) selos.push({ chave: 'fundador', rotulo: `Fundador nº ${g.founderNumber}`, curto: 'Fundador', icone: <Crown className="w-3 h-3" />,
     cor: 'bg-amber-500/15 text-amber-200 border-amber-400/40', dica: 'Uma das primeiras pessoas a construir o Vybelog' });
   if (g.ambassador) selos.push({ chave: 'embaixador', rotulo: 'Embaixador', curto: 'Embaixador', icone: <Megaphone className="w-3 h-3" />,
     cor: 'bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/40', dica: 'Embaixador oficial do Vybelog' });

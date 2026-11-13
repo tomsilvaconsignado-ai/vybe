@@ -23,6 +23,7 @@ import { GENDER_OPTIONS, INTEREST_OPTIONS, OBJECTIVE_OPTIONS, ORIENTATION_OPTION
 import { notify } from '../common/Feedback';
 import { Captcha, CaptchaHandle, captchaEnabled } from './Captcha';
 import { Seletor } from '../common/Seletor';
+import { AvisoFundador } from '../growth/AvisoFundador';
 
 export const RegisterWizard: React.FC = () => {
   const { setAuthModalType, register, setPrivacyTermsModalOpen, registerProfileType } = useApp();
@@ -66,7 +67,7 @@ export const RegisterWizard: React.FC = () => {
 
   // Step 4: Compatibility & Limits
   const [selectedObjectives, setSelectedObjectives] = useState<string[]>(['conhecer_casais', 'amizades']);
-  const [interestedIn, setInterestedIn] = useState<('couples' | 'singles_female' | 'singles_male' | 'all')[]>(['couples']);
+  const [interestedIn, setInterestedIn] = useState<('couples' | 'singles_female' | 'singles_male' | 'singles_other' | 'all')[]>(['couples']);
   const [meetingPreference, setMeetingPreference] = useState<'in_person' | 'virtual_first' | 'undecided'>('virtual_first');
   const [pacePreference, setPacePreference] = useState<'slow_chat' | 'spontaneous' | 'flexible'>('slow_chat');
   const [discretionLevel, setDiscretionLevel] = useState<'high' | 'medium' | 'relaxed'>('high');
@@ -231,6 +232,9 @@ export const RegisterWizard: React.FC = () => {
           <X className="w-5 h-5" />
         </button>
 
+        {/* Campanha Fundadores: aviso fixo em todas as etapas */}
+        <AvisoFundador destaque={step === 5} />
+
         {/* Progress Bar & Steps Indicator */}
         <div className="mb-6">
           <div className="flex items-center justify-between gap-3 text-xs font-bold text-zinc-400 mb-2 pr-8">
@@ -367,6 +371,7 @@ export const RegisterWizard: React.FC = () => {
                 { type: 'couple', title: 'Casal', desc: 'Duas pessoas apresentando perfil conjunto' },
                 { type: 'single_female', title: 'Mulher Solteira', desc: 'Independente buscando conexões liberais' },
                 { type: 'single_male', title: 'Homem Solteiro', desc: 'Respeitoso com casais e solteiras' },
+                { type: 'single_other', title: 'Pessoa Solteira', desc: 'Não binária, fluida ou outra identidade de gênero' },
                 { type: 'polyamorous', title: 'Poliamor / Tríade', desc: 'Múltiplas pessoas consensuais' }
               ].map(opt => (
                 <button
@@ -376,6 +381,7 @@ export const RegisterWizard: React.FC = () => {
                     setProfileType(opt.type as ProfileType);
                     if (opt.type === 'single_female') setGender('Feminino');
                     if (opt.type === 'single_male') setGender('Masculino');
+                    if (opt.type === 'single_other' || opt.type === 'polyamorous') setGender('');
                   }}
                   className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
                     profileType === opt.type
@@ -408,7 +414,7 @@ export const RegisterWizard: React.FC = () => {
                     </Seletor>
                   </div>
                 </div>
-                <p className="text-[11px] text-zinc-500">Gênero e orientação aparecem no seu perfil para todos os membros.</p>
+                <p className="text-[11px] text-zinc-500">Gênero e orientação aparecem no seu perfil para todos os membros. Escolha o que melhor representa você — se não encontrar, use “Outro”.</p>
               </div>
             )}
 

@@ -17,7 +17,7 @@ export const ConviteLanding: React.FC<{ aoCadastrar: () => void }> = ({ aoCadast
       <span className="flex-1 min-w-0">
         <span className="block text-sm font-bold text-white">{convidado ? 'Você recebeu um convite para o Vybelog' : 'Campanha Vybelog Fundadores'}</span>
         <span className="block text-xs text-zinc-300">
-          {vagas ? `Restam ${f!.remaining.toLocaleString('pt-BR')} vagas de Membro Fundador, com selo permanente no perfil.` : 'Crie sua conta gratuita e comece a se conectar.'}
+          {vagas ? `Restam ${f!.remaining.toLocaleString('pt-BR')} vagas de Membro Fundador, com selo permanente no perfil (exige foto de perfil).` : 'Crie sua conta gratuita e comece a se conectar.'}
         </span>
       </span>
       <button type="button" onClick={aoCadastrar} className="shrink-0 px-4 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold cursor-pointer">Criar conta</button>

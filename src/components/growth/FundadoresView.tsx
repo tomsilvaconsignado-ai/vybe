@@ -10,6 +10,7 @@ export const FundadoresView: React.FC = () => {
   useEffect(() => { infoPublica().then(setInfo); }, []);
   const f = info?.founders;
   const meu = currentUser.growth?.founderNumber;
+  const semFoto = !!meu && !currentUser.growth?.hasPhoto;
   const pct = f ? Math.min(100, (f.taken / Math.max(1, f.limit)) * 100) : 0;
 
   return (
@@ -18,7 +19,13 @@ export const FundadoresView: React.FC = () => {
         <Crown className="w-14 h-14 mx-auto text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.4)]" />
         <h1 className="text-2xl font-extrabold text-white mt-3">Vybelog Fundadores</h1>
         <p className="text-sm text-zinc-300 mt-2 max-w-md mx-auto">As primeiras pessoas que constroem o Vybelog recebem o reconhecimento permanente de Membro Fundador.</p>
-        {meu && <p className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-400/15 border border-amber-400/40 text-amber-200 text-sm font-bold"><Crown className="w-4 h-4" /> Você é o Fundador nº {meu}</p>}
+        {meu && !semFoto && <p className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-400/15 border border-amber-400/40 text-amber-200 text-sm font-bold"><Crown className="w-4 h-4" /> Você é o Fundador nº {meu}</p>}
+        {semFoto && (
+          <div className="mt-4 p-3 rounded-2xl bg-black/30 border border-amber-400/40 text-sm text-amber-100">
+            <p>Seu número de <strong>Fundador nº {meu}</strong> está reservado. Coloque uma foto no perfil para ativar o selo.</p>
+            <button type="button" onClick={() => setActiveTab('profile')} className="mt-2 px-4 py-2 rounded-xl bg-amber-400 text-black text-xs font-bold cursor-pointer">Colocar foto agora</button>
+          </div>
+        )}
       </section>
 
       {f && (
@@ -44,7 +51,7 @@ export const FundadoresView: React.FC = () => {
           <ul className="space-y-2">
             {f.benefits.map((b, i) => <li key={i} className="flex items-start gap-2 text-sm text-zinc-300"><CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />{b}</li>)}
           </ul>
-          <p className="text-[11px] text-zinc-500 mt-3">O selo é concedido automaticamente às contas com e-mail confirmado, por ordem de cadastro, até o limite de vagas.</p>
+          <p className="text-[11px] text-zinc-500 mt-3">Requisitos: {f.requirements ?? 'e-mail confirmado e foto de perfil.'} O selo é concedido automaticamente, por ordem de cadastro, até o limite de vagas.</p>
         </section>
       )}
 

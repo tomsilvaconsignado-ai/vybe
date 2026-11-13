@@ -7,7 +7,11 @@ const SHORT_ORIENTATION: Record<string, string> = {
   Heterossexual: 'Hétero',
   Bissexual: 'Bi',
   Homossexual: 'Homo',
-  Pansexual: 'Pan'
+  Pansexual: 'Pan',
+  Assexual: 'Ace',
+  Demissexual: 'Demi',
+  Heteroflexível: 'Heteroflex',
+  Homoflexível: 'Homoflex'
 };
 
 export interface IdentityEntry {
@@ -18,7 +22,7 @@ export interface IdentityEntry {
 
 export function identityEntries(profile: UserProfile): IdentityEntry[] {
   const partners = (profile.partners ?? []).filter(p => p.gender || p.orientation);
-  if (profile.profileType !== 'single_female' && profile.profileType !== 'single_male' && partners.length > 0) {
+  if (!['single_female', 'single_male', 'single_other'].includes(profile.profileType) && partners.length > 0) {
     return partners.map(p => ({ who: p.name, gender: p.gender || undefined, orientation: p.orientation }));
   }
   return [{ gender: profile.gender, orientation: profile.orientation }];

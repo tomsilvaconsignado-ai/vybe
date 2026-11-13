@@ -18,12 +18,20 @@ export const PROFILE_TYPE_OPTIONS = [
   { id: 'couple', label: 'Casal' },
   { id: 'single_female', label: 'Mulher solteira' },
   { id: 'single_male', label: 'Homem solteiro' },
+  { id: 'single_other', label: 'Pessoa solteira' },
   { id: 'joint_profile', label: 'Perfil conjunto' },
   { id: 'polyamorous', label: 'Poliamor / Tríade' }
 ] as const;
 
-export const GENDER_OPTIONS = ['Feminino', 'Masculino', 'Não binário', 'Outro'];
-export const ORIENTATION_OPTIONS = ['Heterossexual', 'Bissexual', 'Homossexual', 'Pansexual', 'Outra'];
+// Gêneros: lista ampla para ninguém ficar de fora (os primeiros valores são os mesmos de sempre)
+export const GENDER_OPTIONS = [
+  'Feminino', 'Masculino', 'Mulher trans', 'Homem trans', 'Travesti', 'Transexual', 'Não binário', 'Gênero fluido',
+  'Agênero', 'Bigênero', 'Demigênero', 'Intersexo', 'Queer', 'Crossdresser', 'Drag', 'Questionando', 'Outro', 'Prefiro não informar'
+];
+export const ORIENTATION_OPTIONS = [
+  'Heterossexual', 'Bissexual', 'Homossexual', 'Lésbica', 'Gay', 'Pansexual', 'Assexual', 'Demissexual', 'Sapiossexual',
+  'Heteroflexível', 'Homoflexível', 'Queer', 'Questionando', 'Outra', 'Prefiro não informar'
+];
 
 // Aba opcional de preferências: só perguntas que o cadastro não faz, para ninguém responder duas vezes
 export interface ExtraQuestion {

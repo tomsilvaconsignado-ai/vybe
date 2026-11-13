@@ -57,11 +57,12 @@ export const avatarOrDefault = (url: string | null | undefined, name: string) =>
 const one = <T,>(value: T | T[] | null | undefined): T | null =>
   Array.isArray(value) ? value[0] ?? null : value ?? null;
 
-function mapGrowth(g: any): UserProfile['growth'] {
+function mapGrowth(g: any, hasPhoto: boolean): UserProfile['growth'] {
   if (!g) return undefined;
   const agora = Date.now();
   return {
     founderNumber: g.founder_number ?? null,
+    hasPhoto,
     ambassador: !!g.ambassador,
     vip: !!g.vip_until && new Date(g.vip_until).getTime() > agora,
     featured: !!g.featured_until && new Date(g.featured_until).getTime() > agora,
@@ -122,7 +123,7 @@ export function mapProfileRow(row: any): UserProfile {
     statusText: row.status_text ?? undefined,
     discreetModeEnabled: row.discreet_mode_enabled,
     showOnlineStatus: row.show_online_status ?? true,
-    growth: mapGrowth(one<any>(row.profile_growth))
+    growth: mapGrowth(one<any>(row.profile_growth), !!row.avatar_url)
   };
 }
 

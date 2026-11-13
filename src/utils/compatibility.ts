@@ -140,6 +140,7 @@ function isInterestedIn(seeker: UserProfile, target: UserProfile): boolean {
   if (target.profileType === 'couple' && lookingFor.includes('couples')) return true;
   if (target.profileType === 'single_female' && lookingFor.includes('singles_female')) return true;
   if (target.profileType === 'single_male' && lookingFor.includes('singles_male')) return true;
+  if (target.profileType === 'single_other' && lookingFor.includes('singles_other')) return true;
   if (target.profileType === 'joint_profile' && lookingFor.includes('couples')) return true;
   if (target.profileType === 'polyamorous') return true;
 
