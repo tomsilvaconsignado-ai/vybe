@@ -63,6 +63,8 @@ import {
   markMessagesDelivered
 } from '../lib/messaging';
 import { fetchCommunities, joinCommunity, leaveCommunity } from '../lib/comunidades';
+import { conviteGuardado, limparConvite } from '../lib/convite';
+import { esquecerCodigo } from '../lib/crescimento';
 import {
   fetchNotifications,
   fetchNotification,
@@ -83,6 +85,9 @@ import { notify } from '../components/common/Feedback';
 
 // Dados enviados ao Supabase Auth no cadastro; o gatilho handle_new_user cria o perfil a partir deles
 export interface SignUpMetadata {
+  /** código de convite (link de indicação) e campanha */
+  invite_code?: string;
+  invite_campaign?: string;
   username: string;
   display_name: string;
   birthdate: string;
@@ -821,12 +826,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const register = async (email: string, password: string, metadata: SignUpMetadata, captchaToken?: string | null) => {
+    const convite = conviteGuardado();
+    const dados: SignUpMetadata = convite ? { ...metadata, invite_code: convite.codigo, ...(convite.campanha ? { invite_campaign: convite.campanha } : {}) } : metadata;
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: metadata, emailRedirectTo: authRedirectUrl(), captchaToken: captchaToken ?? undefined }
+      options: { data: dados, emailRedirectTo: authRedirectUrl(), captchaToken: captchaToken ?? undefined }
     });
     if (error) return { error: translateAuthError(error.message), needsEmailConfirmation: false };
+    limparConvite();
 
     // Com confirmação de e-mail ativa, o Supabase não devolve sessão até o usuário clicar no link
     const needsEmailConfirmation = !data.session;
@@ -853,6 +861,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const logout = async () => {
     await supabase.auth.signOut();
+    esquecerCodigo();
     setIsAdminModeInternal(false);
     setActiveTab('feed');
     setSelectedConversationId(null);

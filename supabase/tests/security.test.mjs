@@ -742,5 +742,129 @@ r = await db.query(`SELECT count(*)::int AS n FROM pg_constraint c JOIN pg_names
 r.rows[0].n === 0 ? ok('toda chave estrangeira tem índice') : bad('chaves sem índice: ' + r.rows[0].n);
 await expectOk('A exclui a comunidade da revisão', ids.a, `SELECT public.delete_community($1)`, [comR]);
 
+console.log('\nCrescimento: convites, antifraude, recompensas, fundadores e embaixadores');
+await db.exec('RESET ROLE');
+const novoId = (n) => `00000000-0000-0000-0000-0000000009${String(n).padStart(2, '0')}`;
+r = await expectOk('A abre o painel Convide e Ganhe', ids.a, `SELECT public.growth_my_panel() AS p`);
+const codigoA = r.rows[0].p.code;
+/^[a-z0-9]{8}$/.test(codigoA) ? ok('A recebe um código de convite próprio') : bad('código: ' + codigoA);
+r = await as(ids.a, `SELECT public.growth_my_panel() AS p`);
+r.rows[0].p.code === codigoA ? ok('o código é o mesmo a cada acesso') : bad('código mudou');
+
+await expectOk('visita ao link sem login é contada', null, `SELECT public.growth_track_visit($1)`, [codigoA]);
+await as(null, `SELECT public.growth_track_visit('codigo-inexistente')`);
+r = await db.query(`SELECT coalesce(sum(visits), 0)::int AS n FROM growth_visits`);
+r.rows[0].n === 1 ? ok('só o código válido conta visita') : bad('visitas: ' + r.rows[0].n);
+r = await as(null, `SELECT public.growth_public_info() AS i`);
+r.rows[0].i.founders?.limit > 0 ? ok('a página inicial vê as vagas de fundador sem login') : bad('info pública: ' + JSON.stringify(r.rows[0].i));
+
+// cadastro com convite
+await db.query(`INSERT INTO auth.users VALUES ($1,'n1@x.com',$2,now())`, [novoId(1), meta('convidado1', { invite_code: codigoA.toUpperCase() })]);
+r = await db.query(`SELECT referrer_id, status FROM growth_referrals WHERE referred_id = $1`, [novoId(1)]);
+r.rows[0]?.referrer_id === ids.a && r.rows[0].status === 'pending' ? ok('cadastro pelo link fica registrado como indicação de A (pendente)') : bad('indicação: ' + JSON.stringify(r.rows));
+await db.query(`INSERT INTO auth.users VALUES ($1,'n2@x.com',$2,now())`, [novoId(2), meta('convidado2', { invite_code: 'naoexiste' })]);
+r = await db.query(`SELECT count(*)::int AS n FROM growth_referrals WHERE referred_id = $1`, [novoId(2)]);
+r.rows[0].n === 0 ? ok('código inválido não cria indicação (e o cadastro segue normal)') : bad('indicação com código inválido');
+r = await db.query(`SELECT count(*)::int AS n FROM profiles WHERE id = $1`, [novoId(2)]);
+r.rows[0].n === 1 ? ok('o cadastro com código inválido foi concluído') : bad('cadastro falhou');
+await expectFail('ninguém grava indicação direto na tabela', ids.b, `INSERT INTO growth_referrals (referred_id, referrer_id) VALUES ($1, $2)`, [ids.b, ids.a]);
+await expectFail('ninguém se dá VIP direto na tabela', ids.b, `UPDATE profile_growth SET vip_until = now() + interval '1 year' WHERE user_id = $1`, [ids.b]);
+await expectFail('pessoa comum não roda a validação', ids.b, `SELECT public.growth_validate()`);
+
+// validação: só conta pessoa real
+await db.query(`SELECT public.growth_validate()`);
+r = await db.query(`SELECT status FROM growth_referrals WHERE referred_id = $1`, [novoId(1)]);
+r.rows[0].status === 'pending' ? ok('sem foto e sem voltar ao Vybelog, a indicação continua pendente') : bad('validou cedo: ' + r.rows[0].status);
+await db.query(`UPDATE profiles SET avatar_url = 'x', created_at = now() - interval '2 days' WHERE id = $1`, [novoId(1)]);
+await db.query(`INSERT INTO user_presence (user_id, last_seen_at) VALUES ($1, now()) ON CONFLICT (user_id) DO UPDATE SET last_seen_at = now()`, [novoId(1)]);
+await db.query(`SELECT public.growth_validate()`);
+r = await db.query(`SELECT status FROM growth_referrals WHERE referred_id = $1`, [novoId(1)]);
+r.rows[0].status === 'valid' ? ok('com e-mail confirmado, foto e retorno depois do cadastro, a indicação vale') : bad('não validou: ' + r.rows[0].status);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'growth_referral_valid'`, [ids.a]);
+r.rows[0].n === 1 ? ok('A é avisado da indicação confirmada') : bad('aviso: ' + r.rows[0].n);
+
+// limite diário antifraude
+await db.query(`UPDATE growth_settings SET value = jsonb_set(value, '{daily_valid_cap}', '1') WHERE key = 'referral_rules'`);
+await db.query(`INSERT INTO auth.users VALUES ($1,'n3@x.com',$2,now())`, [novoId(3), meta('convidado3', { invite_code: codigoA })]);
+await db.query(`UPDATE profiles SET avatar_url = 'x', created_at = now() - interval '2 days' WHERE id = $1`, [novoId(3)]);
+await db.query(`INSERT INTO user_presence (user_id, last_seen_at) VALUES ($1, now()) ON CONFLICT (user_id) DO UPDATE SET last_seen_at = now()`, [novoId(3)]);
+await db.query(`SELECT public.growth_validate()`);
+r = await db.query(`SELECT status FROM growth_referrals WHERE referred_id = $1`, [novoId(3)]);
+r.rows[0].status === 'pending' ? ok('acima do limite diário de validações, a indicação espera o dia seguinte') : bad('limite diário ignorado');
+await db.query(`UPDATE growth_settings SET value = jsonb_set(value, '{daily_valid_cap}', '10') WHERE key = 'referral_rules'`);
+await db.query(`SELECT public.growth_validate()`);
+
+// recompensas: 5 válidas -> selo, uma única vez
+for (let i = 4; i <= 6; i++) {
+  await db.query(`INSERT INTO auth.users VALUES ($1,$2,$3,now())`, [novoId(i), `n${i}@x.com`, meta('convidado' + i, { invite_code: codigoA })]);
+  await db.query(`UPDATE profiles SET avatar_url = 'x', created_at = now() - interval '2 days' WHERE id = $1`, [novoId(i)]);
+  await db.query(`INSERT INTO user_presence (user_id, last_seen_at) VALUES ($1, now()) ON CONFLICT (user_id) DO UPDATE SET last_seen_at = now()`, [novoId(i)]);
+}
+await db.query(`SELECT public.growth_validate()`);
+r = await db.query(`SELECT count(*)::int AS n FROM growth_referrals WHERE referrer_id = $1 AND status = 'valid'`, [ids.a]);
+const validasA = r.rows[0].n;
+validasA === 5 ? ok('A tem 5 indicações válidas') : bad('válidas de A: ' + validasA);
+r = await db.query(`SELECT 'indicador' = ANY (badges) AS tem FROM profile_growth WHERE user_id = $1`, [ids.a]);
+r.rows[0]?.tem ? ok('com 5 indicações válidas, A ganha o Selo de Indicador') : bad('selo não concedido');
+await db.query(`SELECT public.growth_apply_rewards($1)`, [ids.a]);
+r = await db.query(`SELECT count(*)::int AS n FROM growth_grants WHERE user_id = $1 AND source = 'referral'`, [ids.a]);
+r.rows[0].n === 1 ? ok('a mesma recompensa nunca é concedida duas vezes') : bad('recompensas duplicadas: ' + r.rows[0].n);
+r = await as(ids.a, `SELECT public.growth_my_panel() AS p`);
+const painel = r.rows[0].p;
+painel.valid === 5 && painel.signups === 5 && painel.rewards.some(x => x.threshold === 5 && x.achieved) ? ok('o painel mostra cadastros, válidas e a recompensa conquistada') : bad('painel: ' + JSON.stringify({ v: painel.valid, s: painel.signups }));
+r = await as(ids.b, `SELECT * FROM growth_referrals`);
+r.rows.length === 0 ? ok('B não vê as indicações de A') : bad('indicações vazaram');
+
+// ranking e privacidade
+r = await as(ids.b, `SELECT * FROM public.growth_ranking('all', false)`);
+r.rows[0]?.user_id === ids.a ? ok('A aparece em 1º no ranking') : bad('ranking: ' + JSON.stringify(r.rows));
+await expectOk('A prefere não aparecer no ranking', ids.a, `SELECT public.growth_set_ranking_visibility(false)`);
+r = await as(ids.b, `SELECT count(*)::int AS n FROM public.growth_ranking('all', false)`);
+r.rows[0].n === 0 ? ok('quem saiu do ranking não aparece') : bad('ranking ignorou a escolha');
+await as(ids.a, `SELECT public.growth_set_ranking_visibility(true)`);
+
+// fundadores
+r = await db.query(`SELECT count(*)::int AS n, count(DISTINCT founder_number)::int AS d FROM profile_growth WHERE founder_number IS NOT NULL`);
+r.rows[0].n > 0 && r.rows[0].n === r.rows[0].d ? ok(`fundadores numerados sem repetição (${r.rows[0].n})`) : bad('fundadores: ' + JSON.stringify(r.rows[0]));
+await db.query(`UPDATE growth_settings SET value = jsonb_set(value, '{limit}', to_jsonb((SELECT count(*) FROM profile_growth WHERE founder_number IS NOT NULL)::int + 1)) WHERE key = 'founders'`);
+await db.query(`INSERT INTO auth.users VALUES ($1,'n7@x.com',$2,now())`, [novoId(7), meta('convidado7')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'n8@x.com',$2,now())`, [novoId(8), meta('convidado8')]);
+await db.query(`SELECT public.growth_validate()`);
+r = await db.query(`SELECT (SELECT value ->> 'status' FROM growth_settings WHERE key = 'founders') AS s,
+  (SELECT count(*)::int FROM profile_growth WHERE founder_number IS NOT NULL) AS n, (SELECT (value ->> 'limit')::int FROM growth_settings WHERE key = 'founders') AS l`);
+r.rows[0].n === r.rows[0].l && r.rows[0].s === 'ended' ? ok('o limite de vagas é respeitado e a campanha encerra sozinha') : bad('vagas: ' + JSON.stringify(r.rows[0]));
+
+// administração
+await expectFail('pessoa comum não nomeia embaixador', ids.b, `SELECT public.admin_growth_set_ambassador($1, true, 'bruno-vybe', 'teste de permissão')`, [ids.b]);
+await expectFail('admin sem MFA não nomeia embaixador', ids.admin, `SELECT public.admin_growth_set_ambassador($1, true, 'bruno-vybe', 'teste sem mfa')`, [ids.b], 'aal1');
+await expectOk('superadmin com MFA nomeia B embaixador com link personalizado', ids.admin,
+  `SELECT public.admin_growth_set_ambassador($1, true, 'bruno-vybe', 'Divulgação em eventos')`, [ids.b], 'aal2');
+r = await db.query(`SELECT ambassador, 'embaixador' = ANY (badges) AS selo FROM profile_growth WHERE user_id = $1`, [ids.b]);
+r.rows[0]?.ambassador && r.rows[0].selo ? ok('B recebe o selo de Embaixador') : bad('embaixador: ' + JSON.stringify(r.rows));
+await expectFail('código personalizado já usado é recusado', ids.admin,
+  `SELECT public.admin_growth_set_ambassador($1, true, 'bruno-vybe', 'Duplicidade de código')`, [ids.mod], 'aal2');
+await db.query(`INSERT INTO auth.users VALUES ($1,'n9@x.com',$2,now())`, [novoId(9), meta('convidado9', { invite_code: 'bruno-vybe' })]);
+r = await db.query(`SELECT referrer_id FROM growth_referrals WHERE referred_id = $1`, [novoId(9)]);
+r.rows[0]?.referrer_id === ids.b ? ok('o link personalizado do embaixador registra a indicação') : bad('link do embaixador: ' + JSON.stringify(r.rows));
+await expectFail('justificativa curta é recusada', ids.admin, `SELECT public.admin_growth_grant($1, 'vip_days', 30, 'VIP', 'x')`, [ids.b], 'aal2');
+await expectOk('superadmin concede 30 dias de VIP', ids.admin, `SELECT public.admin_growth_grant($1, 'vip_days', 30, '30 dias de VIP', 'Parceria de divulgação')`, [ids.b], 'aal2');
+r = await db.query(`SELECT vip_until > now() + interval '29 days' AS ok FROM profile_growth WHERE user_id = $1`, [ids.b]);
+r.rows[0]?.ok ? ok('o VIP de B vale por 30 dias') : bad('VIP não aplicado');
+await expectOk('superadmin recusa uma indicação suspeita', ids.admin, `SELECT public.admin_growth_reject_referral($1, 'Conta suspeita de duplicidade')`, [novoId(9)], 'aal2');
+r = await db.query(`SELECT count(*)::int AS n FROM admin_audit_logs WHERE action LIKE 'growth_%'`);
+r.rows[0].n >= 3 ? ok('ações de crescimento ficam na auditoria') : bad('auditoria: ' + r.rows[0].n);
+await expectFail('mensagem de compartilhamento sem {link} é recusada', ids.admin,
+  `SELECT public.admin_growth_save_settings('share_message', '{"text": "mensagem sem o link do convite aqui"}', 'Teste de validação')`, [], 'aal2');
+await expectOk('superadmin cria campanha', ids.admin,
+  `SELECT public.admin_growth_save_campaign(NULL, 'verao-2027', 'Verão Vybelog', 'Convide e ganhe destaque', now(), NULL, true, 'Campanha de verão')`, [], 'aal2');
+r = await as(ids.admin, `SELECT public.growth_admin_stats() AS s`, [], 'aal2');
+r.rows[0].s.referrals_total >= 6 && r.rows[0].s.campaigns.length === 1 ? ok('o Growth Center mostra indicações e campanhas') : bad('growth center: ' + JSON.stringify(r.rows[0].s).slice(0, 200));
+await expectFail('pessoa comum não abre o Growth Center', ids.b, `SELECT public.growth_admin_stats()`);
+r = await as(ids.a, `SELECT public.growth_highlights() AS h`);
+Array.isArray(r.rows[0].h.new_members) && Array.isArray(r.rows[0].h.featured) ? ok('o Descobrir recebe as seções de destaque') : bad('destaques: ' + JSON.stringify(r.rows[0].h));
+r.rows[0].h.featured.includes(ids.b) ? ok('o perfil VIP aparece nos destaques') : bad('VIP fora dos destaques');
+await db.query(`DELETE FROM auth.users WHERE id::text LIKE '00000000-0000-0000-0000-0000000009%'`);
+await db.query(`DELETE FROM profiles WHERE id::text LIKE '00000000-0000-0000-0000-0000000009%'`);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

@@ -6,7 +6,7 @@ import {
   Bell, 
   MessageCircle, 
   Search, 
-  UserCheck, 
+  UserCheck, Gift, 
   ChevronDown,
   Lock,
   Compass,
@@ -254,6 +254,18 @@ export const Header: React.FC = () => {
                       >
                         <UserCheck className="w-4 h-4 text-purple-400" />
                         <span>Ver Meu Perfil</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setIsAdminMode(false);
+                          setActiveTab('invite');
+                          setShowAccountDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs text-zinc-300 hover:bg-purple-950/50 flex items-center gap-2 cursor-pointer"
+                      >
+                        <Gift className="w-4 h-4 text-fuchsia-400" />
+                        <span>Convide e Ganhe</span>
                       </button>
 
                       <button

@@ -3,6 +3,8 @@ import { CalendarHeart, Plus, X, MapPin, CalendarDays, Ticket, Shirt, Users, Ext
 import { ConvidarPessoas } from '../common/ConvidarPessoas';
 import { inviteToEvent } from '../../lib/comunidades';
 import { linkDoEvento } from '../../lib/rotas';
+import { comConvite } from '../../lib/convite';
+import { meuCodigo } from '../../lib/crescimento';
 import { useApp } from '../../context/AppContext';
 import { VybeEvent } from '../../types';
 import { EventCard, EventRsvpButtons, RSVP_LABEL } from './EventCard';
@@ -215,7 +217,7 @@ export const EventsView: React.FC = () => {
                     <UserPlus className="w-3.5 h-3.5" /> Convidar
                   </button>
                   <button type="button" onClick={async () => {
-                    const url = linkDoEvento(location.origin, detail.id);
+                    const url = comConvite(linkDoEvento(location.origin, detail.id), await meuCodigo(currentUser.id));
                     try {
                       if (navigator.share) await navigator.share({ title: detail.title, url });
                       else { await navigator.clipboard.writeText(url); notify('Link do evento copiado!'); }

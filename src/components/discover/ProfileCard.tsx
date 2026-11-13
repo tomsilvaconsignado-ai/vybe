@@ -17,6 +17,7 @@ import { calculateCompatibility } from '../../utils/compatibility';
 import { PROFILE_TYPE_OPTIONS } from '../../lib/profileOptions';
 import { OnlineDot } from '../common/OnlineDot';
 import { identityShortLabel } from '../common/IdentityBadges';
+import { GrowthBadges } from '../growth/GrowthBadges';
 
 interface ProfileCardProps {
   profile: UserProfile;
@@ -69,6 +70,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
               <h3 className="font-bold text-base text-white hover:text-purple-300 transition-colors">
                 {profile.displayName}
               </h3>
+              <GrowthBadges growth={profile.growth} compacto max={2} />
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/40">
                 {PROFILE_TYPE_OPTIONS.find(o => o.id === profile.profileType)?.label ?? 'Perfil'}
               </span>
@@ -196,6 +198,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
           <div className="text-[11px] font-semibold text-rose-200 drop-shadow truncate">
             {identityShortLabel(profile)}
           </div>
+          <GrowthBadges growth={profile.growth} compacto max={2} className="my-0.5" />
           <div className="flex items-center gap-1 text-[11px] text-zinc-300 drop-shadow">
             <MapPin className="w-3 h-3 text-rose-400" />
             <span>{[profile.city, profile.state].filter(Boolean).join(', ')}</span>

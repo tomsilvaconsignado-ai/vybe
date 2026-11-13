@@ -25,7 +25,7 @@ export function formatLocation(city: string, state: string, privacy: UserProfile
 
 // ----------------- PERFIS ----------------- //
 
-const PROFILE_SELECT = '*, joint_partners(*), compatibility_preferences(*), albums!albums_user_id_fkey(id, visibility)';
+const PROFILE_SELECT = '*, joint_partners(*), compatibility_preferences(*), albums!albums_user_id_fkey(id, visibility), profile_growth(founder_number, ambassador, vip_until, featured_until, badges)';
 
 export async function fetchProfiles(excludeUserId: string): Promise<UserProfile[]> {
   const { data, error } = await supabase

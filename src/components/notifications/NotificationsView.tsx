@@ -17,7 +17,8 @@ import {
   AtSign,
   Reply,
   Hash,
-  CalendarHeart
+  CalendarHeart,
+  Gift
 } from 'lucide-react';
 
 export const NotificationsView: React.FC = () => {
@@ -64,6 +65,11 @@ export const NotificationsView: React.FC = () => {
       case 'group_invite':
       case 'group_role':
         return <Hash className="w-4 h-4 text-fuchsia-400" />;
+      case 'growth_reward':
+      case 'growth_referral_valid':
+      case 'growth_founder':
+      case 'growth_ambassador':
+        return <Gift className="w-4 h-4 text-amber-300" />;
       case 'event_invite':
         return <CalendarHeart className="w-4 h-4 text-rose-400" />;
       default:

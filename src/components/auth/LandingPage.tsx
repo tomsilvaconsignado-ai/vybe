@@ -15,6 +15,7 @@ import {
   MessageSquareHeart
 } from 'lucide-react';
 import { Seletor } from '../common/Seletor';
+import { ConviteLanding } from '../growth/ConviteLanding';
 
 const PROFILE_OPTIONS: { type: ProfileType; label: string }[] = [
   { type: 'couple', label: 'Casal' },
@@ -79,6 +80,8 @@ export const LandingPage: React.FC = () => {
               </button>
               !
             </p>
+
+            <ConviteLanding aoCadastrar={() => openRegister(null)} />
 
             <div className="pt-2 grid grid-cols-3 gap-2 sm:gap-4 max-w-lg mx-auto lg:mx-0 text-left">
               <div className="flex items-center gap-2">

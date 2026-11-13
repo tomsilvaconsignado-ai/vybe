@@ -40,10 +40,16 @@ import { calculateCompatibility, OBJECTIVE_LABELS } from '../../utils/compatibil
 import { MediaAlbum, Post, UserProfile } from '../../types';
 import { notify, askConfirm } from '../common/Feedback';
 import { linkDoPerfil } from '../../lib/rotas';
+import { GrowthBadges } from '../growth/GrowthBadges';
+import { comConvite } from '../../lib/convite';
+import { meuCodigo } from '../../lib/crescimento';
+import { supabase } from '../../lib/supabase';
 
 // Compartilhar perfil: no celular abre o menu nativo; no computador copia o link (/perfil/<id>)
 const compartilharPerfil = async (id: string, usuario: string) => {
-  const url = linkDoPerfil(window.location.origin, id);
+  // o link leva o código de convite de quem compartilha: quem chegar por ele e se cadastrar conta como indicação
+  const eu = (await supabase.auth.getUser()).data.user?.id;
+  const url = comConvite(linkDoPerfil(window.location.origin, id), eu ? await meuCodigo(eu) : null);
   if (typeof navigator.share === 'function') {
     try { await navigator.share({ title: `@${usuario} no Vybelog`, url }); return; } catch { /* cancelado: copia */ }
   }
@@ -336,6 +342,7 @@ export const ProfileView: React.FC = () => {
             </div>
 
             <IdentityBadges profile={profile} />
+            <GrowthBadges growth={profile.growth} className="justify-center sm:justify-start" />
             {isSelf && identityEntries(profile).some(e => !e.orientation || !e.gender) && (
               <button
                 type="button"

@@ -24,7 +24,9 @@ import { SharedPostModal } from './components/feed/SharedPostModal';
 import { RightRail } from './components/layout/RightRail';
 import { importWithReload } from './lib/chunkReload';
 import { PushInvite } from './components/notifications/PushInvite';
-
+
+const ConvideView = React.lazy(() => import('./components/growth/ConvideView').then(m => ({ default: m.ConvideView })));
+const FundadoresView = React.lazy(() => import('./components/growth/FundadoresView').then(m => ({ default: m.FundadoresView })));
 const named = <K extends string>(loader: () => Promise<Record<K, React.ComponentType<any>>>, name: K) =>
   lazy(() => importWithReload(loader).then(m => ({ default: m[name] })));
 
@@ -161,6 +163,10 @@ const AppContent: React.FC = () => {
         return <ProfileView />;
       case 'settings':
         return <SettingsView />;
+      case 'invite':
+        return <ConvideView />;
+      case 'founders':
+        return <FundadoresView />;
       default:
         return <FeedView />;
     }

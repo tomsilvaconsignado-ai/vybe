@@ -57,6 +57,18 @@ export const avatarOrDefault = (url: string | null | undefined, name: string) =>
 const one = <T,>(value: T | T[] | null | undefined): T | null =>
   Array.isArray(value) ? value[0] ?? null : value ?? null;
 
+function mapGrowth(g: any): UserProfile['growth'] {
+  if (!g) return undefined;
+  const agora = Date.now();
+  return {
+    founderNumber: g.founder_number ?? null,
+    ambassador: !!g.ambassador,
+    vip: !!g.vip_until && new Date(g.vip_until).getTime() > agora,
+    featured: !!g.featured_until && new Date(g.featured_until).getTime() > agora,
+    badges: g.badges ?? []
+  };
+}
+
 export function mapProfileRow(row: any): UserProfile {
   const prefs = one<any>(row.compatibility_preferences);
   const priv = one<any>(row.profile_private);
@@ -109,14 +121,15 @@ export function mapProfileRow(row: any): UserProfile {
     lastActive: 'Agora mesmo',
     statusText: row.status_text ?? undefined,
     discreetModeEnabled: row.discreet_mode_enabled,
-    showOnlineStatus: row.show_online_status ?? true
+    showOnlineStatus: row.show_online_status ?? true,
+    growth: mapGrowth(one<any>(row.profile_growth))
   };
 }
 
 export async function fetchOwnProfile(userId: string): Promise<UserProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('*, joint_partners(*), compatibility_preferences(*), profile_private(email, city, state, birthdate)')
+    .select('*, joint_partners(*), compatibility_preferences(*), profile_private(email, city, state, birthdate), profile_growth(founder_number, ambassador, vip_until, featured_until, badges)')
     .eq('id', userId)
     .maybeSingle();
 

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { StoriesBar } from './StoriesBar';
 import { PostCard } from './PostCard';
+import { ConviteCard } from '../growth/ConviteCard';
 import { CreatePostModal } from './CreatePostModal';
 import { AdSlot } from '../ads/AdSlot';
 import { Plus, HeartHandshake } from 'lucide-react';
@@ -128,6 +129,7 @@ export const FeedView: React.FC = () => {
         {filteredPosts.map((post, index) => (
           <React.Fragment key={post.id}>
             <PostCard post={post} priority={index === 0} position={index + 1} total={filteredPosts.length} />
+            {index === 2 && <ConviteCard />}
             {/* Patrocinado a cada 5 publicações */}
             {(index + 1) % 5 === 0 && <AdSlot placement="feed" variant="feed" index={Math.floor(index / 5)} />}
           </React.Fragment>

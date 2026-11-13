@@ -26,6 +26,8 @@ const ABA_PARA_CAMINHO: Record<string, string> = {
   'notification-prefs': '/notificacoes/preferencias',
   profile: '/perfil',
   settings: '/configuracoes',
+  invite: '/convide',
+  founders: '/fundadores',
 };
 const CAMINHO_PARA_ABA = Object.fromEntries(Object.entries(ABA_PARA_CAMINHO).map(([aba, c]) => [c, aba]));
 

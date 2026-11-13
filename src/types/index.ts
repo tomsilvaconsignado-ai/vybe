@@ -62,6 +62,14 @@ export interface MediaAlbum {
   createdAt: string;
 }
 
+export interface ProfileGrowth {
+  founderNumber: number | null;
+  ambassador: boolean;
+  vip: boolean;
+  featured: boolean;
+  badges: string[];
+}
+
 export interface UserProfile {
   id: string;
   username: string;
@@ -93,6 +101,8 @@ export interface UserProfile {
   statusText?: string;
   discreetModeEnabled?: boolean;
   showOnlineStatus?: boolean;         // mostra "online" (e vê o dos outros); ligado por padrão
+  /** selos e benefícios do programa de crescimento (fundador, embaixador, VIP, destaque, indicador) */
+  growth?: ProfileGrowth;
 }
 
 export interface PostComment {

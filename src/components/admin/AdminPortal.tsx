@@ -5,6 +5,7 @@ import { AdminEventsTab } from './AdminEventsTab';
 import { AdminAdsTab } from './AdminAdsTab';
 import { AdminIndicadores } from './AdminIndicadores';
 import { AdminComunicadosTab } from './AdminComunicadosTab';
+import { AdminCrescimentoTab } from './AdminCrescimentoTab';
 import { AdminConversationsTab } from './AdminConversationsTab';
 import { AdminImageViewerHost, AdminThumb } from './AdminImageViewer';
 import { 
@@ -35,7 +36,7 @@ import {
   Terminal,
   FolderDown,
   CalendarHeart,
-  Megaphone,
+  Megaphone, Rocket,
   MessagesSquare
 } from 'lucide-react';
 import { ModerationReport, AdminUserRecord, AdminMediaRecord } from '../../types';
@@ -60,7 +61,7 @@ export const AdminPortal: React.FC = () => {
     adminMfaVerified
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useEstadoSalvo<'dashboard' | 'users' | 'reports' | 'media' | 'conversations' | 'events' | 'ads' | 'broadcasts' | 'audit'>('admin.aba', 'dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useEstadoSalvo<'dashboard' | 'users' | 'reports' | 'media' | 'conversations' | 'events' | 'ads' | 'broadcasts' | 'growth' | 'audit'>('admin.aba', 'dashboard');
 
   // Modals state
   const [inspectingUser, setInspectingUser] = useState<AdminUserRecord | null>(null);
@@ -184,6 +185,7 @@ export const AdminPortal: React.FC = () => {
           { id: 'events', label: 'Eventos', icon: CalendarHeart },
           { id: 'ads', label: 'Publicidade', icon: Megaphone },
           { id: 'broadcasts', label: 'Comunicados (push)', icon: Megaphone },
+          { id: 'growth', label: 'Growth Center', icon: Rocket },
           { id: 'audit', label: `Livro de Auditoria (${adminLogs.length})`, icon: FileText },
         ].map(t => {
           const Icon = t.icon;
@@ -794,6 +796,7 @@ export const AdminPortal: React.FC = () => {
       {activeAdminTab === 'events' && <AdminEventsTab />}
       {activeAdminTab === 'ads' && <AdminAdsTab />}
       {activeAdminTab === 'broadcasts' && <AdminComunicadosTab />}
+      {activeAdminTab === 'growth' && <AdminCrescimentoTab />}
       {activeAdminTab === 'conversations' && <AdminConversationsTab />}
 
       {activeAdminTab === 'audit' && (

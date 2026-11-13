@@ -20,6 +20,9 @@ import { ProfileType } from '../../types';
 import { calculateCompatibility } from '../../utils/compatibility';
 import { useEstadoSalvo } from '../../lib/estadoSalvo';
 import { Seletor } from '../common/Seletor';
+import type { UserProfile } from '../../types';
+import { DestaquesDescobrir } from '../growth/DestaquesDescobrir';
+import { ConviteCard } from '../growth/ConviteCard';
 
 interface DiscoverViewProps {
   initialFilter?: 'all' | 'couples' | 'singles';
@@ -172,7 +175,10 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
   });
 
   // Sorting
+  const destaque = (p: UserProfile) => (p.growth?.featured || p.growth?.vip ? 1 : 0);
   const sortedProfiles = [...filteredProfiles].sort((a, b) => {
+    // perfis em destaque (recompensa) ou VIP aparecem primeiro, sem alterar a ordem entre os demais
+    if (destaque(a) !== destaque(b)) return destaque(b) - destaque(a);
     if (sortBy === 'compatibility') {
       const compatA = getCompatibility(a).score;
       const compatB = getCompatibility(b).score;
@@ -411,6 +417,9 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
           </div>
         </div>
       )}
+
+      {initialFilter === 'all' && <DestaquesDescobrir />}
+      {initialFilter === 'couples' && <div className="mb-6"><ConviteCard variante="casal" /></div>}
 
       {/* Profiles Output */}
       {sortedProfiles.length > 0 ? (

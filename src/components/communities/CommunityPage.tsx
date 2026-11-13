@@ -15,6 +15,8 @@ import {
   reviewCommunityRequest, setCommunityRole, unbanCommunityMember, type PessoaDaComunidade
 } from '../../lib/comunidades';
 import type { Community, CommunityRole } from '../../types';
+import { comConvite } from '../../lib/convite';
+import { meuCodigo } from '../../lib/crescimento';
 import { Seletor } from '../common/Seletor';
 
 type Aba = 'posts' | 'sobre' | 'membros' | 'pedidos';
@@ -93,7 +95,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
   };
 
   const compartilhar = async () => {
-    const url = `${location.origin}/comunidades/${c.id}`;
+    const url = comConvite(`${location.origin}/comunidades/${c.id}`, await meuCodigo(currentUser.id));
     try {
       if (navigator.share) await navigator.share({ title: c.name, url });
       else { await navigator.clipboard.writeText(url); notify('Link copiado!'); }

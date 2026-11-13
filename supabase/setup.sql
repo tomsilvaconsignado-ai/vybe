@@ -4030,3 +4030,746 @@ BEGIN
     EXECUTE cmd;
   END LOOP;
 END $$;
+
+-- ==============================================================================
+-- 16. CRESCIMENTO: CONVIDE E GANHE, RECOMPENSAS, FUNDADORES, EMBAIXADORES E CAMPANHAS
+-- Regras no banco. Uma indicação só conta quando a pessoa convidada é real e ficou:
+--   e-mail confirmado + foto de perfil + conta ativa + voltou ao Vybelog 12 h ou mais depois do cadastro.
+-- Antifraude: uma indicação por pessoa convidada (nunca duas), ninguém indica a si mesmo, no máximo
+-- N validações por dia para quem indica (o resto espera o dia seguinte), recompensa uma única vez
+-- por pessoa, e a administração pode recusar indicações suspeitas.
+-- ==============================================================================
+
+-- 16.1 Configurações (editáveis pela administração)
+CREATE TABLE IF NOT EXISTS public.growth_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL
+);
+INSERT INTO public.growth_settings (key, value) VALUES
+  ('founders', jsonb_build_object('status', 'active', 'limit', 500, 'benefits', jsonb_build_array(
+     'Selo de Membro Fundador permanente no seu perfil',
+     'Seu número de fundador exibido no perfil (ex.: Fundador nº 42)',
+     'Reconhecimento como uma das primeiras pessoas a construir o Vybelog'))),
+  ('share_message', jsonb_build_object('text',
+     'Você já conhece o Vybelog? Uma rede social para adultos e casais que compartilham interesses semelhantes e buscam novas conexões com respeito e discrição. Venha fazer parte: {link}')),
+  ('referral_rules', jsonb_build_object('daily_valid_cap', 10, 'return_hours', 12))
+ON CONFLICT (key) DO NOTHING;
+
+-- 16.2 Recompensas por indicações válidas (configuráveis)
+CREATE TABLE IF NOT EXISTS public.growth_rewards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  threshold INTEGER NOT NULL CHECK (threshold BETWEEN 1 AND 10000),
+  kind VARCHAR(20) NOT NULL CHECK (kind IN ('badge', 'featured_days', 'vip_days')),
+  amount INTEGER NOT NULL DEFAULT 0 CHECK (amount BETWEEN 0 AND 3650),
+  badge VARCHAR(40),
+  label VARCHAR(80) NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO public.growth_rewards (threshold, kind, amount, badge, label)
+SELECT * FROM (VALUES
+  (5, 'badge', 0, 'indicador', 'Selo de Indicador Vybelog'),
+  (10, 'featured_days', 7, NULL, 'Perfil em destaque por 7 dias'),
+  (20, 'vip_days', 30, NULL, '30 dias de VIP'),
+  (50, 'vip_days', 90, NULL, '90 dias de VIP')) AS v(threshold, kind, amount, badge, label)
+WHERE NOT EXISTS (SELECT 1 FROM public.growth_rewards);
+
+-- 16.3 Selos e benefícios de cada perfil (públicos no perfil; gravados só pelas funções)
+CREATE TABLE IF NOT EXISTS public.profile_growth (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  founder_number INTEGER UNIQUE,
+  founder_at TIMESTAMPTZ,
+  ambassador BOOLEAN NOT NULL DEFAULT false,
+  ambassador_since TIMESTAMPTZ,
+  vip_until TIMESTAMPTZ,
+  featured_until TIMESTAMPTZ,
+  badges TEXT[] NOT NULL DEFAULT '{}',
+  show_in_ranking BOOLEAN NOT NULL DEFAULT true,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_profile_growth_featured ON public.profile_growth(featured_until) WHERE featured_until IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_profile_growth_vip ON public.profile_growth(vip_until) WHERE vip_until IS NOT NULL;
+
+-- 16.4 Códigos de convite (um automático por pessoa; embaixadores podem ter um personalizado)
+CREATE TABLE IF NOT EXISTS public.growth_codes (
+  code VARCHAR(24) PRIMARY KEY CHECK (code ~ '^[a-z0-9-]{4,24}$'),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  custom BOOLEAN NOT NULL DEFAULT false,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_growth_codes_auto ON public.growth_codes(user_id) WHERE NOT custom;
+CREATE INDEX IF NOT EXISTS idx_growth_codes_user ON public.growth_codes(user_id);
+
+-- 16.5 Campanhas (criadas pela administração)
+CREATE TABLE IF NOT EXISTS public.growth_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug VARCHAR(40) UNIQUE NOT NULL CHECK (slug ~ '^[a-z0-9-]{3,40}$'),
+  title VARCHAR(100) NOT NULL CHECK (length(trim(title)) >= 3),
+  description VARCHAR(600) NOT NULL DEFAULT '',
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ends_at TIMESTAMPTZ,
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (ends_at IS NULL OR ends_at > starts_at)
+);
+CREATE INDEX IF NOT EXISTS idx_growth_campaigns_created_by ON public.growth_campaigns(created_by);
+
+-- 16.6 Visitas aos links de convite (agregadas por dia: sem IP nem dado pessoal)
+CREATE TABLE IF NOT EXISTS public.growth_visits (
+  code VARCHAR(24) NOT NULL REFERENCES public.growth_codes(code) ON DELETE CASCADE,
+  day DATE NOT NULL DEFAULT current_date,
+  visits INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (code, day)
+);
+
+-- 16.7 Indicações (uma por pessoa convidada)
+CREATE TABLE IF NOT EXISTS public.growth_referrals (
+  referred_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  referrer_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  code VARCHAR(24),
+  campaign_id UUID REFERENCES public.growth_campaigns(id) ON DELETE SET NULL,
+  status VARCHAR(10) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'valid', 'rejected')),
+  reason VARCHAR(300),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  validated_at TIMESTAMPTZ,
+  CHECK (referrer_id IS DISTINCT FROM referred_id)
+);
+CREATE INDEX IF NOT EXISTS idx_growth_referrals_referrer ON public.growth_referrals(referrer_id, status);
+CREATE INDEX IF NOT EXISTS idx_growth_referrals_campaign ON public.growth_referrals(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_growth_referrals_pending ON public.growth_referrals(created_at) WHERE status = 'pending';
+
+-- 16.8 Recompensas concedidas (histórico; cada recompensa uma única vez por pessoa)
+CREATE TABLE IF NOT EXISTS public.growth_grants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  reward_id UUID REFERENCES public.growth_rewards(id) ON DELETE SET NULL,
+  kind VARCHAR(20) NOT NULL,
+  amount INTEGER NOT NULL DEFAULT 0,
+  label VARCHAR(120) NOT NULL,
+  source VARCHAR(12) NOT NULL CHECK (source IN ('referral', 'admin', 'founder', 'ambassador')),
+  granted_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  reason VARCHAR(300),
+  granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_growth_grants_reward ON public.growth_grants(user_id, reward_id) WHERE reward_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_growth_grants_user ON public.growth_grants(user_id, granted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_growth_grants_by ON public.growth_grants(granted_by);
+CREATE INDEX IF NOT EXISTS idx_growth_grants_reward ON public.growth_grants(reward_id);
+CREATE INDEX IF NOT EXISTS idx_growth_settings_by ON public.growth_settings(updated_by);
+
+-- 16.9 Acesso: leitura do que é público; gravação só pelas funções abaixo
+ALTER TABLE public.growth_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.growth_rewards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profile_growth ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.growth_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.growth_campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.growth_visits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.growth_referrals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.growth_grants ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS growth_settings_read ON public.growth_settings;
+CREATE POLICY growth_settings_read ON public.growth_settings FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS growth_rewards_read ON public.growth_rewards;
+CREATE POLICY growth_rewards_read ON public.growth_rewards FOR SELECT TO authenticated USING (active OR public.is_staff());
+DROP POLICY IF EXISTS profile_growth_read ON public.profile_growth;
+CREATE POLICY profile_growth_read ON public.profile_growth FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS growth_codes_read ON public.growth_codes;
+CREATE POLICY growth_codes_read ON public.growth_codes FOR SELECT TO authenticated USING (user_id = (SELECT auth.uid()) OR public.is_staff());
+DROP POLICY IF EXISTS growth_campaigns_read ON public.growth_campaigns;
+CREATE POLICY growth_campaigns_read ON public.growth_campaigns FOR SELECT TO authenticated USING (active OR public.is_staff());
+DROP POLICY IF EXISTS growth_visits_read ON public.growth_visits;
+CREATE POLICY growth_visits_read ON public.growth_visits FOR SELECT TO authenticated USING (public.is_staff());
+DROP POLICY IF EXISTS growth_referrals_read ON public.growth_referrals;
+CREATE POLICY growth_referrals_read ON public.growth_referrals FOR SELECT TO authenticated
+  USING (referrer_id = (SELECT auth.uid()) OR referred_id = (SELECT auth.uid()) OR public.is_staff());
+DROP POLICY IF EXISTS growth_grants_read ON public.growth_grants;
+CREATE POLICY growth_grants_read ON public.growth_grants FOR SELECT TO authenticated USING (user_id = (SELECT auth.uid()) OR public.is_staff());
+
+REVOKE ALL ON public.growth_settings, public.growth_rewards, public.profile_growth, public.growth_codes, public.growth_campaigns,
+  public.growth_visits, public.growth_referrals, public.growth_grants FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.growth_settings, public.growth_rewards, public.profile_growth, public.growth_codes,
+  public.growth_campaigns, public.growth_visits, public.growth_referrals, public.growth_grants FROM authenticated;
+GRANT SELECT ON public.growth_settings, public.growth_rewards, public.profile_growth, public.growth_codes, public.growth_campaigns,
+  public.growth_visits, public.growth_referrals, public.growth_grants TO authenticated;
+
+-- 16.10 Avisos de crescimento: destino e texto do push (sem nomes de terceiros)
+CREATE OR REPLACE FUNCTION public.notification_link(p_type TEXT, p_ref TEXT, p_actor UUID)
+RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = public, extensions, pg_temp AS $$
+  SELECT CASE
+    WHEN p_type LIKE 'growth\_%' THEN '/convide'
+    WHEN p_ref IS NULL OR p_ref = '' THEN '/notificacoes'
+    WHEN p_type IN ('like', 'comment', 'comment_reply', 'mention', 'comment_like') THEN '/publicacao/' || split_part(p_ref, '#', 1)
+      || CASE WHEN position('#' IN p_ref) > 0 THEN '?comentario=' || split_part(p_ref, '#', 2) ELSE '' END
+    WHEN p_type IN ('follow', 'connection_request', 'connection_accepted') THEN '/perfil/' || p_ref
+    WHEN p_type IN ('message', 'message_request') THEN '/mensagens/' || p_ref
+    WHEN p_type LIKE 'event\_%' THEN '/eventos/' || p_ref
+    WHEN p_type LIKE 'group\_%' OR p_type LIKE 'community\_%' THEN '/comunidades/' || p_ref
+    WHEN p_type = 'vault_access_request' THEN '/perfil'
+    WHEN p_type = 'vault_access_granted' AND p_actor IS NOT NULL THEN '/perfil/' || p_actor
+    WHEN p_type = 'profile_photo_reminder' THEN '/perfil'
+    ELSE '/notificacoes'
+  END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.push_text(p_type TEXT, p_actor UUID, p_user UUID, p_title TEXT, p_message TEXT)
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  nomes BOOLEAN := coalesce((SELECT show_names FROM public.notification_preferences WHERE user_id = p_user), false);
+  quem TEXT := CASE WHEN nomes AND p_actor IS NOT NULL THEN (SELECT display_name FROM public.profiles WHERE id = p_actor) END;
+BEGIN
+  RETURN CASE
+    WHEN p_type = 'follow' THEN jsonb_build_object('t', 'Novo seguidor!', 'b', coalesce(quem || ' começou a seguir você no Vybelog.', 'Você tem um novo seguidor no Vybelog.'))
+    WHEN p_type = 'like' THEN jsonb_build_object('t', 'Nova curtida!', 'b', coalesce(quem || ' curtiu sua publicação.', 'Alguém curtiu sua publicação.'))
+    WHEN p_type IN ('comment', 'event_comment') THEN jsonb_build_object('t', 'Nova interação!', 'b', coalesce(quem || ' comentou na sua publicação.', 'Há um novo comentário para você.'))
+    WHEN p_type = 'comment_reply' THEN jsonb_build_object('t', 'Nova resposta!', 'b', coalesce(quem || ' respondeu ao seu comentário.', 'Responderam ao seu comentário.'))
+    WHEN p_type = 'mention' THEN jsonb_build_object('t', 'Você foi mencionado!', 'b', coalesce(quem || ' mencionou você.', 'Mencionaram você em uma publicação.'))
+    WHEN p_type = 'message' THEN jsonb_build_object('t', 'Nova mensagem!', 'b', coalesce('Você recebeu uma nova mensagem de ' || quem || '.', 'Você recebeu uma nova mensagem.'))
+    WHEN p_type = 'message_request' THEN jsonb_build_object('t', 'Novo pedido de mensagem', 'b', 'Alguém quer conversar com você.')
+    WHEN p_type = 'connection_request' THEN jsonb_build_object('t', 'Pedido de conexão', 'b', coalesce(quem || ' quer se conectar com você.', 'Você recebeu um pedido de conexão.'))
+    WHEN p_type = 'connection_accepted' THEN jsonb_build_object('t', 'Conexão aceita!', 'b', coalesce(quem || ' aceitou sua conexão.', 'Um pedido de conexão foi aceito.'))
+    WHEN p_type LIKE 'vault\_%' THEN jsonb_build_object('t', 'Cofre privado', 'b', 'Há uma novidade no seu cofre privado.')
+    WHEN p_type LIKE 'event\_%' THEN jsonb_build_object('t', 'Eventos', 'b', 'Há uma novidade em um evento.')
+    WHEN p_type LIKE 'group\_%' OR p_type LIKE 'community\_%' THEN jsonb_build_object('t', 'Comunidades', 'b', 'Há uma novidade em uma comunidade.')
+    WHEN p_type = 'admin_broadcast' THEN jsonb_build_object('t', left(p_title, 80), 'b', left(p_message, 160))
+    WHEN p_type LIKE 'growth\_%' THEN jsonb_build_object('t', left(p_title, 80), 'b', left(p_message, 160))
+    ELSE jsonb_build_object('t', 'Vybelog', 'b', 'Você tem uma nova notificação.')
+  END;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.growth_notify(p_user UUID, p_type TEXT, p_title TEXT, p_msg TEXT, p_dedupe TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.notifications (user_id, actor_id, type, title, message, reference_id, dedupe_key)
+  VALUES (p_user, NULL, p_type, p_title, p_msg, NULL, p_dedupe)
+  ON CONFLICT DO NOTHING;
+$$;
+
+-- 16.11 Código de convite de cada pessoa (criado na primeira vez que é pedido)
+CREATE OR REPLACE FUNCTION public.growth_code_for(p_user UUID)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v TEXT;
+BEGIN
+  SELECT code INTO v FROM public.growth_codes WHERE user_id = p_user AND NOT custom AND active;
+  IF v IS NOT NULL THEN RETURN v; END IF;
+  LOOP
+    v := substr(md5(random()::text || clock_timestamp()::text || p_user::text), 1, 8);
+    BEGIN
+      INSERT INTO public.growth_codes (code, user_id) VALUES (v, p_user);
+      RETURN v;
+    EXCEPTION WHEN unique_violation THEN
+      SELECT code INTO v FROM public.growth_codes WHERE user_id = p_user AND NOT custom AND active;
+      IF v IS NOT NULL THEN RETURN v; END IF;
+    END;
+  END LOOP;
+END;
+$$;
+
+-- 16.12 Cadastro com convite: o código vem nos dados do cadastro (metadata) e fica registrado
+CREATE OR REPLACE FUNCTION public.growth_capture_referral()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_code TEXT := lower(trim(coalesce(NEW.raw_user_meta_data ->> 'invite_code', '')));
+  v_slug TEXT := lower(trim(coalesce(NEW.raw_user_meta_data ->> 'invite_campaign', '')));
+  v_dono UUID;
+  v_campanha UUID;
+BEGIN
+  IF v_code = '' OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = NEW.id) THEN RETURN NEW; END IF;
+  SELECT c.user_id INTO v_dono FROM public.growth_codes c JOIN public.profiles p ON p.id = c.user_id
+   WHERE c.code = v_code AND c.active AND p.status::text IN ('active', 'warned');
+  IF v_dono IS NULL OR v_dono = NEW.id THEN RETURN NEW; END IF;
+  IF v_slug <> '' THEN
+    SELECT id INTO v_campanha FROM public.growth_campaigns
+     WHERE slug = v_slug AND active AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now());
+  END IF;
+  INSERT INTO public.growth_referrals (referred_id, referrer_id, code, campaign_id)
+  VALUES (NEW.id, v_dono, v_code, v_campanha) ON CONFLICT (referred_id) DO NOTHING;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;   -- um convite com problema nunca impede o cadastro
+END;
+$$;
+DROP TRIGGER IF EXISTS on_auth_user_invited ON auth.users;
+-- nome escolhido para rodar depois de on_auth_user_created (o perfil já existe)
+CREATE TRIGGER on_auth_user_invited AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.growth_capture_referral();
+
+-- 16.13 Efeito das recompensas no perfil
+CREATE OR REPLACE FUNCTION public.growth_apply_effect(p_user UUID, p_kind TEXT, p_amount INTEGER, p_badge TEXT)
+RETURNS TIMESTAMPTZ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_fim TIMESTAMPTZ;
+BEGIN
+  INSERT INTO public.profile_growth (user_id) VALUES (p_user) ON CONFLICT (user_id) DO NOTHING;
+  IF p_kind = 'vip_days' THEN
+    UPDATE public.profile_growth SET vip_until = greatest(coalesce(vip_until, now()), now()) + make_interval(days => p_amount), updated_at = now()
+     WHERE user_id = p_user RETURNING vip_until INTO v_fim;
+  ELSIF p_kind = 'featured_days' THEN
+    UPDATE public.profile_growth SET featured_until = greatest(coalesce(featured_until, now()), now()) + make_interval(days => p_amount), updated_at = now()
+     WHERE user_id = p_user RETURNING featured_until INTO v_fim;
+  ELSIF p_kind = 'badge' AND p_badge IS NOT NULL THEN
+    UPDATE public.profile_growth SET badges = CASE WHEN p_badge = ANY (badges) THEN badges ELSE badges || p_badge END, updated_at = now()
+     WHERE user_id = p_user;
+  END IF;
+  RETURN v_fim;
+END;
+$$;
+
+-- Concede as recompensas alcançadas (cada uma uma única vez por pessoa)
+CREATE OR REPLACE FUNCTION public.growth_apply_rewards(p_user UUID)
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r RECORD; v_validas INTEGER; v_fim TIMESTAMPTZ; n INTEGER := 0;
+BEGIN
+  SELECT count(*) INTO v_validas FROM public.growth_referrals WHERE referrer_id = p_user AND status = 'valid';
+  FOR r IN SELECT * FROM public.growth_rewards g WHERE g.active AND g.threshold <= v_validas
+             AND NOT EXISTS (SELECT 1 FROM public.growth_grants x WHERE x.user_id = p_user AND x.reward_id = g.id)
+           ORDER BY g.threshold LOOP
+    v_fim := public.growth_apply_effect(p_user, r.kind, r.amount, r.badge);
+    INSERT INTO public.growth_grants (user_id, reward_id, kind, amount, label, source, expires_at)
+    VALUES (p_user, r.id, r.kind, r.amount, r.label, 'referral', v_fim)
+    ON CONFLICT DO NOTHING;
+    PERFORM public.growth_notify(p_user, 'growth_reward', 'Nova conquista!',
+      'Você conquistou: ' || r.label || '. Obrigado por fazer o Vybelog crescer!', 'growth_reward:' || r.id || ':' || p_user);
+    n := n + 1;
+  END LOOP;
+  RETURN n;
+END;
+$$;
+
+-- 16.14 Validação periódica (pg_cron): indicações reais, fundadores e recompensas
+CREATE OR REPLACE FUNCTION public.growth_validate()
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  regras JSONB := coalesce((SELECT value FROM public.growth_settings WHERE key = 'referral_rules'), '{}');
+  cap INTEGER := coalesce((regras ->> 'daily_valid_cap')::int, 10);
+  horas INTEGER := coalesce((regras ->> 'return_hours')::int, 12);
+  fund JSONB := coalesce((SELECT value FROM public.growth_settings WHERE key = 'founders'), '{}');
+  r RECORD; n INTEGER := 0; v_hoje INTEGER; v_prox INTEGER; v_vagas INTEGER;
+BEGIN
+  -- conta suspensa ou bloqueada: a indicação não vale
+  UPDATE public.growth_referrals g SET status = 'rejected', reason = 'Conta da pessoa convidada suspensa ou bloqueada', validated_at = now()
+    FROM public.profiles p WHERE p.id = g.referred_id AND g.status = 'pending' AND p.status::text IN ('suspended', 'blocked');
+
+  FOR r IN
+    SELECT g.referred_id, g.referrer_id FROM public.growth_referrals g
+      JOIN public.profiles p ON p.id = g.referred_id
+      JOIN auth.users u ON u.id = g.referred_id
+      LEFT JOIN public.user_presence up ON up.user_id = g.referred_id
+     WHERE g.status = 'pending' AND g.referrer_id IS NOT NULL
+       AND u.email_confirmed_at IS NOT NULL
+       AND coalesce(p.avatar_url, '') <> ''
+       AND p.status::text IN ('active', 'warned')
+       AND greatest(coalesce(up.last_seen_at, '-infinity'::timestamptz), p.last_active_at) >= p.created_at + make_interval(hours => horas)
+     ORDER BY g.created_at
+  LOOP
+    SELECT count(*) INTO v_hoje FROM public.growth_referrals
+     WHERE referrer_id = r.referrer_id AND status = 'valid' AND validated_at >= date_trunc('day', now());
+    CONTINUE WHEN v_hoje >= cap;   -- limite diário: o restante valida nos próximos dias
+    UPDATE public.growth_referrals SET status = 'valid', validated_at = now() WHERE referred_id = r.referred_id AND status = 'pending';
+    PERFORM public.growth_notify(r.referrer_id, 'growth_referral_valid', 'Indicação confirmada!',
+      'Uma pessoa que você convidou completou o cadastro no Vybelog.', 'growth_valid:' || r.referred_id);
+    PERFORM public.growth_apply_rewards(r.referrer_id);
+    n := n + 1;
+  END LOOP;
+
+  -- Fundadores: contas confirmadas e ativas, por ordem de cadastro, até o limite da campanha
+  IF fund ->> 'status' = 'active' THEN
+    SELECT coalesce(max(founder_number), 0) INTO v_prox FROM public.profile_growth;
+    v_vagas := greatest(coalesce((fund ->> 'limit')::int, 0) - (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL), 0);
+    FOR r IN
+      SELECT p.id FROM public.profiles p JOIN auth.users u ON u.id = p.id
+        LEFT JOIN public.profile_growth pg ON pg.user_id = p.id
+       WHERE pg.founder_number IS NULL AND u.email_confirmed_at IS NOT NULL AND p.status::text IN ('active', 'warned')
+       ORDER BY p.created_at LIMIT v_vagas
+    LOOP
+      v_prox := v_prox + 1;
+      INSERT INTO public.profile_growth (user_id) VALUES (r.id) ON CONFLICT (user_id) DO NOTHING;
+      UPDATE public.profile_growth SET founder_number = v_prox, founder_at = now(),
+             badges = CASE WHEN 'fundador' = ANY (badges) THEN badges ELSE badges || 'fundador'::text END, updated_at = now()
+       WHERE user_id = r.id;
+      INSERT INTO public.growth_grants (user_id, kind, amount, label, source) VALUES (r.id, 'badge', 0, 'Membro Fundador nº ' || v_prox, 'founder');
+      IF coalesce((fund ->> 'notify')::boolean, true) THEN
+        PERFORM public.growth_notify(r.id, 'growth_founder', 'Você é Membro Fundador!',
+          'Você é o Membro Fundador nº ' || v_prox || ' do Vybelog. O selo já aparece no seu perfil.', 'growth_founder:' || r.id);
+      END IF;
+    END LOOP;
+    -- vagas esgotadas: a campanha encerra sozinha
+    IF (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL) >= coalesce((fund ->> 'limit')::int, 0) THEN
+      UPDATE public.growth_settings SET value = jsonb_set(value, '{status}', '"ended"'), updated_at = now() WHERE key = 'founders';
+    END IF;
+  END IF;
+  RETURN n;
+END;
+$$;
+
+-- 16.15 Funções da pessoa
+-- Visita a um link de convite (contador do dia; também sem login)
+CREATE OR REPLACE FUNCTION public.growth_track_visit(p_code TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF p_code IS NULL OR lower(p_code) !~ '^[a-z0-9-]{4,24}$' THEN RETURN; END IF;
+  INSERT INTO public.growth_visits (code, day, visits)
+  SELECT c.code, current_date, 1 FROM public.growth_codes c WHERE c.code = lower(p_code) AND c.active
+  ON CONFLICT (code, day) DO UPDATE SET visits = least(public.growth_visits.visits + 1, 100000);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.growth_set_ranking_visibility(p_show BOOLEAN)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.profile_growth (user_id, show_in_ranking) VALUES (auth.uid(), p_show)
+  ON CONFLICT (user_id) DO UPDATE SET show_in_ranking = EXCLUDED.show_in_ranking, updated_at = now();
+$$;
+
+-- Ranking de quem mais indica (só indicações válidas; quem preferiu ficar fora não aparece)
+CREATE OR REPLACE FUNCTION public.growth_ranking(p_period TEXT DEFAULT '30d', p_ambassadors BOOLEAN DEFAULT false)
+RETURNS TABLE (pos INTEGER, user_id UUID, display_name TEXT, username TEXT, avatar_url TEXT, valid_count INTEGER, ambassador BOOLEAN)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT (row_number() OVER (ORDER BY count(*) DESC, min(g.validated_at)))::int, p.id, p.display_name::text, p.username::text, p.avatar_url,
+         count(*)::int, coalesce(pg.ambassador, false)
+    FROM public.growth_referrals g
+    JOIN public.profiles p ON p.id = g.referrer_id
+    LEFT JOIN public.profile_growth pg ON pg.user_id = p.id
+   WHERE auth.uid() IS NOT NULL
+     AND g.status = 'valid'
+     AND (p_period <> '30d' OR g.validated_at > now() - interval '30 days')
+     AND coalesce(pg.show_in_ranking, true)
+     AND p.status::text IN ('active', 'warned')
+     AND (NOT p_ambassadors OR coalesce(pg.ambassador, false))
+     AND NOT public.is_blocked_between(p.id, auth.uid())
+   GROUP BY p.id, p.display_name, p.username, p.avatar_url, pg.ambassador
+   ORDER BY count(*) DESC, min(g.validated_at)
+   LIMIT 20;
+$$;
+
+-- Painel "Convide e Ganhe" da própria pessoa
+CREATE OR REPLACE FUNCTION public.growth_my_panel()
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  v_code TEXT; v_custom TEXT; v_validas INTEGER; v_pg public.profile_growth;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
+  v_code := public.growth_code_for(me);
+  SELECT code INTO v_custom FROM public.growth_codes WHERE user_id = me AND custom AND active ORDER BY created_at DESC LIMIT 1;
+  SELECT * INTO v_pg FROM public.profile_growth WHERE user_id = me;
+  SELECT count(*) INTO v_validas FROM public.growth_referrals WHERE referrer_id = me AND status = 'valid';
+  RETURN jsonb_build_object(
+    'code', coalesce(v_custom, v_code),
+    'visits', coalesce((SELECT sum(v.visits) FROM public.growth_visits v JOIN public.growth_codes c ON c.code = v.code WHERE c.user_id = me), 0),
+    'signups', (SELECT count(*) FROM public.growth_referrals WHERE referrer_id = me),
+    'pending', (SELECT count(*) FROM public.growth_referrals WHERE referrer_id = me AND status = 'pending'),
+    'valid', v_validas,
+    'rejected', (SELECT count(*) FROM public.growth_referrals WHERE referrer_id = me AND status = 'rejected'),
+    'active_referred', (SELECT count(*) FROM public.growth_referrals g JOIN public.user_presence up ON up.user_id = g.referred_id
+                         WHERE g.referrer_id = me AND g.status = 'valid' AND up.last_seen_at > now() - interval '7 days'),
+    'rewards', coalesce((SELECT jsonb_agg(jsonb_build_object('id', r.id, 'threshold', r.threshold, 'kind', r.kind, 'amount', r.amount, 'label', r.label,
+                    'achieved', EXISTS (SELECT 1 FROM public.growth_grants x WHERE x.user_id = me AND x.reward_id = r.id)) ORDER BY r.threshold)
+                  FROM public.growth_rewards r WHERE r.active), '[]'),
+    'grants', coalesce((SELECT jsonb_agg(jsonb_build_object('label', x.label, 'kind', x.kind, 'source', x.source, 'granted_at', x.granted_at, 'expires_at', x.expires_at)
+                    ORDER BY x.granted_at DESC) FROM (SELECT * FROM public.growth_grants WHERE user_id = me ORDER BY granted_at DESC LIMIT 50) x), '[]'),
+    'referrals', coalesce((SELECT jsonb_agg(jsonb_build_object('display_name', p.display_name, 'username', p.username, 'avatar_url', p.avatar_url,
+                    'status', g.status, 'created_at', g.created_at) ORDER BY g.created_at DESC)
+                  FROM (SELECT * FROM public.growth_referrals WHERE referrer_id = me ORDER BY created_at DESC LIMIT 100) g
+                  JOIN public.profiles p ON p.id = g.referred_id), '[]'),
+    'founder_number', v_pg.founder_number,
+    'ambassador', coalesce(v_pg.ambassador, false),
+    'vip_until', v_pg.vip_until,
+    'featured_until', v_pg.featured_until,
+    'badges', coalesce(to_jsonb(v_pg.badges), '[]'),
+    'show_in_ranking', coalesce(v_pg.show_in_ranking, true),
+    'rank_30d', (SELECT x.pos FROM public.growth_ranking('30d', false) x WHERE x.user_id = me),
+    'share_message', (SELECT value ->> 'text' FROM public.growth_settings WHERE key = 'share_message'),
+    'rules', (SELECT value FROM public.growth_settings WHERE key = 'referral_rules')
+  );
+END;
+$$;
+
+-- Informações públicas (página inicial e campanha): vagas de fundador e campanhas ativas, sem dados pessoais
+CREATE OR REPLACE FUNCTION public.growth_public_info()
+RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT jsonb_build_object(
+    'founders', (SELECT jsonb_build_object('status', f.value ->> 'status', 'limit', (f.value ->> 'limit')::int,
+                   'taken', (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL),
+                   'remaining', greatest((f.value ->> 'limit')::int - (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL), 0),
+                   'benefits', f.value -> 'benefits')
+                 FROM public.growth_settings f WHERE f.key = 'founders'),
+    'campaigns', coalesce((SELECT jsonb_agg(jsonb_build_object('slug', c.slug, 'title', c.title, 'description', c.description, 'ends_at', c.ends_at) ORDER BY c.starts_at DESC)
+                  FROM public.growth_campaigns c WHERE c.active AND c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now())), '[]'));
+$$;
+
+-- Destaques do Descobrir (só ids: os perfis são buscados depois com as regras de privacidade de quem vê)
+CREATE OR REPLACE FUNCTION public.growth_highlights()
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE me UUID := auth.uid();
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
+  RETURN jsonb_build_object(
+    -- destaque conquistado (recompensa) ou VIP ativo
+    'featured', coalesce((SELECT jsonb_agg(x.user_id) FROM (
+        SELECT pg.user_id FROM public.profile_growth pg JOIN public.profiles p ON p.id = pg.user_id
+         WHERE (pg.featured_until > now() OR pg.vip_until > now()) AND p.status::text IN ('active', 'warned') AND pg.user_id <> me
+           AND NOT public.is_blocked_between(pg.user_id, me)
+         ORDER BY pg.featured_until DESC NULLS LAST, pg.vip_until DESC NULLS LAST LIMIT 12) x), '[]'),
+    -- destaques da semana: mais pessoas diferentes interagiram (curtidas, comentários e novos seguidores),
+    -- contando só contas com mais de 7 dias (contas recém-criadas não inflam o placar)
+    'couple_of_week', (SELECT s.alvo FROM public.growth_week_scores(me) s JOIN public.profiles p ON p.id = s.alvo
+                        WHERE p.profile_type::text IN ('couple', 'joint_profile', 'polyamorous') ORDER BY s.pontos DESC LIMIT 1),
+    'member_of_week', (SELECT s.alvo FROM public.growth_week_scores(me) s JOIN public.profiles p ON p.id = s.alvo
+                        WHERE p.profile_type::text IN ('single_female', 'single_male') ORDER BY s.pontos DESC LIMIT 1),
+    'new_members', coalesce((SELECT jsonb_agg(x.id) FROM (
+        SELECT p.id FROM public.profiles p WHERE p.created_at > now() - interval '21 days' AND coalesce(p.avatar_url, '') <> ''
+           AND p.status::text IN ('active', 'warned') AND p.id <> me AND NOT public.is_blocked_between(p.id, me)
+         ORDER BY p.created_at DESC LIMIT 12) x), '[]'),
+    'popular', coalesce((SELECT jsonb_agg(x.id) FROM (
+        SELECT p.id FROM public.profiles p WHERE p.status::text IN ('active', 'warned') AND p.id <> me AND coalesce(p.avatar_url, '') <> ''
+           AND NOT public.is_blocked_between(p.id, me)
+         ORDER BY p.followers_count DESC, p.last_active_at DESC LIMIT 12) x), '[]'));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.growth_week_scores(p_viewer UUID)
+RETURNS TABLE (alvo UUID, pontos INTEGER) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  WITH acoes AS (
+    SELECT po.user_id AS alvo, l.user_id AS ator FROM public.post_likes l JOIN public.posts po ON po.id = l.post_id
+     WHERE l.created_at > now() - interval '7 days' AND po.community_id IS NULL AND po.visibility = 'public'
+    UNION
+    SELECT po.user_id, c.user_id FROM public.post_comments c JOIN public.posts po ON po.id = c.post_id
+     WHERE c.created_at > now() - interval '7 days' AND po.community_id IS NULL AND po.visibility = 'public'
+    UNION
+    SELECT f.following_id, f.follower_id FROM public.follows f WHERE f.created_at > now() - interval '7 days'
+  )
+  SELECT a.alvo, count(DISTINCT a.ator)::int
+    FROM acoes a
+    JOIN public.profiles ator ON ator.id = a.ator AND ator.created_at < now() - interval '7 days' AND ator.status::text IN ('active', 'warned')
+    JOIN public.profiles alvo ON alvo.id = a.alvo AND alvo.status::text IN ('active', 'warned') AND coalesce(alvo.avatar_url, '') <> ''
+   WHERE a.alvo <> a.ator AND a.alvo <> p_viewer AND NOT public.is_blocked_between(a.alvo, p_viewer)
+   GROUP BY a.alvo
+  HAVING count(DISTINCT a.ator) >= 2;
+$$;
+
+-- 16.16 Growth Center (administração)
+CREATE OR REPLACE FUNCTION public.growth_admin_stats()
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
+  RETURN jsonb_build_object(
+    'users', (SELECT count(*) FROM public.profiles),
+    'new_1d', (SELECT count(*) FROM public.profiles WHERE created_at > now() - interval '1 day'),
+    'new_7d', (SELECT count(*) FROM public.profiles WHERE created_at > now() - interval '7 days'),
+    'new_30d', (SELECT count(*) FROM public.profiles WHERE created_at > now() - interval '30 days'),
+    'active_7d', (SELECT count(*) FROM public.user_presence WHERE last_seen_at > now() - interval '7 days'),
+    'returned', (SELECT count(*) FROM public.profiles p JOIN public.user_presence up ON up.user_id = p.id
+                  WHERE up.last_seen_at >= p.created_at + interval '1 day'),
+    'referrals_total', (SELECT count(*) FROM public.growth_referrals),
+    'referrals_valid', (SELECT count(*) FROM public.growth_referrals WHERE status = 'valid'),
+    'referrals_pending', (SELECT count(*) FROM public.growth_referrals WHERE status = 'pending'),
+    'referrals_rejected', (SELECT count(*) FROM public.growth_referrals WHERE status = 'rejected'),
+    'visits_30d', coalesce((SELECT sum(visits) FROM public.growth_visits WHERE day > current_date - 30), 0),
+    'signups_ref_30d', (SELECT count(*) FROM public.growth_referrals WHERE created_at > now() - interval '30 days'),
+    'grants_by_kind', coalesce((SELECT jsonb_object_agg(kind, n) FROM (SELECT kind, count(*) n FROM public.growth_grants GROUP BY kind) x), '{}'),
+    'founders', (SELECT count(*) FROM public.profile_growth WHERE founder_number IS NOT NULL),
+    'ambassadors', (SELECT count(*) FROM public.profile_growth WHERE ambassador),
+    'signups_series', (SELECT jsonb_agg(jsonb_build_object('day', d::date,
+                         'n', (SELECT count(*) FROM public.profiles p WHERE p.created_at >= d AND p.created_at < d + interval '1 day'),
+                         'ref', (SELECT count(*) FROM public.growth_referrals g WHERE g.created_at >= d AND g.created_at < d + interval '1 day')) ORDER BY d)
+                       FROM generate_series(date_trunc('day', now()) - interval '29 days', date_trunc('day', now()), interval '1 day') d),
+    'top_referrers', coalesce((SELECT jsonb_agg(x) FROM (
+        SELECT p.id, p.display_name, p.username, coalesce(pg.ambassador, false) AS ambassador,
+               count(*) FILTER (WHERE g.status = 'valid') AS valid, count(*) AS total
+          FROM public.growth_referrals g JOIN public.profiles p ON p.id = g.referrer_id
+          LEFT JOIN public.profile_growth pg ON pg.user_id = p.id
+         GROUP BY p.id, p.display_name, p.username, pg.ambassador ORDER BY 5 DESC, 6 DESC LIMIT 15) x), '[]'),
+    'ambassador_list', coalesce((SELECT jsonb_agg(x) FROM (
+        SELECT p.id, p.display_name, p.username, pg.ambassador_since,
+               (SELECT string_agg(code, ', ') FROM public.growth_codes c WHERE c.user_id = p.id AND c.custom AND c.active) AS custom_codes,
+               (SELECT count(*) FROM public.growth_referrals g WHERE g.referrer_id = p.id) AS total,
+               (SELECT count(*) FROM public.growth_referrals g WHERE g.referrer_id = p.id AND g.status = 'valid') AS valid,
+               (SELECT count(*) FROM public.growth_referrals g JOIN public.user_presence up ON up.user_id = g.referred_id
+                 WHERE g.referrer_id = p.id AND g.status = 'valid' AND up.last_seen_at > now() - interval '7 days') AS active
+          FROM public.profile_growth pg JOIN public.profiles p ON p.id = pg.user_id WHERE pg.ambassador ORDER BY 7 DESC) x), '[]'),
+    'campaigns', coalesce((SELECT jsonb_agg(x ORDER BY x.created_at DESC) FROM (
+        SELECT c.id, c.slug, c.title, c.description, c.starts_at, c.ends_at, c.active, c.created_at,
+               (SELECT count(*) FROM public.growth_referrals g WHERE g.campaign_id = c.id) AS signups,
+               (SELECT count(*) FROM public.growth_referrals g WHERE g.campaign_id = c.id AND g.status = 'valid') AS valid
+          FROM public.growth_campaigns c) x), '[]'),
+    'recent_referrals', coalesce((SELECT jsonb_agg(x) FROM (
+        SELECT g.referred_id, g.status, g.reason, g.created_at, g.validated_at,
+               r.display_name AS referred_name, r.username AS referred_username,
+               i.display_name AS referrer_name, i.username AS referrer_username
+          FROM public.growth_referrals g JOIN public.profiles r ON r.id = g.referred_id
+          LEFT JOIN public.profiles i ON i.id = g.referrer_id
+         ORDER BY g.created_at DESC LIMIT 50) x), '[]'),
+    'rewards', coalesce((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.threshold) FROM public.growth_rewards r), '[]'),
+    'settings', coalesce((SELECT jsonb_object_agg(key, value) FROM public.growth_settings), '{}')
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.growth_admin_audit(p_action TEXT, p_type TEXT, p_target TEXT, p_reason TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_superadmin() THEN RAISE EXCEPTION 'Somente o superadministrador (com MFA) altera o crescimento.'; END IF;
+  IF coalesce(length(trim(p_reason)), 0) < 5 THEN RAISE EXCEPTION 'Informe a justificativa (mínimo de 5 caracteres).'; END IF;
+  INSERT INTO public.admin_audit_logs (admin_id, admin_role, action, target_type, target_id, reason)
+  VALUES (auth.uid(), public.admin_role_of(auth.uid()), p_action, p_type, p_target, trim(p_reason));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_growth_save_settings(p_key TEXT, p_value JSONB, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.growth_admin_audit('growth_settings', 'growth_settings', p_key, justification);
+  IF p_key = 'founders' THEN
+    IF coalesce(p_value ->> 'status', '') NOT IN ('active', 'paused', 'ended') THEN RAISE EXCEPTION 'Situação inválida.'; END IF;
+    IF coalesce((p_value ->> 'limit')::int, -1) NOT BETWEEN 1 AND 100000 THEN RAISE EXCEPTION 'Limite de vagas inválido.'; END IF;
+    IF jsonb_typeof(p_value -> 'benefits') <> 'array' OR jsonb_array_length(p_value -> 'benefits') > 10 THEN RAISE EXCEPTION 'Use até 10 benefícios.'; END IF;
+  ELSIF p_key = 'share_message' THEN
+    IF length(coalesce(p_value ->> 'text', '')) NOT BETWEEN 20 AND 600 OR position('{link}' IN p_value ->> 'text') = 0 THEN
+      RAISE EXCEPTION 'A mensagem precisa ter de 20 a 600 caracteres e conter {link}.';
+    END IF;
+  ELSIF p_key = 'referral_rules' THEN
+    IF coalesce((p_value ->> 'daily_valid_cap')::int, 0) NOT BETWEEN 1 AND 100 OR coalesce((p_value ->> 'return_hours')::int, -1) NOT BETWEEN 0 AND 168 THEN
+      RAISE EXCEPTION 'Regras inválidas.';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'Configuração desconhecida.';
+  END IF;
+  INSERT INTO public.growth_settings (key, value, updated_at, updated_by) VALUES (p_key, p_value, now(), auth.uid())
+  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = auth.uid();
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_growth_save_reward(p_id UUID, p_threshold INTEGER, p_kind TEXT, p_amount INTEGER, p_badge TEXT, p_label TEXT, p_active BOOLEAN, justification TEXT)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v UUID;
+BEGIN
+  PERFORM public.growth_admin_audit('growth_reward', 'growth_reward', coalesce(p_id::text, 'nova'), justification);
+  IF p_kind = 'badge' AND coalesce(p_badge, '') !~ '^[a-z0-9_]{3,40}$' THEN RAISE EXCEPTION 'Informe o código do selo (letras minúsculas e números).'; END IF;
+  IF p_id IS NULL THEN
+    INSERT INTO public.growth_rewards (threshold, kind, amount, badge, label, active)
+    VALUES (p_threshold, p_kind, coalesce(p_amount, 0), nullif(p_badge, ''), trim(p_label), coalesce(p_active, true)) RETURNING id INTO v;
+  ELSE
+    UPDATE public.growth_rewards SET threshold = p_threshold, kind = p_kind, amount = coalesce(p_amount, 0), badge = nullif(p_badge, ''),
+           label = trim(p_label), active = coalesce(p_active, true) WHERE id = p_id RETURNING id INTO v;
+  END IF;
+  RETURN v;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_growth_set_ambassador(p_user UUID, p_on BOOLEAN, p_custom_code TEXT, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_code TEXT := nullif(lower(trim(coalesce(p_custom_code, ''))), '');
+BEGIN
+  PERFORM public.growth_admin_audit(CASE WHEN p_on THEN 'growth_ambassador_on' ELSE 'growth_ambassador_off' END, 'profile', p_user::text, justification);
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user) THEN RAISE EXCEPTION 'Perfil não encontrado.'; END IF;
+  INSERT INTO public.profile_growth (user_id) VALUES (p_user) ON CONFLICT (user_id) DO NOTHING;
+  IF p_on THEN
+    UPDATE public.profile_growth SET ambassador = true, ambassador_since = coalesce(ambassador_since, now()),
+           badges = CASE WHEN 'embaixador' = ANY (badges) THEN badges ELSE badges || 'embaixador'::text END, updated_at = now()
+     WHERE user_id = p_user;
+    IF v_code IS NOT NULL THEN
+      IF v_code !~ '^[a-z0-9-]{4,24}$' THEN RAISE EXCEPTION 'Código personalizado: 4 a 24 letras minúsculas, números ou hífen.'; END IF;
+      IF EXISTS (SELECT 1 FROM public.growth_codes WHERE code = v_code AND user_id <> p_user) THEN RAISE EXCEPTION 'Este código já está em uso.'; END IF;
+      UPDATE public.growth_codes SET active = false WHERE user_id = p_user AND custom AND code <> v_code;
+      INSERT INTO public.growth_codes (code, user_id, custom) VALUES (v_code, p_user, true)
+      ON CONFLICT (code) DO UPDATE SET active = true;
+    END IF;
+    INSERT INTO public.growth_grants (user_id, kind, amount, label, source, granted_by, reason)
+    VALUES (p_user, 'badge', 0, 'Embaixador Vybelog', 'ambassador', auth.uid(), trim(justification));
+    PERFORM public.growth_notify(p_user, 'growth_ambassador', 'Você é Embaixador Vybelog!',
+      'Seu selo de Embaixador já aparece no perfil. Acompanhe seu desempenho em Convide e Ganhe.', 'growth_ambassador:' || p_user || ':' || extract(epoch from now())::bigint);
+  ELSE
+    UPDATE public.profile_growth SET ambassador = false, badges = array_remove(badges, 'embaixador'), updated_at = now() WHERE user_id = p_user;
+    UPDATE public.growth_codes SET active = false WHERE user_id = p_user AND custom;
+  END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_growth_grant(p_user UUID, p_kind TEXT, p_amount INTEGER, p_label TEXT, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_fim TIMESTAMPTZ;
+BEGIN
+  PERFORM public.growth_admin_audit('growth_grant', 'profile', p_user::text, justification);
+  IF p_kind NOT IN ('featured_days', 'vip_days') OR coalesce(p_amount, 0) NOT BETWEEN 1 AND 3650 THEN RAISE EXCEPTION 'Benefício inválido.'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user) THEN RAISE EXCEPTION 'Perfil não encontrado.'; END IF;
+  v_fim := public.growth_apply_effect(p_user, p_kind, p_amount, NULL);
+  INSERT INTO public.growth_grants (user_id, kind, amount, label, source, granted_by, reason, expires_at)
+  VALUES (p_user, p_kind, p_amount, coalesce(nullif(trim(p_label), ''), CASE p_kind WHEN 'vip_days' THEN p_amount || ' dias de VIP' ELSE 'Destaque por ' || p_amount || ' dias' END),
+          'admin', auth.uid(), trim(justification), v_fim);
+  PERFORM public.growth_notify(p_user, 'growth_reward', 'Você recebeu um benefício!',
+    'A equipe do Vybelog concedeu a você: ' || coalesce(nullif(trim(p_label), ''), 'um benefício especial') || '.', 'growth_admin:' || p_user || ':' || extract(epoch from now())::bigint);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_growth_reject_referral(p_referred UUID, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.growth_admin_audit('growth_referral_reject', 'profile', p_referred::text, justification);
+  UPDATE public.growth_referrals SET status = 'rejected', reason = left(trim(justification), 300), validated_at = now() WHERE referred_id = p_referred;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Indicação não encontrada.'; END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_growth_save_campaign(p_id UUID, p_slug TEXT, p_title TEXT, p_description TEXT, p_starts TIMESTAMPTZ, p_ends TIMESTAMPTZ, p_active BOOLEAN, justification TEXT)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v UUID;
+BEGIN
+  PERFORM public.growth_admin_audit('growth_campaign', 'growth_campaign', coalesce(p_id::text, lower(p_slug)), justification);
+  IF p_id IS NULL THEN
+    INSERT INTO public.growth_campaigns (slug, title, description, starts_at, ends_at, active, created_by)
+    VALUES (lower(trim(p_slug)), trim(p_title), coalesce(trim(p_description), ''), coalesce(p_starts, now()), p_ends, coalesce(p_active, true), auth.uid())
+    RETURNING id INTO v;
+  ELSE
+    UPDATE public.growth_campaigns SET slug = lower(trim(p_slug)), title = trim(p_title), description = coalesce(trim(p_description), ''),
+           starts_at = coalesce(p_starts, starts_at), ends_at = p_ends, active = coalesce(p_active, active)
+     WHERE id = p_id RETURNING id INTO v;
+  END IF;
+  RETURN v;
+END;
+$$;
+
+-- 16.17 Permissões
+REVOKE EXECUTE ON FUNCTION public.growth_notify(UUID, TEXT, TEXT, TEXT, TEXT), public.growth_code_for(UUID), public.growth_capture_referral(),
+  public.growth_apply_effect(UUID, TEXT, INTEGER, TEXT), public.growth_apply_rewards(UUID), public.growth_validate(),
+  public.growth_week_scores(UUID), public.growth_admin_audit(TEXT, TEXT, TEXT, TEXT)
+  FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.growth_set_ranking_visibility(BOOLEAN), public.growth_ranking(TEXT, BOOLEAN), public.growth_my_panel(),
+  public.growth_highlights(), public.growth_admin_stats(),
+  public.admin_growth_save_settings(TEXT, JSONB, TEXT), public.admin_growth_save_reward(UUID, INTEGER, TEXT, INTEGER, TEXT, TEXT, BOOLEAN, TEXT),
+  public.admin_growth_set_ambassador(UUID, BOOLEAN, TEXT, TEXT), public.admin_growth_grant(UUID, TEXT, INTEGER, TEXT, TEXT),
+  public.admin_growth_reject_referral(UUID, TEXT), public.admin_growth_save_campaign(UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN, TEXT)
+  FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.growth_set_ranking_visibility(BOOLEAN), public.growth_ranking(TEXT, BOOLEAN), public.growth_my_panel(),
+  public.growth_highlights(), public.growth_admin_stats(),
+  public.admin_growth_save_settings(TEXT, JSONB, TEXT), public.admin_growth_save_reward(UUID, INTEGER, TEXT, INTEGER, TEXT, TEXT, BOOLEAN, TEXT),
+  public.admin_growth_set_ambassador(UUID, BOOLEAN, TEXT, TEXT), public.admin_growth_grant(UUID, TEXT, INTEGER, TEXT, TEXT),
+  public.admin_growth_reject_referral(UUID, TEXT), public.admin_growth_save_campaign(UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN, TEXT)
+  TO authenticated;
+-- visitas ao link e informações da campanha também na página inicial (sem login)
+REVOKE EXECUTE ON FUNCTION public.growth_track_visit(TEXT), public.growth_public_info() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.growth_track_visit(TEXT), public.growth_public_info() TO anon, authenticated;
+
+-- 16.18 Rotina a cada 10 minutos (validações, fundadores e recompensas)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname = 'vybelog-crescimento';
+    PERFORM cron.schedule('vybelog-crescimento', '*/10 * * * *', 'SELECT public.growth_validate()');
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Agendamento do crescimento não criado: %', SQLERRM;
+END $$;
+
+-- 16.19 Fundadores: os membros atuais (os primeiros do Vybelog) recebem o número por ordem de cadastro,
+-- sem aviso em massa (o aviso vale para quem entrar daqui em diante)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.profile_growth WHERE founder_number IS NOT NULL) THEN
+    UPDATE public.growth_settings SET value = value || '{"notify": false}' WHERE key = 'founders';
+    PERFORM public.growth_validate();
+    UPDATE public.growth_settings SET value = value - 'notify' WHERE key = 'founders';
+  END IF;
+END $$;
