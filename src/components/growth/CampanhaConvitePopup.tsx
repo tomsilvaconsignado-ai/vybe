@@ -6,6 +6,7 @@ import { useApp } from '../../context/AppContext';
 import { supabase } from '../../lib/supabase';
 import { infoPublica, type InfoPublica } from '../../lib/crescimento';
 import logoUrl from '../../assets/logo.png';
+import { marcarConviteAberto } from '../../lib/janelas';
 
 const CHAVE = 'vybe.popup.convite';
 const jaVistoNestaSessao = () => { try { return sessionStorage.getItem(CHAVE) === '1'; } catch { return false; } };
@@ -35,6 +36,9 @@ export const CampanhaConvitePopup: React.FC = () => {
     try { sessionStorage.setItem(CHAVE, '1'); } catch { /* sem armazenamento */ }
     setAberto(false);
   };
+  // avisa a janela de publicidade (ela espera um intervalo depois desta fechar)
+  const visivel = aberto && activeTab !== 'invite' && !openPostId;
+  useEffect(() => { marcarConviteAberto(visivel); }, [visivel]);
   useEffect(() => {
     if (!aberto) return;
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar(); };

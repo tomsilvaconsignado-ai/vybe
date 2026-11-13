@@ -25,6 +25,7 @@ import { RightRail } from './components/layout/RightRail';
 import { importWithReload } from './lib/chunkReload';
 import { PushInvite } from './components/notifications/PushInvite';
 import { CampanhaConvitePopup } from './components/growth/CampanhaConvitePopup';
+import { AnuncioPopup } from './components/ads/AnuncioPopup';
 
 const ConvideView = React.lazy(() => import('./components/growth/ConvideView').then(m => ({ default: m.ConvideView })));
 const FundadoresView = React.lazy(() => import('./components/growth/FundadoresView').then(m => ({ default: m.FundadoresView })));
@@ -192,6 +193,7 @@ const AppContent: React.FC = () => {
       <MobileNav />
       <PushInvite />
       <CampanhaConvitePopup />
+      <AnuncioPopup />
       <MediaProtection />
       <SharedPostModal />
 
