@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import logoUrl from '../../assets/logo.png';
+import logoTextoUrl from '../../assets/logo-texto.png';
 import { 
   ShieldCheck, 
   Bell, 
@@ -70,13 +71,11 @@ export const Header: React.FC = () => {
             <img
               src={logoUrl}
               alt=""
-              className="w-9 h-9 sm:w-11 sm:h-11 rounded-full shadow-lg shadow-purple-900/40 group-hover:scale-105 transition-transform"
+              className="w-10 h-10 sm:w-12 sm:h-12 object-contain drop-shadow-[0_0_12px_rgba(208,23,189,0.35)] group-hover:scale-105 transition-transform"
             />
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-xl sm:text-2xl tracking-wide sm:tracking-wider text-white group-hover:text-purple-300 transition-colors">
-                  Vybelog
-                </span>
+                <img src={logoTextoUrl} alt="Vybelog" draggable={false} className="h-6 sm:h-7 w-auto select-none" />
                 <span className="hidden sm:inline text-[10px] uppercase font-bold tracking-widest px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
                   +18
                 </span>
@@ -179,7 +178,7 @@ export const Header: React.FC = () => {
               >
                 <Bell className="w-5 h-5" />
                 {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-purple-500 to-rose-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center border-2 border-[#09070f]">
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center border-2 border-[#09070f]">
                     {unreadNotifications}
                   </span>
                 )}
@@ -315,7 +314,7 @@ export const Header: React.FC = () => {
               </button>
               <button
                 onClick={() => setAuthModalType('register')}
-                className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 rounded-full shadow-lg shadow-purple-950/50 transition-all cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 rounded-full shadow-lg shadow-purple-950/50 transition-all cursor-pointer"
               >
                 Criar Conta
               </button>

@@ -51,14 +51,14 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col items-center justify-center p-6 text-center select-none">
           <div className="w-full max-w-sm bg-[#120f1a] border border-purple-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl">
-            <img src={logoUrl} alt="" className="w-14 h-14 rounded-full mx-auto mb-4" />
+            <img src={logoUrl} alt="" className="w-16 h-16 object-contain mx-auto mb-4" />
             <h1 className="text-lg font-bold text-white mb-2">O Vybelog foi atualizado</h1>
             <p className="text-sm text-zinc-400 mb-6">
               Há uma versão nova disponível. Toque abaixo para continuar. Se não funcionar, confira sua conexão com a internet.
             </p>
             <button
               onClick={this.handleReload}
-              className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 to-rose-600 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 flex items-center justify-center gap-2 cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" /> Atualizar agora
             </button>
@@ -72,7 +72,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="w-full max-w-md bg-[#120f1a] border border-rose-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-rose-950/40">
             {/* Brand Logo & Icon */}
             <div className="flex items-center justify-center gap-2 mb-4">
-              <img src={logoUrl} alt="" className="w-10 h-10 rounded-full" />
+              <img src={logoUrl} alt="" className="w-10 h-10 object-contain" />
               <span className="text-2xl font-black tracking-widest bg-gradient-to-r from-rose-500 via-fuchsia-500 to-violet-400 bg-clip-text text-transparent">
                 Vybelog
               </span>

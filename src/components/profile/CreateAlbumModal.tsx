@@ -96,7 +96,7 @@ export const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ onClose, onC
         <button
           type="submit"
           disabled={saving || !title.trim()}
-          className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 cursor-pointer disabled:opacity-50"
+          className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 cursor-pointer disabled:opacity-50"
         >
           {saving ? 'Criando...' : 'Criar álbum'}
         </button>

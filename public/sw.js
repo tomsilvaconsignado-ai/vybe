@@ -5,7 +5,7 @@
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
-const ICONE = '/icons/icon-192.png';
+const ICONE = '/icons/icon-192.png?v=3';
 
 self.addEventListener('push', (evento) => {
   let d = {};

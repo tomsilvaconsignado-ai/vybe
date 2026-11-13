@@ -136,7 +136,7 @@ export const StoryComposer: React.FC<{ onClose: () => void }> = ({ onClose }) =>
           type="button"
           onClick={handlePublish}
           disabled={!file || framing || publishing}
-          className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 to-rose-600 disabled:opacity-50 cursor-pointer"
+          className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 disabled:opacity-50 cursor-pointer"
         >
           {publishing ? 'Publicando...' : 'Publicar story'}
         </button>

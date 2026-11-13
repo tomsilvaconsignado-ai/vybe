@@ -211,7 +211,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
             </button>
           ) : (
             <>
-              <button type="button" onClick={entrar} className="px-5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-rose-600 text-white shadow-md cursor-pointer">
+              <button type="button" onClick={entrar} className="px-5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white shadow-md cursor-pointer">
                 {c.invited ? 'Aceitar convite' : c.access === 'approval' ? 'Pedir para entrar' : 'Participar'}
               </button>
               {c.invited && (
@@ -262,7 +262,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
                     <ImagePlus className="w-5 h-5" />
                     <input type="file" accept="image/jpeg,image/png,image/webp" onChange={escolherFoto} className="hidden" />
                   </label>
-                  <button type="submit" disabled={publicando || (!texto.trim() && !foto)} className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-40 cursor-pointer">
+                  <button type="submit" disabled={publicando || (!texto.trim() && !foto)} className="px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-40 cursor-pointer">
                     <Send className="w-3.5 h-3.5" /> {publicando ? 'Publicando…' : 'Publicar'}
                   </button>
                 </div>

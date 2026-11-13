@@ -273,7 +273,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
               onClick={() => setSelectedType(type.id)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${
                 selectedType === type.id
-                  ? 'bg-gradient-to-r from-purple-600 to-rose-600 text-white shadow-md'
+                  ? 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white shadow-md'
                   : 'bg-zinc-900/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
               }`}
             >
@@ -454,7 +454,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                 {nearbyActive && effectiveMode === 'city' && (
                   <button
                     onClick={() => chooseMode('state')}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-semibold cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-semibold cursor-pointer"
                   >
                     Ver todo o estado ({currentUser.state})
                   </button>
@@ -462,7 +462,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                 {nearbyActive && effectiveMode === 'radius' && radiusKm < RADIUS_OPTIONS[RADIUS_OPTIONS.length - 1] && (
                   <button
                     onClick={() => chooseRadius(RADIUS_OPTIONS.find(km => km > radiusKm) ?? radiusKm)}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-semibold cursor-pointer"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-semibold cursor-pointer"
                   >
                     Aumentar para {RADIUS_OPTIONS.find(km => km > radiusKm)} km
                   </button>

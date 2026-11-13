@@ -113,7 +113,7 @@ export const EventsView: React.FC = () => {
         <button
           type="button"
           onClick={() => setSubmitOpen(true)}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
         >
           <Plus className="w-4 h-4" /> Divulgar evento
         </button>

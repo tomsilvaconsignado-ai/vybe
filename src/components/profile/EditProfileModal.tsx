@@ -558,7 +558,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                   o que você já respondeu fica em <button type="button" onClick={() => setTab('data')} className="text-purple-400 underline cursor-pointer">Meus dados</button>.
                 </p>
                 <div className="mt-3 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-purple-500 to-rose-500 transition-all" style={{ width: `${(answeredExtras / EXTRA_QUESTIONS.length) * 100}%` }} />
+                  <div className="h-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 transition-all" style={{ width: `${(answeredExtras / EXTRA_QUESTIONS.length) * 100}%` }} />
                 </div>
                 <p className="text-[11px] text-zinc-500 mt-1">{answeredExtras} de {EXTRA_QUESTIONS.length} perguntas sobre você respondidas</p>
               </div>
@@ -749,7 +749,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
               <button
                 type="submit"
                 disabled={!unlockPassword || unlocking}
-                className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 disabled:opacity-50 cursor-pointer"
+                className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 disabled:opacity-50 cursor-pointer"
               >
                 {unlocking ? 'Verificando...' : 'Desbloquear'}
               </button>
@@ -766,7 +766,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
             type="button"
             onClick={handleSave}
             disabled={saving || uploading !== null}
-            className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             <Save className="w-3.5 h-3.5" />
             {saving ? 'Salvando...' : 'Salvar alterações'}

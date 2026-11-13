@@ -80,7 +80,7 @@ export const ConnectionsView: React.FC = () => {
               {tab === 'incoming' && (
                 <button
                   onClick={() => acceptConnection(p.id)}
-                  className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="w-full py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:opacity-90 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                   Aceitar conexão

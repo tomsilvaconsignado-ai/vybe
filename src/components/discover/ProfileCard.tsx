@@ -141,7 +141,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
 
           <button
             onClick={() => setSelectedProfileId(profile.id)}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white shadow-md cursor-pointer"
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 text-white shadow-md cursor-pointer"
           >
             Ver Perfil
           </button>
@@ -256,7 +256,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
 
           <button
             onClick={() => setSelectedProfileId(profile.id)}
-            className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all"
+            className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Ver Perfil</span>

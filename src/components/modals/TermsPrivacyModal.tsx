@@ -98,7 +98,7 @@ export const TermsPrivacyModal: React.FC = () => {
           <span className="text-[11px] text-zinc-400">Última atualização: Outubro de 2026</span>
           <button
             onClick={() => setPrivacyTermsModalOpen(false)}
-            className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 transition-all cursor-pointer shadow-md shadow-purple-950/50"
+            className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 transition-all cursor-pointer shadow-md shadow-purple-950/50"
           >
             Entendido e Concordo
           </button>

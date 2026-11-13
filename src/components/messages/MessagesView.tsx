@@ -575,7 +575,7 @@ export const MessagesView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={!temConteudo || isSending || inputLocked}
-                  className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white flex items-center justify-center disabled:opacity-40 shadow transition-all cursor-pointer"
+                  className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow transition-all cursor-pointer"
                   aria-label="Enviar mensagem"
                 >
                   {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-[18px] h-[18px] -ml-0.5" />}

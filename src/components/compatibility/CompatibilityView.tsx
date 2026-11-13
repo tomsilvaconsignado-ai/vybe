@@ -142,7 +142,7 @@ export const CompatibilityView: React.FC = () => {
             <div className="space-y-2">
               <button
                 onClick={() => startOrOpenConversation(targetProfile.id)}
-                className="w-full py-3 rounded-2xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-md shadow-purple-950/50 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                className="w-full py-3 rounded-2xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-md shadow-purple-950/50 flex items-center justify-center gap-2 cursor-pointer transition-all"
               >
                 <MessageSquare className="w-4 h-4" />
                 <span>Iniciar Conversa com esta Sintonia</span>

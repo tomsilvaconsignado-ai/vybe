@@ -158,7 +158,7 @@ export const Seletor: React.FC<Props> = ({ value, defaultValue, onChange, childr
             } ${marcada ? 'bg-gradient-to-r from-purple-600/30 to-rose-600/20 text-white font-semibold' : foco === i ? 'bg-white/5 text-zinc-100' : 'text-zinc-300'}`}
           >
             <span className="flex-1 min-w-0">{o.label}</span>
-            <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${marcada ? 'bg-gradient-to-br from-purple-500 to-rose-500' : 'border border-zinc-600'}`}>
+            <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${marcada ? 'bg-gradient-to-br from-fuchsia-500 via-pink-500 to-orange-500' : 'border border-zinc-600'}`}>
               {marcada && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
             </span>
           </li>

@@ -38,7 +38,7 @@ export const CompartilharConvite: React.FC<{ link: string; modelo?: string | nul
           className="py-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe5b] text-black text-sm font-bold flex items-center justify-center gap-2">
           <MessageCircle className="w-4 h-4" /> WhatsApp
         </a>
-        <button type="button" onClick={outros} className="py-3 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer">
+        <button type="button" onClick={outros} className="py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-sm font-bold flex items-center justify-center gap-2 cursor-pointer">
           <Share2 className="w-4 h-4" /> Outros apps
         </button>
       </div>

@@ -83,7 +83,7 @@ export const AlbumViewerModal: React.FC<AlbumViewerModalProps> = ({ album, isOwn
 
         {isOwner && (
           <div className="flex flex-wrap items-center gap-2 mb-4">
-            <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-bold cursor-pointer ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+            <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold cursor-pointer ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
               <Upload className="w-4 h-4" />
               {uploading ?? 'Enviar fotos'}
               <input

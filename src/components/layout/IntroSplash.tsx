@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import logoFullUrl from '../../assets/logo-full.jpg';
+import logoFullUrl from '../../assets/logo-full.png';
 
 // Abertura com a marca: aparece uma vez por sessão e some sozinha (ou com um toque).
 const SEEN_KEY = 'vybe_intro_seen';
@@ -33,7 +33,7 @@ export const IntroSplash: React.FC = () => {
       onClick={() => setVisible(false)}
       className={`fixed inset-0 z-[10000] bg-[#0b031b] flex items-center justify-center transition-opacity duration-300 ${leaving ? 'opacity-0' : 'opacity-100'}`}
     >
-      <img src={logoFullUrl} alt="Vybelog" className="intro-logo w-56 sm:w-72 rounded-full select-none" draggable={false} />
+      <img src={logoFullUrl} alt="Vybelog" className="intro-logo w-56 sm:w-72 select-none drop-shadow-[0_0_40px_rgba(208,23,189,0.35)]" draggable={false} />
     </div>
   );
 };

@@ -76,7 +76,7 @@ export const LoginModal: React.FC = () => {
         </button>
 
         <div className="flex flex-col items-center text-center mb-6">
-          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-20 h-20 rounded-full ring-1 ring-purple-400/30 mb-3 select-none" />
+          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-24 h-24 object-contain mb-3 select-none" />
           <h3 className="text-xl font-bold text-white">Entrar no Vybelog</h3>
           <p className="text-xs text-zinc-400">Sua conexão liberal segura e privativa</p>
         </div>
@@ -139,7 +139,7 @@ export const LoginModal: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-lg shadow-purple-950/50 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+            className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-lg shadow-purple-950/50 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
           >
             {isLoading ? 'Conectando...' : 'Entrar na Plataforma'}
             <ArrowRight className="w-4 h-4" />

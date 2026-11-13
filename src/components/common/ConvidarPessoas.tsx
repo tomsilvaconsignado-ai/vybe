@@ -85,7 +85,7 @@ export const ConvidarPessoas: React.FC<Props> = ({ titulo, ajuda, excluir = [], 
         </ul>
         <div className="p-3 border-t border-purple-900/30">
           <button type="button" onClick={enviar} disabled={!marcados.length || enviando}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-bold disabled:opacity-40 cursor-pointer">
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold disabled:opacity-40 cursor-pointer">
             {enviando ? 'Enviando…' : marcados.length ? `Convidar ${marcados.length} ${marcados.length === 1 ? 'pessoa' : 'pessoas'}` : 'Escolha quem convidar'}
           </button>
         </div>

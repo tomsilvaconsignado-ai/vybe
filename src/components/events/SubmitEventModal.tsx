@@ -143,7 +143,7 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
 
             {error && <p className="text-xs text-rose-400">{error}</p>}
 
-            <button type="submit" disabled={saving || uploading} className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 to-rose-600 disabled:opacity-50 cursor-pointer">
+            <button type="submit" disabled={saving || uploading} className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 disabled:opacity-50 cursor-pointer">
               {saving ? 'Enviando...' : 'Enviar para análise'}
             </button>
           </form>

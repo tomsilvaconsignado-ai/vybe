@@ -22,7 +22,7 @@ export const StoriesBar: React.FC = () => {
             <button
               type="button"
               onClick={() => (myGroupIndex >= 0 ? setOpenGroupIndex(myGroupIndex) : setComposerOpen(true))}
-              className={`w-16 h-16 rounded-full p-[2.5px] cursor-pointer ${myGroupIndex >= 0 ? 'bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-rose-500' : 'bg-zinc-800'}`}
+              className={`w-16 h-16 rounded-full p-[2.5px] cursor-pointer ${myGroupIndex >= 0 ? 'bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-orange-500' : 'bg-zinc-800'}`}
               aria-label={myGroupIndex >= 0 ? 'Ver seu story' : 'Publicar story'}
             >
               <img src={currentUser.avatarUrl} alt="" className="w-full h-full object-cover rounded-full border-2 border-[#09070f]" />

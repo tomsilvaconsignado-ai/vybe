@@ -210,7 +210,7 @@ export const RegisterWizard: React.FC = () => {
           <button
             type="button"
             onClick={() => setAuthModalType('login')}
-            className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:opacity-90 cursor-pointer"
+            className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:opacity-90 cursor-pointer"
           >
             Ir para o login
           </button>
@@ -246,7 +246,7 @@ export const RegisterWizard: React.FC = () => {
           </div>
           <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-rose-500 transition-all duration-300"
+              className="h-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-orange-500 transition-all duration-300"
               style={{ width: `${(step / 6) * 100}%` }}
             />
           </div>
@@ -729,7 +729,7 @@ export const RegisterWizard: React.FC = () => {
         {/* STEP 6: VERIFICATION & COMPLETION */}
         {step === 6 && (
           <div className="space-y-4 text-center">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-purple-600 to-rose-600 p-[2px] flex items-center justify-center">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-fuchsia-600 via-pink-600 to-orange-600 p-[2px] flex items-center justify-center">
               <div className="w-full h-full bg-[#0d0a17] rounded-[14px] flex items-center justify-center text-rose-400">
                 <ShieldCheck className="w-7 h-7 text-emerald-400" />
               </div>
@@ -780,7 +780,7 @@ export const RegisterWizard: React.FC = () => {
             <button
               type="button"
               onClick={handleNext}
-              className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer"
+              className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer"
             >
               <span>Avançar</span>
               <ArrowRight className="w-3.5 h-3.5" />

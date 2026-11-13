@@ -199,7 +199,7 @@ export const NotificationsView: React.FC = () => {
                   toggleFollow(n.actor.id);
                 }}
                 className={`self-center px-3.5 py-1.5 rounded-lg text-xs font-bold shrink-0 cursor-pointer transition-colors ${
-                  following.includes(n.actor.id) ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-gradient-to-r from-purple-600 to-rose-600 text-white'
+                  following.includes(n.actor.id) ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white'
                 }`}
               >
                 {following.includes(n.actor.id) ? 'Seguindo' : 'Seguir de volta'}

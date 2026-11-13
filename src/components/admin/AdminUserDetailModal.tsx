@@ -415,7 +415,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                 <button
                   type="button"
                   onClick={handleUpdateStatus}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 text-white rounded-xl font-bold text-xs cursor-pointer shadow"
+                  className="px-4 py-2 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-purple-500 text-white rounded-xl font-bold text-xs cursor-pointer shadow"
                 >
                   Salvar Situação no Banco
                 </button>

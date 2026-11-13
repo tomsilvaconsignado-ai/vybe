@@ -85,7 +85,7 @@ export const ConvideView: React.FC = () => {
               <span className="text-zinc-400 tabular-nums">{painel.valid}/{proxima.threshold}</span>
             </div>
             <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden" role="progressbar" aria-valuenow={painel.valid} aria-valuemax={proxima.threshold}>
-              <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-rose-500 transition-all" style={{ width: `${progresso}%` }} />
+              <div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 transition-all" style={{ width: `${progresso}%` }} />
             </div>
             <p className="text-[11px] text-zinc-500 mt-1.5">Faltam {proxima.threshold - painel.valid} {proxima.threshold - painel.valid === 1 ? 'indicação confirmada' : 'indicações confirmadas'}.</p>
           </div>
@@ -141,7 +141,7 @@ export const ConvideView: React.FC = () => {
           <ul className="divide-y divide-purple-950/40">
             {painel.referrals.map((r, i) => (
               <li key={i} className="py-2.5 flex items-center gap-3">
-                <img src={r.avatar_url || '/icons/icon-192.png?v=2'} alt="" className="w-9 h-9 rounded-full object-cover bg-zinc-800" />
+                <img src={r.avatar_url || '/icons/icon-192.png?v=3'} alt="" className="w-9 h-9 rounded-full object-cover bg-zinc-800" />
                 <span className="flex-1 min-w-0">
                   <span className="block text-xs font-bold text-zinc-100 truncate">{r.display_name}</span>
                   <span className="block text-[11px] text-zinc-500">desde {fmtData(r.created_at)}</span>
@@ -169,7 +169,7 @@ export const ConvideView: React.FC = () => {
             {lista.map(p => (
               <li key={p.user_id} className={`flex items-center gap-3 p-2 rounded-xl ${p.user_id === currentUser.id ? 'bg-purple-900/30' : ''}`}>
                 <span className={`w-7 text-center text-sm font-black ${p.pos <= 3 ? 'text-amber-300' : 'text-zinc-500'}`}>{p.pos}º</span>
-                <img src={p.avatar_url || '/icons/icon-192.png?v=2'} alt="" className="w-8 h-8 rounded-full object-cover bg-zinc-800" />
+                <img src={p.avatar_url || '/icons/icon-192.png?v=3'} alt="" className="w-8 h-8 rounded-full object-cover bg-zinc-800" />
                 <span className="flex-1 min-w-0 text-xs font-bold text-zinc-100 truncate">{p.display_name}{p.ambassador && <Megaphone className="inline w-3 h-3 ml-1 text-fuchsia-300" aria-label="Embaixador" />}</span>
                 <span className="text-xs text-zinc-300 tabular-nums">{p.valid_count}</span>
               </li>

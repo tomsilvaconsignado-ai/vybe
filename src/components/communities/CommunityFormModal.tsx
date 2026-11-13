@@ -131,7 +131,7 @@ export const CommunityFormModal: React.FC<{ community?: Community; aoFechar: () 
         </div>
 
         <div className="p-4 border-t border-purple-900/30">
-          <button type="submit" disabled={salvando || enviandoCapa} className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-sm font-bold disabled:opacity-50 cursor-pointer">
+          <button type="submit" disabled={salvando || enviandoCapa} className="w-full py-3 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-sm font-bold disabled:opacity-50 cursor-pointer">
             {salvando ? 'Salvando…' : community ? 'Salvar alterações' : 'Criar comunidade'}
           </button>
         </div>

@@ -97,7 +97,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, compact, onOpen }) 
           </p>
           {event.myStatus && (
             <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-              event.myStatus === 'going' ? 'bg-gradient-to-r from-purple-600 to-rose-600 text-white' : 'bg-zinc-800 text-zinc-300'
+              event.myStatus === 'going' ? 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white' : 'bg-zinc-800 text-zinc-300'
             }`}>
               {RSVP_LABEL[event.myStatus]}
             </span>
@@ -113,7 +113,7 @@ export const EventRsvpButtons: React.FC<{ event: VybeEvent; onBack: () => void }
   const { rsvpEvent } = useApp();
   const choose = (status: EventRsvpStatus) => rsvpEvent(event.id, event.myStatus === status ? null : status);
   const options: { id: EventRsvpStatus; label: string; icon: typeof Check; active: string }[] = [
-    { id: 'going', label: 'Vou', icon: Check, active: 'bg-gradient-to-r from-purple-600 to-rose-600 text-white border-transparent' },
+    { id: 'going', label: 'Vou', icon: Check, active: 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white border-transparent' },
     { id: 'not_going', label: 'Não vou', icon: X, active: 'bg-zinc-700 text-white border-zinc-500' },
     { id: 'not_interested', label: 'Não tenho interesse', icon: EyeOff, active: 'bg-zinc-700 text-white border-zinc-500' }
   ];

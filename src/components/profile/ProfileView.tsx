@@ -279,7 +279,7 @@ export const ProfileView: React.FC = () => {
                 <>
                   <button
                     onClick={() => startOrOpenConversation(profile.id)}
-                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer"
                   >
                     <MessageSquare className="w-4 h-4" />
                     <span>Mensagem</span>
@@ -310,7 +310,7 @@ export const ProfileView: React.FC = () => {
                     disabled={isConnected || outgoingConnectionRequests.includes(profile.id)}
                     className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${
                       incomingConnectionRequests.includes(profile.id)
-                        ? "bg-gradient-to-r from-purple-600 to-rose-600 text-white border-transparent cursor-pointer"
+                        ? "bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white border-transparent cursor-pointer"
                         : isConnected || outgoingConnectionRequests.includes(profile.id)
                           ? "bg-zinc-900/60 text-zinc-500 border-zinc-800 cursor-default"
                           : "bg-zinc-900 text-zinc-200 border-zinc-700 hover:text-white active:scale-95 cursor-pointer"
@@ -532,7 +532,7 @@ export const ProfileView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsCreatingAlbum(true)}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Novo álbum
@@ -643,7 +643,7 @@ export const ProfileView: React.FC = () => {
                         ) : (
                           <button
                             onClick={async () => { if (await requestAlbumAccess(alb.id, profile.id)) loadAlbums(); }}
-                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white text-xs font-bold shadow-md cursor-pointer transition-all"
+                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 text-white text-xs font-bold shadow-md cursor-pointer transition-all"
                           >
                             Solicitar Chave do Cofre
                           </button>

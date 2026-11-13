@@ -37,7 +37,7 @@ export const CommunitiesView: React.FC = () => {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-rose-600 p-[1.5px] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-fuchsia-600 via-pink-600 to-orange-600 p-[1.5px] flex items-center justify-center">
               <div className="w-full h-full bg-[#0d0a17] rounded-[7px] flex items-center justify-center">
                 <Hash className="w-4 h-4 text-purple-400" />
               </div>
@@ -49,7 +49,7 @@ export const CommunitiesView: React.FC = () => {
           </p>
         </div>
         <button type="button" onClick={() => setCriando(true)}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
+          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
           <Plus className="w-4 h-4" /> Criar comunidade
         </button>
       </div>
@@ -135,7 +135,7 @@ export const CommunitiesView: React.FC = () => {
                     type="button"
                     onClick={() => (b.ativo || comm.access === 'approval' ? setSelectedCommunityId(comm.id) : toggleJoinCommunity(comm.id))}
                     className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      b.ativo ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white shadow-md'
+                      b.ativo ? 'bg-zinc-800 text-zinc-300 border border-zinc-700' : 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 text-white shadow-md'
                     }`}
                   >
                     {b.label}

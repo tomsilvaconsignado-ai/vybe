@@ -15,7 +15,7 @@ export const AgeGateModal: React.FC = () => {
         <div className="absolute -top-16 -left-16 w-32 h-32 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-16 -right-16 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        <img src={logoUrl} alt="Vybelog" className="w-24 h-24 mx-auto mb-3 rounded-full shadow-xl shadow-purple-900/40" />
+        <img src={logoUrl} alt="Vybelog" className="w-28 h-28 mx-auto mb-3 object-contain drop-shadow-[0_0_24px_rgba(208,23,189,0.35)]" />
         <span className="inline-block mb-3 text-xs font-black tracking-widest px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
           +18
         </span>
@@ -46,7 +46,7 @@ export const AgeGateModal: React.FC = () => {
         <div className="flex flex-col gap-3">
           <button
             onClick={confirmAge}
-            className="w-full py-3.5 px-6 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-600 via-fuchsia-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-lg shadow-purple-900/40 transition-all cursor-pointer"
+            className="w-full py-3.5 px-6 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-600 via-fuchsia-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-lg shadow-purple-900/40 transition-all cursor-pointer"
           >
             Tenho 18 anos ou mais — Entrar
           </button>

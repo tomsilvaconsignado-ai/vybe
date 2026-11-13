@@ -60,7 +60,7 @@ export const FeedView: React.FC = () => {
           <button
             type="button"
             onClick={verNovas}
-            className="pointer-events-auto min-h-[40px] px-4 rounded-full text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-rose-600 shadow-lg shadow-purple-950/60 cursor-pointer"
+            className="pointer-events-auto min-h-[40px] px-4 rounded-full text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 shadow-lg shadow-purple-950/60 cursor-pointer"
           >
             ↑ {newPostsCount > 9 ? '9+' : newPostsCount} {newPostsCount === 1 ? 'nova publicação' : 'novas publicações'}
           </button>
@@ -87,7 +87,7 @@ export const FeedView: React.FC = () => {
         </button>
         <button
           onClick={() => setCreatePostOpen(true)}
-          className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 text-white shadow-md shadow-purple-950/50 cursor-pointer transition-transform hover:scale-105"
+          className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 text-white shadow-md shadow-purple-950/50 cursor-pointer transition-transform hover:scale-105"
           title="Nova publicação"
           aria-label="Nova publicação"
         >
@@ -145,7 +145,7 @@ export const FeedView: React.FC = () => {
               Explore novos perfis na aba Descobrir para ver mais publicações no feed.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              <button onClick={() => setActiveTab('discover')} className="min-h-[40px] px-4 rounded-full text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-rose-600 cursor-pointer">
+              <button onClick={() => setActiveTab('discover')} className="min-h-[40px] px-4 rounded-full text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 cursor-pointer">
                 Descobrir perfis
               </button>
               {filterType !== 'foryou' && (

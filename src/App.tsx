@@ -93,7 +93,7 @@ const AppContent: React.FC = () => {
           </p>
           <button
             onClick={logout}
-            className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 to-rose-600 cursor-pointer"
+            className="w-full py-3 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 cursor-pointer"
           >
             Sair
           </button>

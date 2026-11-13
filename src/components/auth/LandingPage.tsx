@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import logoUrl from '../../assets/logo.png';
-import logoFullUrl from '../../assets/logo-full.jpg';
+import logoFullUrl from '../../assets/logo-full.png';
+import logoTextoUrl from '../../assets/logo-texto.png';
 import { ProfileType } from '../../types';
 import {
   ShieldCheck,
@@ -9,8 +10,7 @@ import {
   Sparkles,
   Users,
   EyeOff,
-  ArrowRight,
-  ChevronDown,
+  ArrowRight,
   Shield,
   MessageSquareHeart
 } from 'lucide-react';
@@ -57,7 +57,7 @@ export const LandingPage: React.FC = () => {
               src={logoFullUrl}
               alt="Vybelog"
               draggable={false}
-              className="brand-logo mx-auto w-44 sm:w-52 rounded-full ring-1 ring-purple-400/30 select-none"
+              className="brand-logo mx-auto lg:mx-0 w-48 sm:w-60 select-none"
             />
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-light tracking-tight text-white leading-[1.15]">
@@ -127,7 +127,6 @@ export const LandingPage: React.FC = () => {
                     <option key={opt.type} value={opt.type}>{opt.label}</option>
                   ))}
                 </Seletor>
-                <ChevronDown className="w-5 h-5 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
 
               <button
@@ -213,8 +212,8 @@ export const LandingPage: React.FC = () => {
       <footer className="py-8 border-t border-purple-950/40 bg-[#06040a] px-4 text-center text-xs text-zinc-400">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src={logoUrl} alt="" className="w-8 h-8 rounded-full" />
-            <span className="font-extrabold text-lg text-white">Vybelog</span>
+            <img src={logoUrl} alt="" className="w-9 h-9 object-contain" />
+            <img src={logoTextoUrl} alt="Vybelog" className="h-5 w-auto" />
             <span className="text-[11px] text-zinc-400">— Sua conexão. Suas regras.</span>
           </div>
 

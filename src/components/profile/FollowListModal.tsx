@@ -94,7 +94,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({ profileId, use
         Seguindo
       </button>
     ) : (
-      <button type="button" onClick={() => toggleFollow(entry.id)} className={`${base} bg-gradient-to-r from-purple-600 to-rose-600 text-white`}>
+      <button type="button" onClick={() => toggleFollow(entry.id)} className={`${base} bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white`}>
         Seguir
       </button>
     );

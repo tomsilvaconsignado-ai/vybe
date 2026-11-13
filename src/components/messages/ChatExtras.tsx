@@ -127,11 +127,11 @@ export const GravadorDeAudio: React.FC<{ desabilitado: boolean; aoGravar: (arqui
         <span className="text-sm font-semibold text-rose-200 tabular-nums">{Math.floor(segundos / 60)}:{String(segundos % 60).padStart(2, '0')}</span>
         <span className="text-xs text-zinc-400 truncate">Gravando áudio…</span>
       </div>
-      <button type="button" onClick={() => parar(false)} className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-purple-600 to-rose-600 text-white flex items-center justify-center shadow cursor-pointer" aria-label="Enviar áudio"><Square className="w-4 h-4 fill-current" /></button>
+      <button type="button" onClick={() => parar(false)} className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 text-white flex items-center justify-center shadow cursor-pointer" aria-label="Enviar áudio"><Square className="w-4 h-4 fill-current" /></button>
     </div>
   );
   return (
-    <button type="button" onClick={iniciar} disabled={desabilitado} className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-purple-600 to-rose-600 text-white flex items-center justify-center shadow transition-opacity cursor-pointer disabled:opacity-40"
+    <button type="button" onClick={iniciar} disabled={desabilitado} className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 text-white flex items-center justify-center shadow transition-opacity cursor-pointer disabled:opacity-40"
       title={desabilitado ? 'Áudios são liberados depois que a conversa for aceita' : 'Gravar áudio'} aria-label="Gravar áudio">
       <Mic className="w-5 h-5" />
     </button>

@@ -49,7 +49,7 @@ export const FundadoresView: React.FC = () => {
       )}
 
       {f?.status === 'active' && (
-        <button type="button" onClick={() => setActiveTab('invite')} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-rose-600 text-white font-bold flex items-center justify-center gap-2 cursor-pointer">
+        <button type="button" onClick={() => setActiveTab('invite')} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white font-bold flex items-center justify-center gap-2 cursor-pointer">
           <Gift className="w-5 h-5" /> Convidar amigos enquanto há vagas
         </button>
       )}

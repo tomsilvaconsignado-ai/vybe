@@ -30,7 +30,7 @@ export const ResetPasswordModal: React.FC = () => {
     <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl">
         <div className="flex flex-col items-center text-center mb-6">
-          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-20 h-20 rounded-full ring-1 ring-purple-400/30 mb-3 select-none" />
+          <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-24 h-24 object-contain mb-3 select-none" />
           <h3 className="text-xl font-bold text-white">Definir nova senha</h3>
           <p className="text-xs text-zinc-400">Escolha uma senha com pelo menos 8 caracteres.</p>
         </div>
@@ -58,7 +58,7 @@ export const ResetPasswordModal: React.FC = () => {
           <button
             type="submit"
             disabled={isSaving}
-            className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-purple-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 cursor-pointer disabled:opacity-50"
+            className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 cursor-pointer disabled:opacity-50"
           >
             {isSaving ? 'Salvando...' : 'Salvar nova senha'}
           </button>

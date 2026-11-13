@@ -93,7 +93,7 @@ export const Sidebar: React.FC = () => {
                     ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30'
                     : item.badge === 'Popular'
                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                    : 'bg-gradient-to-r from-purple-500 to-rose-500 text-white'
+                    : 'bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 text-white'
                 }`}>
                   {item.badge}
                 </span>

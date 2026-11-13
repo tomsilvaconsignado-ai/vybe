@@ -264,7 +264,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             <button
               type="submit"
               disabled={isUploading || isPublishing}
-              className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 via-fuchsia-600 to-rose-600 hover:from-purple-500 hover:to-rose-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-purple-600 via-fuchsia-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
               {isPublishing ? 'Publicando...' : 'Publicar no Feed'}
