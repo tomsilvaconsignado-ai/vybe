@@ -25,8 +25,8 @@ test('recusa códigos inválidos (injeção, tamanho, caracteres)', () => {
 });
 
 test('monta links de convite e acrescenta o código a links do site', () => {
-  assert.equal(linkDeConvite('https://vybelog.com.br', 'abc12345'), 'https://vybelog.com.br/convite/abc12345');
-  assert.equal(linkDeConvite('https://vybelog.com.br', 'abc12345', 'verao'), 'https://vybelog.com.br/convite/abc12345?campanha=verao');
+  assert.equal(linkDeConvite('https://vybelog.com.br', 'abc12345'), 'https://vybelog.com.br/?convite=abc12345');
+  assert.equal(linkDeConvite('https://vybelog.com.br', 'abc12345', 'verao'), 'https://vybelog.com.br/?convite=abc12345&campanha=verao');
   assert.equal(comConvite('https://vybelog.com.br/comunidades/x', 'abc12345'), 'https://vybelog.com.br/comunidades/x?convite=abc12345');
   assert.equal(comConvite('https://vybelog.com.br/perfil/x', null), 'https://vybelog.com.br/perfil/x');
 });

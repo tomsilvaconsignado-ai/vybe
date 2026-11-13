@@ -3,6 +3,7 @@ import { CalendarHeart, Plus, X, MapPin, CalendarDays, Ticket, Shirt, Users, Ext
 import { ConvidarPessoas } from '../common/ConvidarPessoas';
 import { inviteToEvent } from '../../lib/comunidades';
 import { linkDoEvento } from '../../lib/rotas';
+import { compartilharComImagem } from '../../lib/compartilhar';
 import { comConvite } from '../../lib/convite';
 import { meuCodigo } from '../../lib/crescimento';
 import { useApp } from '../../context/AppContext';
@@ -218,10 +219,8 @@ export const EventsView: React.FC = () => {
                   </button>
                   <button type="button" onClick={async () => {
                     const url = comConvite(linkDoEvento(location.origin, detail.id), await meuCodigo(currentUser.id));
-                    try {
-                      if (navigator.share) await navigator.share({ title: detail.title, url });
-                      else { await navigator.clipboard.writeText(url); notify('Link do evento copiado!'); }
-                    } catch { /* cancelado */ }
+                    const r = await compartilharComImagem({ titulo: detail.title, texto: `${detail.title} — veja no Vybelog:`, url });
+                    if (r === 'copiado') notify('Link do evento copiado!');
                   }} className="py-2.5 rounded-xl text-xs font-bold text-zinc-200 bg-zinc-900/60 border border-purple-900/40 flex items-center justify-center gap-1.5 cursor-pointer">
                     <Share2 className="w-3.5 h-3.5" /> Compartilhar
                   </button>

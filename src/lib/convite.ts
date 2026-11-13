@@ -40,8 +40,9 @@ export function limparConvite() {
 }
 
 /** Link de convite para compartilhar (opcionalmente de uma campanha) */
+// pelo endereço principal (?convite=), que as redes sociais leem para montar a prévia com a logo
 export const linkDeConvite = (origem: string, codigo: string, campanha?: string | null) =>
-  `${origem}/convite/${codigo}${campanha ? `?campanha=${encodeURIComponent(campanha)}` : ''}`;
+  `${origem}/?convite=${codigo}${campanha ? `&campanha=${encodeURIComponent(campanha)}` : ''}`;
 
 /** Acrescenta o código de quem compartilha a qualquer link do Vybelog (perfil, comunidade, evento...) */
 export function comConvite(link: string, codigo: string | null | undefined): string {

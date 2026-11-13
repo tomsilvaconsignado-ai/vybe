@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { linkDaPublicacao } from '../../lib/rotas';
+import { comConvite } from '../../lib/convite';
+import { meuCodigo } from '../../lib/crescimento';
+import { compartilharComImagem } from '../../lib/compartilhar';
 import {
   Heart,
   MessageCircle,
@@ -110,16 +113,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
 
   // Compartilhar: no celular abre o menu nativo (WhatsApp, Telegram...); no computador copia o link
   const sharePost = async () => {
-    const url = postLink(post.id);
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ title: `Publicação de @${post.user.username} no Vybelog`, url });
-        return;
-      } catch (e) {
-        if ((e as DOMException)?.name === 'AbortError') return; // a pessoa fechou o menu
-      }
-    }
-    copyLink();
+    // leva a imagem do Vybelog e o código de convite de quem compartilha
+    const url = comConvite(postLink(post.id), currentUser?.id ? await meuCodigo(currentUser.id) : null);
+    const r = await compartilharComImagem({ titulo: `Publicação de @${post.user.username} no Vybelog`, texto: `Veja esta publicação de @${post.user.username} no Vybelog:`, url });
+    if (r === 'copiado') notify('Link copiado.');
   };
 
   // Menu de opções fecha ao tocar fora ou com Esc

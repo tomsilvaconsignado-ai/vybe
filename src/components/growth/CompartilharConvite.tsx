@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy, MessageCircle, Share2 } from 'lucide-react';
 import { linkWhatsApp, mensagemComLink } from '../../lib/convite';
+import { compartilharComImagem } from '../../lib/compartilhar';
 import { notify } from '../common/Feedback';
 
 const MENSAGEM_PADRAO = 'Você já conhece o Vybelog? Uma rede social para adultos e casais que compartilham interesses semelhantes e buscam novas conexões com respeito e discrição. Venha fazer parte: {link}';
@@ -15,9 +16,10 @@ export const CompartilharConvite: React.FC<{ link: string; modelo?: string | nul
     try { await navigator.clipboard.writeText(link); setCopiado(true); setTimeout(() => setCopiado(false), 2000); }
     catch { notify('Não foi possível copiar. Segure o link para copiar.'); }
   };
+  // menu do celular: vai a imagem do Vybelog junto com o texto e o link
   const outros = async () => {
-    if (navigator.share) { try { await navigator.share({ title: titulo, text: texto }); } catch { /* cancelado */ } }
-    else copiar();
+    const r = await compartilharComImagem({ titulo, texto, url: link });
+    if (r === 'copiado') { setCopiado(true); setTimeout(() => setCopiado(false), 2000); }
   };
 
   return (

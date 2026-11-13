@@ -16,6 +16,8 @@ import {
 } from '../../lib/comunidades';
 import type { Community, CommunityRole } from '../../types';
 import { comConvite } from '../../lib/convite';
+import { linkDaComunidade } from '../../lib/rotas';
+import { compartilharComImagem } from '../../lib/compartilhar';
 import { meuCodigo } from '../../lib/crescimento';
 import { Seletor } from '../common/Seletor';
 
@@ -95,11 +97,9 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
   };
 
   const compartilhar = async () => {
-    const url = comConvite(`${location.origin}/comunidades/${c.id}`, await meuCodigo(currentUser.id));
-    try {
-      if (navigator.share) await navigator.share({ title: c.name, url });
-      else { await navigator.clipboard.writeText(url); notify('Link copiado!'); }
-    } catch { /* cancelado */ }
+    const url = comConvite(linkDaComunidade(location.origin, c.id), await meuCodigo(currentUser.id));
+    const r = await compartilharComImagem({ titulo: c.name, texto: `Participe da comunidade ${c.name} no Vybelog:`, url });
+    if (r === 'copiado') notify('Link copiado!');
   };
 
   const sair = async () => {

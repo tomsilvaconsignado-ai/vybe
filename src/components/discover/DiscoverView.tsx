@@ -45,8 +45,7 @@ const store = (key: string, value: string) => {
 export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all' }) => {
   const {
     profiles, currentUser, getCompatibility, discoverSearch: searchQuery, setDiscoverSearch: setSearchQuery,
-    hasLocation, enableLocation, ensureProfiles
-  } = useApp();
+    hasLocation, enableLocation, ensureProfiles, isAuthorizedAdmin } = useApp();
   const [selectedType, setSelectedType] = useEstadoSalvo<string>(`descobrir.${initialFilter}.tipo`,
     initialFilter === 'couples' ? 'couple' : initialFilter === 'singles' ? 'singles' : 'all'
   );
@@ -193,21 +192,16 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
   });
 
   return (
-    <div className="max-w-6xl mx-auto py-6 px-4">
+    <div className="max-w-6xl mx-auto pt-3 pb-6 px-4">
       
-      {/* Header bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white flex items-center gap-2">
-            <span>Descobrir Pessoas</span>
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/40">
-              {sortedProfiles.length} disponíveis
-            </span>
-          </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Conexões reais baseadas em objetivos mútuos, respeito e compatibilidade transparente.
-          </p>
-        </div>
+      {/* Filtros logo abaixo do cabeçalho (sem título); a contagem de perfis é só para a administração */}
+      <h1 className="sr-only">Descobrir</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        {isAuthorizedAdmin ? (
+          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/40" title="Visível só para a administração">
+            {sortedProfiles.length} perfis disponíveis (admin)
+          </span>
+        ) : <span />}
 
         {/* View mode toggle & Filter button */}
         <div className="flex items-center gap-2">

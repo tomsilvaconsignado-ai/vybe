@@ -64,7 +64,7 @@ import {
 } from '../lib/messaging';
 import { fetchCommunities, joinCommunity, leaveCommunity } from '../lib/comunidades';
 import { conviteGuardado, limparConvite } from '../lib/convite';
-import { esquecerCodigo } from '../lib/crescimento';
+import { esquecerCodigo, meuCodigo } from '../lib/crescimento';
 import {
   fetchNotifications,
   fetchNotification,
@@ -447,6 +447,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConversations(loadedConversations);
     setNotifications(loadedNotifications);
     markMessagesDelivered();
+    void meuCodigo(userId);
     touchLastActive(userId);
     requestAvatarReminder();
   };

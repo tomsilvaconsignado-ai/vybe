@@ -44,16 +44,15 @@ import { GrowthBadges } from '../growth/GrowthBadges';
 import { comConvite } from '../../lib/convite';
 import { meuCodigo } from '../../lib/crescimento';
 import { supabase } from '../../lib/supabase';
+import { compartilharComImagem } from '../../lib/compartilhar';
 
 // Compartilhar perfil: no celular abre o menu nativo; no computador copia o link (/perfil/<id>)
 const compartilharPerfil = async (id: string, usuario: string) => {
   // o link leva o código de convite de quem compartilha: quem chegar por ele e se cadastrar conta como indicação
-  const eu = (await supabase.auth.getUser()).data.user?.id;
+  const eu = (await supabase.auth.getSession()).data.session?.user.id;
   const url = comConvite(linkDoPerfil(window.location.origin, id), eu ? await meuCodigo(eu) : null);
-  if (typeof navigator.share === 'function') {
-    try { await navigator.share({ title: `@${usuario} no Vybelog`, url }); return; } catch { /* cancelado: copia */ }
-  }
-  try { await navigator.clipboard.writeText(url); notify('Link do perfil copiado.'); } catch { notify(url); }
+  const r = await compartilharComImagem({ titulo: `@${usuario} no Vybelog`, texto: `Conheça @${usuario} no Vybelog:`, url });
+  if (r === 'copiado') notify('Link do perfil copiado.');
 };
 
 export const ProfileView: React.FC = () => {

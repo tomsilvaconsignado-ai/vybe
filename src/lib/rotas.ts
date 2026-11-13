@@ -78,7 +78,20 @@ export const comentarioDoEndereco = (busca: string) => {
   return id && ID.test(id) ? id : null;
 };
 
-/** Link público de uma publicação, perfil ou evento */
-export const linkDaPublicacao = (origem: string, postId: string) => `${origem}/publicacao/${postId}`;
-export const linkDoPerfil = (origem: string, perfilId: string) => `${origem}/perfil/${perfilId}`;
-export const linkDoEvento = (origem: string, eventoId: string) => `${origem}/eventos/${eventoId}`;
+/** Links para compartilhar: passam pelo endereço principal (?ir=<caminho>), que responde normalmente,
+ *  para o WhatsApp, Facebook e outras redes montarem a prévia com a imagem do Vybelog. O app abre a tela certa. */
+export const linkCompartilhavel = (origem: string, caminho: string) => `${origem}/?ir=${encodeURIComponent(caminho)}`;
+export const linkDaPublicacao = (origem: string, postId: string) => linkCompartilhavel(origem, `/publicacao/${postId}`);
+export const linkDoPerfil = (origem: string, perfilId: string) => linkCompartilhavel(origem, `/perfil/${perfilId}`);
+export const linkDoEvento = (origem: string, eventoId: string) => linkCompartilhavel(origem, `/eventos/${eventoId}`);
+export const linkDaComunidade = (origem: string, comunidadeId: string) => linkCompartilhavel(origem, `/comunidades/${comunidadeId}`);
+
+/** Destino de um link compartilhado (?ir=): só caminhos internos do próprio site */
+export function destinoCompartilhado(busca: string): { caminho: string; busca: string } | null {
+  const params = new URLSearchParams(busca);
+  const ir = params.get('ir');
+  if (!ir || !/^\/[A-Za-z0-9/_-]*$/.test(ir) || ir.startsWith('//')) return null;
+  params.delete('ir');
+  const resto = params.toString();
+  return { caminho: ir, busca: resto ? `?${resto}` : '' };
+}

@@ -1,7 +1,7 @@
 // Testes das rotas (node --test via tsx): npm test
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ESTADO_INICIAL, caminhoDoEstado, estadoDoCaminho } from './rotas';
+import { ESTADO_INICIAL, caminhoDoEstado, destinoCompartilhado, estadoDoCaminho, linkDoPerfil } from './rotas';
 
 const id = '3f2b9c1e-8a4d-4b6f-9c2e-1d5a7b8c9e0f';
 
@@ -46,4 +46,19 @@ test('evento, comunidade e preferências de notificação têm endereço', () =>
   assert.equal(estadoDoCaminho(`/comunidades/${id}`).aba, 'communities');
   assert.equal(estadoDoCaminho('/notificacoes/preferencias').aba, 'notification-prefs');
   assert.equal(estadoDoCaminho('/seguindo').aba, 'following');
+});
+
+test('links compartilhados passam pelo endereço principal e voltam para a tela certa', () => {
+  const link = linkDoPerfil('https://vybelog.com.br', '123e4567-e89b-12d3-a456-426614174000');
+  assert.equal(link, 'https://vybelog.com.br/?ir=%2Fperfil%2F123e4567-e89b-12d3-a456-426614174000');
+  const d = destinoCompartilhado(new URL(link + '&comentario=x').search);
+  assert.equal(d?.caminho, '/perfil/123e4567-e89b-12d3-a456-426614174000');
+  assert.equal(d?.busca, '?comentario=x');
+});
+
+test('o destino compartilhado recusa endereços de fora do site', () => {
+  assert.equal(destinoCompartilhado('?ir=https://golpe.com'), null);
+  assert.equal(destinoCompartilhado('?ir=//golpe.com'), null);
+  assert.equal(destinoCompartilhado('?ir=/perfil/<script>'), null);
+  assert.equal(destinoCompartilhado(''), null);
 });

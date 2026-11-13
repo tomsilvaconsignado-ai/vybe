@@ -5,16 +5,26 @@ import { reloadForNewVersion } from './lib/chunkReload';
 import './index.css';
 import { conviteDoEndereco, guardarConvite } from './lib/convite';
 import { registrarVisita } from './lib/crescimento';
+import { destinoCompartilhado } from './lib/rotas';
+import { prepararImagemDaMarca } from './lib/compartilhar';
 
 // Link de convite (/convite/<código> ou ?convite=): guarda o código para o cadastro e limpa o endereço
 {
-  const c = conviteDoEndereco(window.location.pathname, window.location.search);
+  let caminho = window.location.pathname;
+  let busca = window.location.search;
+  const c = conviteDoEndereco(caminho, busca);
   if (c) {
     guardarConvite(c.codigo, c.campanha);
     void registrarVisita(c.codigo);
-    window.history.replaceState(null, '', c.caminhoLimpo + c.buscaLimpa + window.location.hash);
+    caminho = c.caminhoLimpo; busca = c.buscaLimpa;
   }
+  // link compartilhado (?ir=/perfil/...): abre a tela certa
+  const d = destinoCompartilhado(busca);
+  if (d) { caminho = d.caminho; busca = d.busca; }
+  if (c || d) window.history.replaceState(null, '', caminho + busca + window.location.hash);
 }
+// imagem do Vybelog pronta para ir junto nos compartilhamentos
+prepararImagemDaMarca();
 
 // Arquivo de uma versão anterior que já não existe no servidor (site publicado de novo
 // com a aba aberta): recarrega uma vez para pegar a versão nova em vez de quebrar a tela.
