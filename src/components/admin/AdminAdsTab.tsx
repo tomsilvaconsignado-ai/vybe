@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Megaphone, Plus, Pencil, Trash2, Image } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Ad, AdPlacement } from '../../types';
-import { deleteAd, fetchAllAds, saveAd } from '../../lib/events';
+import { deleteAd, fetchAllAds, lerFrequenciaAnuncios, salvarFrequenciaAnuncios, saveAd } from '../../lib/events';
 import { uploadPublicMedia } from '../../lib/supabase';
-import { notify, askConfirm } from '../common/Feedback';
+import { notify, askConfirm, askText } from '../common/Feedback';
 import { Seletor } from '../common/Seletor';
 
 const PLACEMENT_LABEL: Record<AdPlacement, string> = {
@@ -25,6 +25,14 @@ const isRunning = (ad: Ad) => ad.isActive && new Date(ad.startsAt) <= new Date()
 export const AdminAdsTab: React.FC = () => {
   const { currentUser, adminRole } = useApp();
   const canEdit = adminRole === 'superadmin';
+  const [freq, setFreq] = useState({ intervalMin: 3, maxPorAcesso: 6 });
+  useEffect(() => { lerFrequenciaAnuncios().then(setFreq); }, []);
+  const salvarFreq = async () => {
+    const j = await askText({ title: 'Salvar frequência da janela', message: 'Informe a justificativa (fica na auditoria).', placeholder: 'Justificativa', confirmLabel: 'Salvar' });
+    if (j === null) return;
+    const e = await salvarFrequenciaAnuncios(freq, j);
+    notify(e ?? 'Frequência da janela salva.');
+  };
   const [ads, setAds] = useState<Ad[]>([]);
   const [editing, setEditing] = useState<Partial<Ad> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -102,6 +110,23 @@ export const AdminAdsTab: React.FC = () => {
       </div>
 
       {!canEdit && <p className="text-[11px] text-amber-300">Somente o superadministrador cria e edita anúncios.</p>}
+
+      {/* Frequência da janela de publicidade */}
+      <div className="p-4 rounded-2xl bg-fuchsia-950/20 border border-fuchsia-800/40 flex flex-col sm:flex-row sm:items-end gap-3">
+        <div className="flex-1">
+          <p className="text-xs font-bold text-white">Janela de publicidade</p>
+          <p className="text-[11px] text-zinc-400">Reveza os anúncios marcados "Na janela". A primeira aparece 20 s após entrar (ou 45 s depois da janela de convite); nunca enquanto a pessoa digita.</p>
+        </div>
+        <label className="text-[11px] text-zinc-400">A cada (minutos)
+          <input type="number" min={1} max={120} disabled={!canEdit} value={freq.intervalMin} onChange={e => setFreq({ ...freq, intervalMin: Number(e.target.value) })}
+            className="block w-28 mt-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-white" />
+        </label>
+        <label className="text-[11px] text-zinc-400">Máximo por acesso
+          <input type="number" min={0} max={30} disabled={!canEdit} value={freq.maxPorAcesso} onChange={e => setFreq({ ...freq, maxPorAcesso: Number(e.target.value) })}
+            className="block w-28 mt-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-white" />
+        </label>
+        {canEdit && <button type="button" onClick={salvarFreq} className="px-4 py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-xs font-bold cursor-pointer">Salvar</button>}
+      </div>
 
       {ads.length === 0 ? (
         <div className="p-10 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl text-xs text-zinc-400">

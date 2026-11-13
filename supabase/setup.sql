@@ -4926,3 +4926,30 @@ BEGIN
     UPDATE public.ads SET show_in_popup = true;
   END IF;
 END $$;
+
+-- ==============================================================================
+-- 19. PUBLICIDADE: frequência da janela de publicidade (ajustável pela administração)
+-- interval_min: minutos entre uma janela e a próxima; max_per_session: limite por acesso.
+-- ==============================================================================
+-- leitura explícita (a política só mostra as chaves public.*)
+GRANT SELECT ON public.app_settings TO authenticated;
+INSERT INTO public.app_settings (key, value)
+VALUES ('public.ads_popup', '{"interval_min": 3, "max_per_session": 6}')
+ON CONFLICT (key) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION public.admin_set_ads_popup(p_interval_min INTEGER, p_max_per_session INTEGER, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_superadmin() THEN RAISE EXCEPTION 'Somente o superadministrador (com MFA) altera a publicidade.'; END IF;
+  IF coalesce(length(trim(justification)), 0) < 5 THEN RAISE EXCEPTION 'Informe a justificativa (mínimo de 5 caracteres).'; END IF;
+  IF coalesce(p_interval_min, 0) NOT BETWEEN 1 AND 120 THEN RAISE EXCEPTION 'O intervalo deve ser de 1 a 120 minutos.'; END IF;
+  IF coalesce(p_max_per_session, -1) NOT BETWEEN 0 AND 30 THEN RAISE EXCEPTION 'O limite por acesso deve ser de 0 a 30 (0 desliga a janela).'; END IF;
+  INSERT INTO public.app_settings (key, value, updated_at)
+  VALUES ('public.ads_popup', jsonb_build_object('interval_min', p_interval_min, 'max_per_session', p_max_per_session)::text, now())
+  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+  INSERT INTO public.admin_audit_logs (admin_id, admin_role, action, target_type, target_id, reason)
+  VALUES (auth.uid(), public.admin_role_of(auth.uid()), 'ads_popup_frequency', 'app_settings', 'public.ads_popup', trim(justification));
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT) TO authenticated;

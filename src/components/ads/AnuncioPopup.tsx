@@ -1,50 +1,66 @@
-// Janela de publicidade: uma vez a cada acesso, revezando entre os anúncios ativos que a administração
-// marcou como "Exibir na janela de publicidade" (com imagem) no módulo Publicidade. Aparece só depois de um intervalo desde a janela da campanha de convite.
+// Janela de publicidade: durante o uso, revezando entre os anúncios ativos que a administração marcou
+// como "Exibir na janela de publicidade" (com imagem). Frequência ajustável no painel (intervalo em
+// minutos e limite por acesso). Nunca junto com a janela da campanha de convite, nunca enquanto a
+// pessoa digita, com o app em segundo plano ou com outra janela aberta.
 import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { recordAdClick, recordAdImpression } from '../../lib/events';
+import { lerFrequenciaAnuncios, recordAdClick, recordAdImpression } from '../../lib/events';
 import { proximoDoRevezamento, publicidadeLiberada } from '../../lib/janelas';
 import type { Ad } from '../../types';
 
-const CHAVE_SESSAO = 'vybe.popup.anuncio';
+const CHAVE_QTD = 'vybe.popup.anuncio.qtd';
 const INTERVALO_DEPOIS_DO_CONVITE = 45_000;   // espaço de tempo depois de fechar a janela de convite
 const ESPERA_INICIAL = 20_000;                // nunca logo ao entrar
 const linkSeguro = (u?: string) => (u && /^https:\/\//i.test(u) ? u : undefined);
+const exibidasNestaSessao = () => { try { return Number(sessionStorage.getItem(CHAVE_QTD) ?? 0) || 0; } catch { return 0; } };
+const digitando = () => {
+  const el = document.activeElement as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+};
 
 export const AnuncioPopup: React.FC = () => {
   const { ads, currentUser, openPostId, isAdminMode } = useApp();
   const [anuncio, setAnuncio] = useState<Ad | null>(null);
-  const escolhido = useRef(false);
+  const [freq, setFreq] = useState({ intervalMin: 3, maxPorAcesso: 6 });
+  const ultimaFechada = useRef(0);
+  const inicio = useRef(Date.now());
+  const aberto = useRef(false);
+
+  useEffect(() => { if (currentUser.id) lerFrequenciaAnuncios().then(setFreq); }, [currentUser.id]);
 
   useEffect(() => {
-    if (!currentUser.id || escolhido.current) return;
-    try { if (sessionStorage.getItem(CHAVE_SESSAO) === '1') return; } catch { /* sem armazenamento */ }
-    // só os anúncios que a administração escolheu para a janela (e que têm imagem)
-    const comImagem = ads.filter(a => a.showInPopup && a.imageUrl);
-    if (!comImagem.length) return;
-    const inicio = Date.now();
+    if (!currentUser.id) return;
     const relogio = window.setInterval(() => {
-      if (Date.now() - inicio < ESPERA_INICIAL || !publicidadeLiberada(INTERVALO_DEPOIS_DO_CONVITE)) return;
-      if (document.querySelector('[aria-modal="true"]')) return;   // outra janela aberta: espera
-      window.clearInterval(relogio);
-      escolhido.current = true;
-      const a = comImagem[proximoDoRevezamento(comImagem.length)] ?? null;
-      if (a) { setAnuncio(a); recordAdImpression(a.id); }
-      try { sessionStorage.setItem(CHAVE_SESSAO, '1'); } catch { /* sem armazenamento */ }
+      if (aberto.current || isAdminMode || openPostId) return;
+      // só os anúncios que a administração escolheu para a janela (e que têm imagem)
+      const elegiveis = ads.filter(a => a.showInPopup && a.imageUrl);
+      if (!elegiveis.length || exibidasNestaSessao() >= freq.maxPorAcesso) return;
+      const agora = Date.now();
+      if (agora - inicio.current < ESPERA_INICIAL) return;
+      if (ultimaFechada.current && agora - ultimaFechada.current < freq.intervalMin * 60_000) return;
+      if (!publicidadeLiberada(INTERVALO_DEPOIS_DO_CONVITE, agora)) return;
+      if (document.visibilityState !== 'visible' || digitando() || document.querySelector('[aria-modal="true"]')) return;
+      const a = elegiveis[proximoDoRevezamento(elegiveis.length)];
+      if (!a) return;
+      aberto.current = true;
+      setAnuncio(a);
+      recordAdImpression(a.id);
+      try { sessionStorage.setItem(CHAVE_QTD, String(exibidasNestaSessao() + 1)); } catch { /* sem armazenamento */ }
     }, 3000);
     return () => window.clearInterval(relogio);
-  }, [ads, currentUser.id]);
+  }, [ads, currentUser.id, freq, isAdminMode, openPostId]);
+
+  const fechar = () => { aberto.current = false; ultimaFechada.current = Date.now(); setAnuncio(null); };
 
   useEffect(() => {
     if (!anuncio) return;
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAnuncio(null); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar(); };
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
   }, [anuncio]);
 
-  if (!anuncio || openPostId || isAdminMode) return null;
-  const fechar = () => setAnuncio(null);
+  if (!anuncio) return null;
   const link = linkSeguro(anuncio.linkUrl);
 
   return (

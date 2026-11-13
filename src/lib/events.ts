@@ -186,6 +186,21 @@ export async function deleteAd(adId: string) {
   return error?.message ?? null;
 }
 
+// Frequência da janela de publicidade (painel de Publicidade): minutos entre janelas e limite por acesso
+export interface FrequenciaAnuncios { intervalMin: number; maxPorAcesso: number }
+export async function lerFrequenciaAnuncios(): Promise<FrequenciaAnuncios> {
+  const padrao = { intervalMin: 3, maxPorAcesso: 6 };
+  const { data } = await supabase.from('app_settings').select('value').eq('key', 'public.ads_popup').maybeSingle();
+  try {
+    const v = JSON.parse((data as { value?: string } | null)?.value ?? '{}');
+    return { intervalMin: Number(v.interval_min) || padrao.intervalMin, maxPorAcesso: Number.isFinite(Number(v.max_per_session)) ? Number(v.max_per_session) : padrao.maxPorAcesso };
+  } catch { return padrao; }
+}
+export async function salvarFrequenciaAnuncios(f: FrequenciaAnuncios, justificativa: string) {
+  const { error } = await supabase.rpc('admin_set_ads_popup', { p_interval_min: f.intervalMin, p_max_per_session: f.maxPorAcesso, justification: justificativa });
+  return error?.message ?? null;
+}
+
 // Cada anúncio conta uma visualização por sessão do navegador
 const seenThisSession = new Set<string>();
 export function recordAdImpression(adId: string) {
