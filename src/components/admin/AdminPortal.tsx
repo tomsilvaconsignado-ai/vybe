@@ -8,17 +8,17 @@ import { AdminComunicadosTab } from './AdminComunicadosTab';
 import { AdminCrescimentoTab } from './AdminCrescimentoTab';
 import { AdminConversationsTab } from './AdminConversationsTab';
 import { AdminImageViewerHost, AdminThumb } from './AdminImageViewer';
-import { 
-  ShieldCheck, 
-  Users, 
-  AlertTriangle, 
-  Image, 
-  FileText, 
-  Lock, 
-  Search, 
-  CheckCircle2, 
-  XCircle, 
-  Activity, 
+import {
+  ShieldCheck,
+  Users,
+  AlertTriangle,
+  Image,
+  FileText,
+  Lock,
+  Search,
+  CheckCircle2,
+  XCircle,
+  Activity,
   ShieldAlert,
   Sliders,
   Eye,
@@ -37,8 +37,14 @@ import {
   FolderDown,
   CalendarHeart,
   Megaphone, Rocket,
-  MessagesSquare
+  MessagesSquare,
+  RefreshCw,
+  ArrowLeft,
+  Send,
+  ChevronRight,
+  Inbox
 } from 'lucide-react';
+import { ALVO_DENUNCIA, CATEGORIA_DENUNCIA, PAPEL_ADMIN, PESO_PRIORIDADE, PRIORIDADE, SITUACAO_CONTA, SITUACAO_DENUNCIA, SITUACAO_MIDIA, TIPO_PERFIL, TOM, acaoLegivel } from '../../lib/adminRotulos';
 import { ModerationReport, AdminUserRecord, AdminMediaRecord } from '../../types';
 import { AdminUserDetailModal } from './AdminUserDetailModal';
 import { AdminMessageInvestigationModal } from './AdminMessageInvestigationModal';
@@ -47,16 +53,16 @@ import { useEstadoSalvo } from '../../lib/estadoSalvo';
 import { Seletor } from '../common/Seletor';
 
 export const AdminPortal: React.FC = () => {
-  const { 
-    currentUser, 
-    adminUsers, 
-    adminMediaList, 
-    reports, 
-    adminLogs, 
-    adminRole, 
+  const {
+    currentUser,
+    adminUsers,
+    adminMediaList,
+    reports,
+    adminLogs,
+    adminRole,
     refreshAdminData,
-    setIsAdminMode, 
-    adminResolveReport, 
+    setIsAdminMode,
+    adminResolveReport,
     adminModerateMedia,
     adminMfaVerified
   } = useApp();
@@ -72,6 +78,9 @@ export const AdminPortal: React.FC = () => {
   const [userStatusFilter, setUserStatusFilter] = useEstadoSalvo<'all' | 'active' | 'warned' | 'restricted' | 'suspended'>('admin.usuarios.situacao', 'all');
   const [mediaStatusFilter, setMediaStatusFilter] = useEstadoSalvo<'all' | 'approved' | 'pending_review' | 'flagged' | 'removed'>('admin.midia.situacao', 'all');
   const [reportPriorityFilter, setReportPriorityFilter] = useEstadoSalvo<'all' | 'urgent' | 'high' | 'medium' | 'low'>('admin.denuncias.prioridade', 'all');
+  const [reportStatusFilter, setReportStatusFilter] = useEstadoSalvo<'open' | 'closed' | 'all'>('admin.denuncias.situacao', 'open');
+  const [auditQuery, setAuditQuery] = useState('');
+  const [atualizando, setAtualizando] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ModerationReport | null>(null);
   useEffect(() => {
     setSelectedReport(prev => (prev ? reports.find(r => r.id === prev.id) ?? null : reports.find(r => r.status === 'pending') ?? null));
@@ -86,404 +95,322 @@ export const AdminPortal: React.FC = () => {
   const [resolutionNote, setResolutionNote] = useState('');
 
   // KPIs Calculations
-  const totalUsers = adminUsers.length;
-  const activeAccounts = adminUsers.filter(u => u.status === 'active').length;
   const warnedAccounts = adminUsers.filter(u => u.status === 'warned').length;
   const restrictedAccounts = adminUsers.filter(u => u.status === 'restricted').length;
   const suspendedAccounts = adminUsers.filter(u => u.status === 'suspended').length;
   const verifiedProfiles = adminUsers.filter(u => u.isVerified).length;
-  const pendingReports = reports.filter(r => r.status === 'pending');
-  const resolvedReports = reports.filter(r => r.status === 'resolved');
-  const urgentReports = reports.filter(r => r.priority === 'urgent');
-  const messageReports = reports.filter(r => r.targetType === 'message');
+  const pendingReports = reports.filter(r => r.status === 'pending' || r.status === 'under_review');
+  const urgentPending = pendingReports.filter(r => r.priority === 'urgent');
   const flaggedMediaCount = adminMediaList.filter(m => m.status === 'flagged').length;
 
   if (!adminMfaVerified) {
     return <AdminMfaGate />;
   }
 
-  // Filtered Users
+  type Aba = typeof activeAdminTab;
+  const abas: { id: Aba; label: string; icon: React.ComponentType<{ className?: string }>; contador?: number }[] = [
+    { id: 'dashboard', label: 'Visão geral', icon: Activity },
+    { id: 'reports', label: 'Denúncias', icon: ShieldAlert, contador: pendingReports.length },
+    { id: 'users', label: 'Usuários', icon: Users },
+    { id: 'media', label: 'Mídias', icon: Image, contador: flaggedMediaCount },
+    { id: 'events', label: 'Eventos', icon: CalendarHeart },
+    { id: 'ads', label: 'Publicidade', icon: Megaphone },
+    { id: 'broadcasts', label: 'Comunicados', icon: Send },
+    { id: 'growth', label: 'Crescimento', icon: Rocket },
+    ...(adminRole === 'superadmin' ? [{ id: 'conversations' as Aba, label: 'Conversas', icon: MessagesSquare }] : []),
+    { id: 'audit', label: 'Auditoria', icon: FileText },
+  ];
+  // atalhos da visão geral: abrem a aba já filtrada
+  const irPara = (aba: Aba, filtro?: () => void) => { filtro?.(); setActiveAdminTab(aba); window.scrollTo({ top: 0 }); };
+
+  // Usuários: situação + busca por nome, @, e-mail ou cidade
   const filteredUsers = adminUsers.filter(u => {
     if (userStatusFilter !== 'all' && u.status !== userStatusFilter) return false;
     if (searchUserQuery.trim()) {
-      const q = searchUserQuery.toLowerCase();
-      return u.username.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+      const q = searchUserQuery.trim().toLowerCase().replace(/^@/, '');
+      return u.username.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.city ?? '').toLowerCase().includes(q);
     }
     return true;
   });
 
-  // Filtered Media
-  const filteredMedia = adminMediaList.filter(m => {
-    if (mediaStatusFilter !== 'all' && m.status !== mediaStatusFilter) return false;
-    return true;
-  });
+  const filteredMedia = adminMediaList.filter(m => mediaStatusFilter === 'all' || m.status === mediaStatusFilter);
 
-  // Filtered Reports
-  const filteredReports = reports.filter(r => {
-    if (reportPriorityFilter !== 'all' && r.priority !== reportPriorityFilter) return false;
-    return true;
-  });
+  // Denúncias: situação e prioridade; urgentes primeiro, depois as mais antigas da fila
+  const abertas = (r: ModerationReport) => r.status === 'pending' || r.status === 'under_review';
+  const filteredReports = reports
+    .filter(r => reportStatusFilter === 'all' || (reportStatusFilter === 'open' ? abertas(r) : !abertas(r)))
+    .filter(r => reportPriorityFilter === 'all' || r.priority === reportPriorityFilter)
+    .sort((a, b) => (abertas(a) === abertas(b) ? PESO_PRIORIDADE[a.priority] - PESO_PRIORIDADE[b.priority] : abertas(a) ? -1 : 1));
+
+  const filteredLogs = auditQuery.trim()
+    ? adminLogs.filter(l => [l.action, l.adminName, l.reason, l.targetType, l.targetId].some(c => (c ?? '').toLowerCase().includes(auditQuery.trim().toLowerCase())))
+    : adminLogs;
 
   return (
     <div className="max-w-7xl mx-auto py-6 px-4">
       <AdminImageViewerHost />
-      
-      {/* Top Admin Header Bar */}
-      <div className="bg-gradient-to-r from-amber-950/60 via-zinc-900 to-purple-950/60 border border-amber-600/30 rounded-3xl p-5 sm:p-6 mb-6 shadow-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-lg shadow-amber-950/30">
-            <ShieldCheck className="w-7 h-7" />
+
+      {/* Cabeçalho: quem está na sessão, papel e atalhos */}
+      <header className="bg-gradient-to-r from-amber-950/50 via-zinc-900 to-purple-950/50 border border-amber-600/30 rounded-3xl p-4 sm:p-5 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+            <ShieldCheck className="w-6 h-6" />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-black text-white">Painel Administrativo & Moderação</h1>
-              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                {adminRole.toUpperCase()}
+          <div className="min-w-0">
+            <h1 className="text-lg font-black text-white leading-tight">Painel administrativo</h1>
+            <p className="text-xs text-zinc-400 flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-amber-300">{PAPEL_ADMIN[adminRole]}</span>
+              <span className="text-emerald-400 font-semibold inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true" /> Verificação em duas etapas ativa
               </span>
-              <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                MFA Validado
-              </span>
-            </div>
-            <p className="text-xs text-zinc-400">
-              Sessão administrativa: <strong className="text-amber-200">{currentUser.email}</strong> ({adminRole})
+              <span className="truncate">{currentUser.email}</span>
             </p>
           </div>
         </div>
-
-        {/* Role Switcher & Back to Portal button */}
-        <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
-          <span className="px-3 py-2 bg-zinc-950 border border-amber-600/40 rounded-xl text-xs text-amber-300 font-semibold">
-            {{ superadmin: 'Superadministrador', moderator: 'Moderador', support: 'Suporte (leitura)', auditor: 'Auditor (leitura)' }[adminRole]}
-          </span>
+        <div className="flex items-center gap-2 self-stretch sm:self-auto">
           <button
-            onClick={() => refreshAdminData()}
-            className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 cursor-pointer"
+            type="button"
+            onClick={async () => { setAtualizando(true); await refreshAdminData(); setAtualizando(false); notify('Dados do painel atualizados.'); }}
+            disabled={atualizando}
+            className="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-200 cursor-pointer inline-flex items-center justify-center gap-1.5 disabled:opacity-60"
           >
-            Atualizar dados
+            <RefreshCw className={`w-3.5 h-3.5 ${atualizando ? 'animate-spin' : ''}`} /> {atualizando ? 'Atualizando...' : 'Atualizar'}
           </button>
-
           <button
+            type="button"
             onClick={() => setIsAdminMode(false)}
-            className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white transition-colors cursor-pointer shadow"
+            className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5"
           >
-            Voltar ao Portal Social
+            <ArrowLeft className="w-3.5 h-3.5" /> Voltar ao app
           </button>
         </div>
+      </header>
 
-      </div>
-
-      {/* Main Admin Navigation Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
-        {[
-          { id: 'dashboard', label: 'Dashboard & Indicadores', icon: Activity },
-          { id: 'reports', label: `Fila de Denúncias (${pendingReports.length})`, icon: ShieldAlert },
-          { id: 'users', label: `Gerenciamento de Usuários (${totalUsers})`, icon: Users },
-          { id: 'media', label: `Moderação de Mídias (${adminMediaList.length})`, icon: Image },
-          ...(adminRole === 'superadmin' ? [{ id: 'conversations', label: 'Conversas', icon: MessagesSquare }] : []),
-          { id: 'events', label: 'Eventos', icon: CalendarHeart },
-          { id: 'ads', label: 'Publicidade', icon: Megaphone },
-          { id: 'broadcasts', label: 'Comunicados (push)', icon: Megaphone },
-          { id: 'growth', label: 'Growth Center', icon: Rocket },
-          { id: 'audit', label: `Livro de Auditoria (${adminLogs.length})`, icon: FileText },
-        ].map(t => {
-          const Icon = t.icon;
-          const isActive = activeAdminTab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setActiveAdminTab(t.id as any)}
-              className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer ${
-                isActive
-                  ? 'bg-amber-400 text-black shadow-lg shadow-amber-950/40'
-                  : 'bg-zinc-900/80 text-zinc-400 hover:text-white border border-zinc-800'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Abas: nomes curtos, contador de pendências em destaque; no celular rola de lado */}
+      <nav aria-label="Seções do painel" className="mb-5 pb-2 border-b border-zinc-800/60">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar lg:flex-wrap">
+          {abas.map(t => {
+            const Icon = t.icon;
+            const isActive = activeAdminTab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setActiveAdminTab(t.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  isActive ? 'bg-amber-400 text-black' : 'text-zinc-300 hover:text-white hover:bg-zinc-800/80'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{t.label}</span>
+                {!!t.contador && (
+                  <span className={`min-w-5 px-1.5 py-0.5 rounded-full text-[10px] leading-none tabular-nums ${isActive ? 'bg-black/80 text-amber-300' : 'bg-rose-600 text-white'}`}>
+                    {t.contador}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
       {/* ==================== TAB 1: DASHBOARD & METRICS ==================== */}
       {activeAdminTab === 'dashboard' && (
         <div className="space-y-6">
-          <AdminIndicadores />
-          
-          {/* Complete 11 KPIs Grid as requested in Prompt Section 3 */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            
-            {/* 1. Total Usuários */}
-            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
-              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
-                Total de Usuários
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-white">{totalUsers}</span>
-                <span className="text-[12px] text-zinc-400">contas cadastradas</span>
-              </div>
-            </div>
-
-            {/* 2. Contas Ativas */}
-            <div className="p-4 rounded-3xl bg-painel border border-emerald-900/30">
-              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block mb-1">
-                Contas Ativas
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-emerald-400">{activeAccounts}</span>
-                <span className="text-[12px] text-zinc-400">Em conformidade</span>
-              </div>
-            </div>
-
-            {/* 3. Contas Restritas / Advertidas */}
-            <div className="p-4 rounded-3xl bg-painel border border-amber-900/30">
-              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">
-                Contas Restritas
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-amber-300">{restrictedAccounts + warnedAccounts}</span>
-                <span className="text-[12px] text-amber-500 font-semibold">Sob análise</span>
-              </div>
-            </div>
-
-            {/* 4. Contas Suspensas */}
-            <div className="p-4 rounded-3xl bg-painel border border-rose-900/30">
-              <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider block mb-1">
-                Contas Suspensas
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-rose-400">{suspendedAccounts}</span>
-                <span className="text-[12px] text-rose-500 font-semibold">Bloqueio preventivo</span>
-              </div>
-            </div>
-
-            {/* 5. Perfis Verificados */}
-            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
-              <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider block mb-1">
-                Perfis Verificados (+18)
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-white">{verifiedProfiles}</span>
-                <span className="text-[12px] text-emerald-400 font-semibold">Biometria / Doc</span>
-              </div>
-            </div>
-
-            {/* 6. Quantidade de Publicações */}
-            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
-              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
-                Publicações no Feed
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-white">4</span>
-                <span className="text-[12px] text-zinc-400">Total auditado</span>
-              </div>
-            </div>
-
-            {/* 7. Fotos e Vídeos Publicados */}
-            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
-              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
-                Mídias Registradas
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-white">{adminMediaList.length}</span>
-                <span className="text-[12px] text-purple-400 font-semibold">Storage protegido</span>
-              </div>
-            </div>
-
-            {/* 8. Conteúdos Pendentes de Moderação */}
-            <div className="p-4 rounded-3xl bg-painel border border-amber-900/30">
-              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">
-                Mídias Sinalizadas
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-amber-300">{flaggedMediaCount}</span>
-                <span className="text-[12px] text-amber-500 font-semibold">Requer decisão</span>
-              </div>
-            </div>
-
-            {/* 9. Denúncias Recebidas */}
-            <div className="p-4 rounded-3xl bg-painel border border-amber-900/30">
-              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">
-                Denúncias Pendentes
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-amber-300">{pendingReports.length}</span>
-                <span className="text-[12px] text-rose-400 font-semibold">{urgentReports.length} Urgentes</span>
-              </div>
-            </div>
-
-            {/* 10. Denúncias de Mensagens */}
-            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
-              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
-                Denúncias de Mensagens
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-white">{messageReports.length}</span>
-                <span className="text-[12px] text-purple-400 font-semibold">Investigação estrita</span>
-              </div>
-            </div>
-
-            {/* 11. Histórico de Ações de Moderação */}
-            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30 col-span-2">
-              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
-                Registros de Auditoria Imutáveis
-              </span>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl font-black text-white">{adminLogs.length} eventos</span>
-                <span className="text-[12px] text-emerald-400 font-semibold">100% Rastreável por IP/Data</span>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Urgent Tickets Alert Banner */}
-          {urgentReports.length > 0 && (
-            <div className="p-5 rounded-3xl bg-rose-950/30 border border-rose-800/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          {/* Urgências primeiro */}
+          {urgentPending.length > 0 && (
+            <div className="p-4 rounded-3xl bg-rose-950/40 border border-rose-700/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3" role="alert">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-rose-600/30 text-rose-400 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-rose-600/30 text-rose-300 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white">
-                    {urgentReports.length} Denúncia(s) com prioridade URGENTE aguardando ação
-                  </h3>
-                  <p className="text-xs text-rose-200">
-                    Ocorrências de envio de imagens íntimas sem consentimento possuem prazo prioritário de resolução.
-                  </p>
+                  <h2 className="text-sm font-bold text-white">
+                    {urgentPending.length === 1 ? '1 denúncia urgente aguardando ação' : `${urgentPending.length} denúncias urgentes aguardando ação`}
+                  </h2>
+                  <p className="text-xs text-rose-200">Suspeita de menor de idade e conteúdo íntimo sem consentimento têm prioridade de atendimento.</p>
                 </div>
               </div>
-              <button
-                onClick={() => setActiveAdminTab('reports')}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shrink-0 cursor-pointer shadow-lg"
-              >
-                Atender Denúncias Agora
+              <button type="button" onClick={() => irPara('reports', () => { setReportStatusFilter('open'); setReportPriorityFilter('urgent'); })}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shrink-0 cursor-pointer">
+                Atender agora
               </button>
             </div>
           )}
 
-          {/* Recent Audit Action Feed */}
-          <div className="p-6 bg-painel border border-purple-900/30 rounded-3xl shadow-xl">
-            <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-              <FileText className="w-4 h-4 text-amber-400" />
-              <span>Últimas Ações Registradas em Log de Auditoria</span>
-            </h3>
-            <div className="space-y-3">
-              {adminLogs.slice(0, 4).map(l => (
-                <div key={l.id} className="p-3 bg-zinc-950/70 border border-zinc-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <div>
-                    <span className="font-mono text-amber-400 font-bold mr-2">{l.action}</span>
-                    <span className="text-zinc-300">{l.reason}</span>
-                  </div>
-                  <div className="text-[10px] text-zinc-500 shrink-0 sm:text-right">
-                    <div>{l.adminName}</div>
-                    <div>{l.timestamp}</div>
-                  </div>
-                </div>
+          {/* Pendências de moderação: cada número abre a aba já filtrada */}
+          <section aria-label="Pendências de moderação" className="space-y-3">
+            <h2 className="text-sm font-bold text-white">Pendências de moderação</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { titulo: 'Denúncias abertas', valor: pendingReports.length, detalhe: urgentPending.length ? `${urgentPending.length} urgente${urgentPending.length > 1 ? 's' : ''}` : 'nenhuma urgente', tom: pendingReports.length ? 'text-amber-300' : 'text-white',
+                  abrir: () => irPara('reports', () => { setReportStatusFilter('open'); setReportPriorityFilter('all'); }) },
+                { titulo: 'Mídias sinalizadas', valor: flaggedMediaCount, detalhe: 'aguardando decisão', tom: flaggedMediaCount ? 'text-amber-300' : 'text-white',
+                  abrir: () => irPara('media', () => setMediaStatusFilter('flagged')) },
+                { titulo: 'Contas advertidas ou restritas', valor: restrictedAccounts + warnedAccounts, detalhe: `${warnedAccounts} advertida${warnedAccounts === 1 ? '' : 's'} · ${restrictedAccounts} restrita${restrictedAccounts === 1 ? '' : 's'}`, tom: 'text-white',
+                  abrir: () => irPara('users', () => setUserStatusFilter(restrictedAccounts ? 'restricted' : 'warned')) },
+                { titulo: 'Contas suspensas', valor: suspendedAccounts, detalhe: `${verifiedProfiles} perfis verificados no total`, tom: suspendedAccounts ? 'text-rose-300' : 'text-white',
+                  abrir: () => irPara('users', () => setUserStatusFilter('suspended')) },
+              ].map(c => (
+                <button key={c.titulo} type="button" onClick={c.abrir}
+                  className="group p-4 rounded-2xl bg-painel border border-purple-900/30 hover:border-amber-500/50 text-left cursor-pointer transition-colors">
+                  <span className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                    {c.titulo} <ChevronRight className="w-3.5 h-3.5 text-zinc-600 group-hover:text-amber-400" />
+                  </span>
+                  <span className={`block text-2xl font-black tabular-nums ${c.tom}`}>{c.valor.toLocaleString('pt-BR')}</span>
+                  <span className="block text-[12px] text-zinc-500 mt-0.5">{c.detalhe}</span>
+                </button>
               ))}
             </div>
-          </div>
+          </section>
 
+          <AdminIndicadores />
+
+          {/* Últimas ações da equipe */}
+          <section className="p-5 bg-painel border border-purple-900/30 rounded-3xl space-y-3" aria-label="Últimas ações da equipe">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-white flex items-center gap-2"><FileText className="w-4 h-4 text-amber-400" /> Últimas ações da equipe</h2>
+              <button type="button" onClick={() => irPara('audit')} className="text-[12px] font-semibold text-amber-300 hover:text-amber-200 cursor-pointer inline-flex items-center gap-0.5">
+                Ver auditoria completa <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {adminLogs.length === 0 ? (
+              <p className="text-xs text-zinc-500 py-4 text-center">Nenhuma ação registrada ainda.</p>
+            ) : (
+              <ul className="divide-y divide-zinc-800/70">
+                {adminLogs.slice(0, 5).map(l => (
+                  <li key={l.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                    <div className="min-w-0">
+                      <span className="font-bold text-amber-300 mr-2">{acaoLegivel(l.action)}</span>
+                      <span className="text-zinc-300">{l.reason}</span>
+                    </div>
+                    <span className="text-[12px] text-zinc-500 shrink-0">{l.adminName} · {l.timestamp}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       )}
 
       {/* ==================== TAB 2: REPORTS & MESSAGE MODERATION ==================== */}
       {activeAdminTab === 'reports' && (
         <div className="grid lg:grid-cols-12 gap-6">
-          
-          {/* Reports List Column */}
+
+          {/* Fila de denúncias */}
           <div className="lg:col-span-7 space-y-3">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-white">Fila de Atendimento de Denúncias</h3>
-              
-              {/* Filter by priority */}
-              <Seletor
-                value={reportPriorityFilter}
-                onChange={e => setReportPriorityFilter(e.target.value as any)}
-                className="px-2.5 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300"
-              >
-                <option value="all">Todas as Prioridades</option>
-                <option value="urgent">Urgentes</option>
-                <option value="high">Altas</option>
-                <option value="medium">Médias</option>
-              </Seletor>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-white">Fila de denúncias <span className="text-zinc-500 font-semibold">({filteredReports.length})</span></h2>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-xl bg-zinc-900 border border-zinc-800 p-0.5" role="group" aria-label="Situação">
+                  {([['open', `Abertas (${pendingReports.length})`], ['closed', 'Encerradas'], ['all', 'Todas']] as const).map(([v, rot]) => (
+                    <button key={v} type="button" onClick={() => setReportStatusFilter(v)} aria-pressed={reportStatusFilter === v}
+                      className={`px-2.5 py-1 rounded-lg text-[12px] font-semibold cursor-pointer ${reportStatusFilter === v ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'}`}>{rot}</button>
+                  ))}
+                </div>
+                <Seletor
+                  value={reportPriorityFilter}
+                  onChange={e => setReportPriorityFilter(e.target.value as any)}
+                  className="px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-zinc-300"
+                  aria-label="Prioridade"
+                >
+                  <option value="all">Todas as prioridades</option>
+                  <option value="urgent">Urgentes</option>
+                  <option value="high">Altas</option>
+                  <option value="medium">Médias</option>
+                  <option value="low">Baixas</option>
+                </Seletor>
+              </div>
             </div>
 
-            {filteredReports.map(rep => (
-              <div
+            {filteredReports.length === 0 && (
+              <div className="p-10 rounded-3xl bg-painel border border-purple-900/30 text-center text-xs text-zinc-400">
+                <Inbox className="w-9 h-9 mx-auto mb-2 text-purple-400/70" />
+                {reportStatusFilter === 'open' ? 'Nenhuma denúncia aberta com esse filtro. Fila em dia.' : 'Nenhuma denúncia com esse filtro.'}
+              </div>
+            )}
+
+            {filteredReports.map(rep => {
+              const aberta = abertas(rep);
+              return (
+              <button
+                type="button"
                 key={rep.id}
                 onClick={() => setSelectedReport(rep)}
-                className={`p-4 rounded-3xl border transition-all cursor-pointer ${
+                aria-pressed={selectedReport?.id === rep.id}
+                className={`w-full text-left p-4 rounded-2xl border transition-colors cursor-pointer ${
                   selectedReport?.id === rep.id
-                    ? 'bg-purple-950/70 border-amber-500 shadow-xl'
-                    : 'bg-painel border-purple-900/30 hover:border-purple-700/50'
-                }`}
+                    ? 'bg-purple-950/70 border-amber-500'
+                    : 'bg-painel border-purple-900/30 hover:border-purple-700/60'
+                } ${aberta ? '' : 'opacity-75'}`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-amber-400">{rep.id}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                      rep.priority === 'urgent'
-                        ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                        : rep.priority === 'high'
-                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                        : 'bg-zinc-800 text-zinc-300'
-                    }`}>
-                      {rep.priority}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${rep.priority === 'urgent' ? TOM.perigo : rep.priority === 'high' ? TOM.alerta : TOM.neutro}`}>
+                      {PRIORIDADE[rep.priority]}
                     </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 capitalize">
-                      {rep.targetType}
-                    </span>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300">{ALVO_DENUNCIA[rep.targetType]}</span>
+                    <span className="text-[12px] font-semibold text-amber-200">{CATEGORIA_DENUNCIA[rep.category] ?? rep.category}</span>
                   </div>
-
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    rep.status === 'resolved'
-                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                      : 'bg-amber-950 text-amber-400 border border-amber-800'
-                  }`}>
-                    {rep.status === 'resolved' ? 'Resolvida' : 'Pendente'}
-                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${aberta ? TOM.alerta : TOM.ok}`}>{SITUACAO_DENUNCIA[rep.status]}</span>
                 </div>
-
-                <div className="text-xs font-bold text-white mb-1">
-                  Denunciado: <span className="text-purple-300">@{rep.reportedUserName}</span> por {rep.reporterName}
-                </div>
-                <p className="text-xs text-zinc-300 line-clamp-2 leading-relaxed">
-                  {rep.description}
+                <p className="text-xs text-zinc-200 mb-1">
+                  <span className="font-bold text-purple-300">@{rep.reportedUserName}</span> <span className="text-zinc-500">denunciado por</span> {rep.reporterName}
                 </p>
-                <div className="text-[10px] text-zinc-500 mt-2 flex items-center justify-between">
-                  <span>Criado em: {rep.createdAt}</span>
-                  {rep.targetType === 'message' && (
-                    <span className="text-amber-400 font-semibold">Requer autorização para inspeção</span>
-                  )}
+                <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">{rep.description}</p>
+                <div className="text-[12px] text-zinc-500 mt-2 flex items-center justify-between gap-2">
+                  <span>{rep.createdAt}</span>
+                  {rep.targetType === 'message' && aberta && <span className="text-amber-300 font-semibold inline-flex items-center gap-1"><Lock className="w-3 h-3" /> Inspeção com justificativa</span>}
                 </div>
-              </div>
-            ))}
+              </button>
+              );
+            })}
           </div>
 
           {/* Report Detail & Investigation Decision Panel */}
-          <div className="lg:col-span-5 bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4 h-fit">
+          <div className="lg:col-span-5 bg-painel border border-purple-900/30 rounded-3xl p-5 space-y-4 h-fit lg:sticky lg:top-20">
             {selectedReport ? (
               <>
                 <div className="border-b border-purple-900/30 pb-3">
                   <span className="text-[10px] uppercase font-bold text-zinc-400 block mb-1">
-                    Exame Formal da Denúncia {selectedReport.id}
+                    Denúncia · {PRIORIDADE[selectedReport.priority]} · {SITUACAO_DENUNCIA[selectedReport.status]}
                   </span>
-                  <h4 className="text-base font-bold text-white">
-                    Alvo: @{selectedReport.reportedUserName} ({selectedReport.targetType})
-                  </h4>
+                  <h3 className="text-base font-bold text-white">
+                    @{selectedReport.reportedUserName} <span className="text-zinc-400 font-semibold">({ALVO_DENUNCIA[selectedReport.targetType]})</span>
+                  </h3>
+                  <p className="text-[12px] text-zinc-500 font-mono mt-0.5 flex items-center gap-1.5">
+                    {selectedReport.id}
+                    <button type="button" onClick={() => handleCopy(selectedReport.id)} className="text-zinc-400 hover:text-white cursor-pointer" aria-label="Copiar código da denúncia">
+                      {copiedText === selectedReport.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </p>
                 </div>
 
                 <div className="space-y-2 text-xs">
                   <div>
                     <span className="text-zinc-400 font-semibold">Categoria: </span>
-                    <span className="text-amber-300 font-bold">{selectedReport.category}</span>
+                    <span className="text-amber-300 font-bold">{CATEGORIA_DENUNCIA[selectedReport.category] ?? selectedReport.category}</span>
                   </div>
                   <div>
                     <span className="text-zinc-400 font-semibold">Denunciante: </span>
                     <span className="text-zinc-200">{selectedReport.reporterName}</span>
+                    <span className="text-zinc-500"> · {selectedReport.createdAt}</span>
                   </div>
+                  {(() => {
+                    const alvo = adminUsers.find(u => u.id === selectedReport.reportedUserId);
+                    return alvo ? (
+                      <button type="button" onClick={() => setInspectingUser(alvo)}
+                        className="w-full p-2.5 rounded-2xl bg-zinc-950/70 border border-zinc-800 hover:border-purple-600/60 flex items-center gap-2.5 text-left cursor-pointer">
+                        <img src={alvo.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-bold text-white truncate">{alvo.displayName}</span>
+                          <span className="block text-[12px] text-zinc-400">{SITUACAO_CONTA[alvo.status]} · {alvo.reportsReceivedCount} denúncia{alvo.reportsReceivedCount === 1 ? '' : 's'} recebida{alvo.reportsReceivedCount === 1 ? '' : 's'}</span>
+                        </span>
+                        <span className="text-[12px] font-bold text-purple-300 shrink-0 inline-flex items-center">Abrir ficha <ChevronRight className="w-3.5 h-3.5" /></span>
+                      </button>
+                    ) : null;
+                  })()}
                   <div className="p-3 bg-zinc-950/70 border border-zinc-800 rounded-2xl text-zinc-300 leading-relaxed">
                     "{selectedReport.description}"
                   </div>
@@ -493,7 +420,7 @@ export const AdminPortal: React.FC = () => {
                     <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-2xl space-y-2">
                       <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
                         <Lock className="w-3.5 h-3.5" />
-                        Mensagem Privada Sinalizada
+                        Mensagem privada denunciada
                       </span>
                       <p className="text-[12px] text-zinc-300">
                         O conteúdo da mensagem é protegido e só pode ser exibido mediante justificativa gravada em auditoria.
@@ -503,7 +430,7 @@ export const AdminPortal: React.FC = () => {
                         onClick={() => setInvestigatingReport(selectedReport)}
                         className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl cursor-pointer"
                       >
-                        Abrir Ferramenta de Investigação com Justificativa
+                        Inspecionar mensagem (com justificativa)
                       </button>
                     </div>
                   )}
@@ -520,7 +447,7 @@ export const AdminPortal: React.FC = () => {
                 {selectedReport.status === 'pending' || selectedReport.status === 'under_review' ? (
                   <div className="pt-3 border-t border-purple-900/30 space-y-3">
                     <label className="block text-xs font-semibold text-zinc-300">
-                      Justificativa Técnica da Decisão (Obrigatório para Auditoria):
+                      Justificativa da decisão (obrigatória, fica na auditoria)
                     </label>
                     <textarea
                       rows={3}
@@ -541,7 +468,7 @@ export const AdminPortal: React.FC = () => {
                         }}
                         className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 text-white text-xs font-bold cursor-pointer transition-all shadow"
                       >
-                        Aplicar Medida & Resolver
+                        Resolver
                       </button>
 
                       <button
@@ -562,7 +489,7 @@ export const AdminPortal: React.FC = () => {
               </>
             ) : (
               <div className="p-8 text-center text-xs text-zinc-400">
-                Selecione uma denúncia à esquerda para examinar os fatos.
+                {filteredReports.length ? 'Selecione uma denúncia para ver os detalhes.' : 'Sem denúncia selecionada.'}
               </div>
             )}
           </div>
@@ -572,14 +499,12 @@ export const AdminPortal: React.FC = () => {
 
       {/* ==================== TAB 3: USER MANAGEMENT ==================== */}
       {activeAdminTab === 'users' && (
-        <div className="bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
-          
+        <div className="bg-painel border border-purple-900/30 rounded-3xl p-4 sm:p-5 space-y-4">
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-white">Gerenciamento Completo de Usuários</h3>
-              <p className="text-xs text-zinc-400">
-                Acesse dados cadastrais necessários sem exposição de senhas ou credenciais confidenciais.
-              </p>
+              <h2 className="text-base font-bold text-white">Usuários <span className="text-zinc-500 font-semibold text-sm">({filteredUsers.length}{filteredUsers.length !== adminUsers.length ? ` de ${adminUsers.length}` : ''})</span></h2>
+              <p className="text-xs text-zinc-400">Clique na linha para abrir a ficha. Senhas e credenciais nunca são exibidas.</p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -588,18 +513,19 @@ export const AdminPortal: React.FC = () => {
                 onChange={e => setUserStatusFilter(e.target.value as any)}
                 className="px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200"
               >
-                <option value="all">Todas as Situações</option>
-                <option value="active">Ativos</option>
-                <option value="warned">Advertidos</option>
-                <option value="restricted">Restritos</option>
-                <option value="suspended">Suspensos</option>
+                <option value="all">Todas as situações</option>
+                <option value="active">Ativas</option>
+                <option value="warned">Advertidas</option>
+                <option value="restricted">Restritas</option>
+                <option value="suspended">Suspensas</option>
               </Seletor>
 
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                 <input
                   type="text"
-                  placeholder="Buscar por usuário, @ ou e-mail"
+                  placeholder="Nome, @, e-mail ou cidade"
+                  aria-label="Buscar usuários"
                   value={searchUserQuery}
                   onChange={e => setSearchUserQuery(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white"
@@ -612,9 +538,9 @@ export const AdminPortal: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-zinc-950/80 text-zinc-400 border-b border-zinc-800">
                 <tr>
-                  <th className="p-3">Usuário / Identificador</th>
-                  <th className="p-3">E-mail Cadastrado</th>
-                  <th className="p-3">Tipo / Cidade</th>
+                  <th className="p-3">Usuário</th>
+                  <th className="p-3">E-mail</th>
+                  <th className="p-3">Tipo · cidade</th>
                   <th className="p-3">Situação</th>
                   <th className="p-3">Verificação</th>
                   <th className="p-3">Denúncias</th>
@@ -623,37 +549,33 @@ export const AdminPortal: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
                 {filteredUsers.map(u => (
-                  <tr key={u.id} className="hover:bg-zinc-900/40 transition-colors">
-                    <td className="p-3 flex items-center gap-2.5">
+                  <tr key={u.id} className="hover:bg-zinc-900/60 transition-colors cursor-pointer" onClick={() => setInspectingUser(u)}>
+                    <td className="p-3 flex items-center gap-2.5" onClick={e => e.stopPropagation()}>
                       <AdminThumb src={u.avatarUrl} label={`Foto de perfil de @${u.username}`} alt={u.displayName} className="w-8 h-8 rounded-full object-cover border border-purple-500/40" />
                       <div>
                         <div className="font-bold text-white flex items-center gap-1">
                           <span>{u.displayName}</span>
-                          {u.email === 'tomsilvaconsignado@gmail.com' && (
-                            <span className="text-[10px] px-1 bg-amber-500/20 text-amber-300 rounded">Admin</span>
+                          {u.adminRole && (
+                            <span className="text-[10px] px-1.5 bg-amber-500/20 text-amber-300 rounded">{PAPEL_ADMIN[u.adminRole]}</span>
                           )}
                         </div>
-                        <div className="text-[10px] text-zinc-400">@{u.username} • {u.id}</div>
+                        <div className="text-[12px] text-zinc-400">@{u.username}</div>
                       </div>
                     </td>
                     <td className="p-3 font-mono text-[12px] text-zinc-300">{u.email}</td>
-                    <td className="p-3 capitalize">{u.profileType} • {u.city}</td>
+                    <td className="p-3">{TIPO_PERFIL[u.profileType] ?? u.profileType} · {u.city}</td>
                     <td className="p-3">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                        u.status === 'active'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                          : u.status === 'restricted'
-                          ? 'bg-amber-950 text-amber-400 border border-amber-800'
-                          : 'bg-rose-950 text-rose-400 border border-rose-800'
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        u.status === 'active' ? TOM.ok : u.status === 'warned' || u.status === 'restricted' ? TOM.alerta : TOM.perigo
                       }`}>
-                        {u.status}
+                        {SITUACAO_CONTA[u.status] ?? u.status}
                       </span>
                     </td>
                     <td className="p-3">
                       {u.isVerified ? (
-                        <span className="text-emerald-400 font-bold">✓ +18 Verificado</span>
+                        <span className="text-emerald-400 font-bold">✓ Verificado</span>
                       ) : (
-                        <span className="text-amber-400 font-medium">Pendente</span>
+                        <span className={u.verificationRequested ? 'text-amber-300 font-semibold' : 'text-zinc-500'}>{u.verificationRequested ? 'Pediu verificação' : 'Não verificado'}</span>
                       )}
                     </td>
                     <td className="p-3">
@@ -666,13 +588,14 @@ export const AdminPortal: React.FC = () => {
                         onClick={() => setInspectingUser(u)}
                         className="px-3 py-1.5 bg-purple-950 hover:bg-purple-900 border border-purple-800/40 text-purple-200 rounded-xl font-bold text-xs cursor-pointer transition-colors"
                       >
-                        Abrir Ficha
+                        Abrir ficha
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {filteredUsers.length === 0 && <p className="p-8 text-center text-xs text-zinc-400">Nenhum usuário encontrado com esse filtro.</p>}
           </div>
 
         </div>
@@ -680,11 +603,11 @@ export const AdminPortal: React.FC = () => {
 
       {/* ==================== TAB 4: MEDIA & VIDEO MODERATION ==================== */}
       {activeAdminTab === 'media' && (
-        <div className="bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
-          
+        <div className="bg-painel border border-purple-900/30 rounded-3xl p-4 sm:p-5 space-y-4">
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-white">Módulo Centralizado de Moderação de Mídias</h3>
+              <h2 className="text-base font-bold text-white">Mídias <span className="text-zinc-500 font-semibold text-sm">({filteredMedia.length}{filteredMedia.length !== adminMediaList.length ? ` de ${adminMediaList.length}` : ''})</span></h2>
               <p className="text-xs text-zinc-400">
                 Álbuns privados permanecem protegidos por permissões; o acesso legítimo gera registro de auditoria.
               </p>
@@ -696,9 +619,10 @@ export const AdminPortal: React.FC = () => {
                 onChange={e => setMediaStatusFilter(e.target.value as any)}
                 className="px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-200"
               >
-                <option value="all">Todas as Situações</option>
+                <option value="all">Todas as situações</option>
+                <option value="flagged">Sinalizadas ({flaggedMediaCount})</option>
+                <option value="pending_review">Em análise</option>
                 <option value="approved">Aprovadas</option>
-                <option value="flagged">Sinalizadas / Denunciadas</option>
                 <option value="removed">Removidas</option>
               </Seletor>
             </div>
@@ -707,7 +631,7 @@ export const AdminPortal: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredMedia.map(m => (
               <div key={m.id} className="bg-zinc-950/80 border border-purple-900/30 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between">
-                
+
                 {/* Media Preview */}
                 <div className="relative aspect-[16/10] bg-black overflow-hidden group">
                   <AdminThumb src={m.url} label={`Publicação de @${m.userName}`} alt="Mídia" className="w-full h-full object-cover" />
@@ -718,16 +642,12 @@ export const AdminPortal: React.FC = () => {
                       ))}
                     </div>
                   )}
-                  
+
                   <div className="absolute top-2 left-2 flex items-center gap-1.5">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      m.status === 'approved' 
-                        ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800' 
-                        : m.status === 'flagged'
-                        ? 'bg-rose-950/80 text-rose-400 border border-rose-800'
-                        : 'bg-zinc-800 text-zinc-300'
+                      m.status === 'approved' ? TOM.ok : m.status === 'flagged' ? TOM.perigo : m.status === 'pending_review' ? TOM.alerta : TOM.neutro
                     }`}>
-                      {m.status.toUpperCase()}
+                      {SITUACAO_MIDIA[m.status] ?? m.status}
                     </span>
 
                     {m.isPrivateVaultItem && (
@@ -757,7 +677,7 @@ export const AdminPortal: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
+                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-end gap-2">
                     {m.status !== 'approved' && (
                       <button
                         onClick={async () => {
@@ -778,7 +698,7 @@ export const AdminPortal: React.FC = () => {
                         }}
                         className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600/50 text-rose-300 rounded-lg text-[12px] font-bold cursor-pointer"
                       >
-                        Remover Conteúdo
+                        Remover
                       </button>
                     )}
                   </div>
@@ -788,6 +708,12 @@ export const AdminPortal: React.FC = () => {
               </div>
             ))}
           </div>
+          {filteredMedia.length === 0 && (
+            <div className="p-8 text-center text-xs text-zinc-400">
+              <Inbox className="w-9 h-9 mx-auto mb-2 text-purple-400/70" />
+              {mediaStatusFilter === 'flagged' ? 'Nenhuma mídia sinalizada. Tudo em dia.' : 'Nenhuma mídia com esse filtro.'}
+            </div>
+          )}
 
         </div>
       )}
@@ -800,20 +726,23 @@ export const AdminPortal: React.FC = () => {
       {activeAdminTab === 'conversations' && <AdminConversationsTab />}
 
       {activeAdminTab === 'audit' && (
-        <div className="bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="bg-painel border border-purple-900/30 rounded-3xl p-4 sm:p-5 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-white">Livro de Auditoria Imutável (Audit Trail)</h3>
-              <p className="text-xs text-zinc-400">
-                Todas as ações administrativas relevantes são registradas com identificação, carimbo de tempo, IP e justificativa.
-              </p>
+              <h2 className="text-base font-bold text-white">Auditoria <span className="text-zinc-500 font-semibold text-sm">({filteredLogs.length}{filteredLogs.length !== adminLogs.length ? ` de ${adminLogs.length}` : ''})</span></h2>
+              <p className="text-xs text-zinc-400">Ações da equipe com autor, data e justificativa. Os registros não podem ser alterados.</p>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input type="search" value={auditQuery} onChange={e => setAuditQuery(e.target.value)} placeholder="Buscar ação, pessoa ou motivo" aria-label="Buscar na auditoria"
+                className="w-full pl-9 pr-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white" />
             </div>
             <button
               onClick={() => {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(adminLogs, null, 2));
                 const a = document.createElement('a');
                 a.href = dataStr;
-                a.download = `vybe_audit_logs_${Date.now()}.json`;
+                a.download = `vybelog-auditoria-${new Date().toISOString().slice(0, 10)}.json`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -821,7 +750,7 @@ export const AdminPortal: React.FC = () => {
               className="px-3.5 py-1.5 rounded-xl bg-purple-950 hover:bg-purple-900 border border-purple-800/50 text-xs font-bold text-purple-200 flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Exportar Logs (JSON)</span>
+              <span>Exportar (JSON)</span>
             </button>
           </div>
 
@@ -829,20 +758,20 @@ export const AdminPortal: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-zinc-950/80 text-zinc-400 border-b border-zinc-800">
                 <tr>
-                  <th className="p-3">Data / Hora</th>
-                  <th className="p-3">Administrador</th>
+                  <th className="p-3">Data e hora</th>
+                  <th className="p-3">Quem</th>
                   <th className="p-3">Ação</th>
                   <th className="p-3">Alvo</th>
-                  <th className="p-3">Motivo / Fundamentação</th>
+                  <th className="p-3">Justificativa</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
-                {adminLogs.map(l => (
+                {filteredLogs.map(l => (
                   <tr key={l.id} className="hover:bg-zinc-900/40 transition-colors">
-                    <td className="p-3 font-mono text-[12px] text-zinc-400">{l.timestamp}</td>
-                    <td className="p-3 font-semibold text-white">{l.adminName}</td>
-                    <td className="p-3 font-mono text-amber-400 font-bold">{l.action}</td>
-                    <td className="p-3 font-mono text-zinc-300">{l.targetType}:{l.targetId}</td>
+                    <td className="p-3 text-[12px] text-zinc-400 whitespace-nowrap tabular-nums">{l.timestamp}</td>
+                    <td className="p-3 font-semibold text-white whitespace-nowrap">{l.adminName}</td>
+                    <td className="p-3 text-amber-300 font-bold" title={l.action}>{acaoLegivel(l.action)}</td>
+                    <td className="p-3 font-mono text-[12px] text-zinc-400 max-w-[14rem] truncate" title={`${l.targetType}:${l.targetId}`}>{l.targetType}:{l.targetId}</td>
                     <td className="p-3 text-zinc-200">{l.reason}</td>
                   </tr>
                 ))}
