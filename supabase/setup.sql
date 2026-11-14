@@ -523,7 +523,7 @@ CREATE TABLE IF NOT EXISTS public.ads (
   image_url TEXT NOT NULL DEFAULT '',
   link_url TEXT,
   cta_label VARCHAR(40) NOT NULL DEFAULT 'Saiba mais',
-  placement VARCHAR(20) NOT NULL DEFAULT 'feed' CHECK (placement IN ('feed', 'sidebar', 'events', 'carousel')),
+  placement VARCHAR(20) NOT NULL DEFAULT 'feed' CHECK (placement IN ('feed', 'sidebar', 'events', 'carousel', 'destaques')),
   starts_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   ends_at TIMESTAMPTZ,
   is_active BOOLEAN NOT NULL DEFAULT true,
@@ -535,7 +535,7 @@ CREATE TABLE IF NOT EXISTS public.ads (
 -- Carrossel de slides na coluna lateral ("carousel" é das versões novas)
 ALTER TABLE public.ads DROP CONSTRAINT IF EXISTS ads_placement_check;
 ALTER TABLE public.ads ADD CONSTRAINT ads_placement_check
-  CHECK (placement IN ('feed', 'sidebar', 'events', 'carousel'));
+  CHECK (placement IN ('feed', 'sidebar', 'events', 'carousel', 'destaques'));
 
 -- ==============================================================================
 -- 3. FUNÇÕES AUXILIARES DE PERMISSÃO
@@ -4953,3 +4953,55 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT) TO authenticated;
+
+-- ==============================================================================
+-- 20. PUBLICIDADE MAIS PRESENTE: espaço "destaques" (Descobrir, entre os membros em destaque e os
+-- populares) e janela de publicidade configurável: espera inicial, eventos na janela, frequência maior.
+-- ==============================================================================
+ALTER TABLE public.ads DROP CONSTRAINT IF EXISTS ads_placement_check;
+ALTER TABLE public.ads ADD CONSTRAINT ads_placement_check
+  CHECK (placement IN ('feed', 'sidebar', 'events', 'carousel', 'destaques'));
+
+-- janela mais frequente (a cada 2 min, até 10 por acesso, primeira 10 s após entrar, eventos incluídos)
+INSERT INTO public.app_settings (key, value)
+VALUES ('public.ads_popup', '{"interval_min": 2, "max_per_session": 10, "initial_delay_s": 10, "include_events": true}')
+ON CONFLICT (key) DO UPDATE
+  SET value = (public.app_settings.value::jsonb
+               || '{"interval_min": 2, "max_per_session": 10}'::jsonb
+               || jsonb_build_object(
+                    'initial_delay_s', coalesce(public.app_settings.value::jsonb -> 'initial_delay_s', '10'::jsonb),
+                    'include_events', coalesce(public.app_settings.value::jsonb -> 'include_events', 'true'::jsonb)))::text,
+      updated_at = now()
+  WHERE NOT (public.app_settings.value::jsonb ? 'initial_delay_s');
+
+CREATE OR REPLACE FUNCTION public.admin_set_ads_popup(p_interval_min INTEGER, p_max_per_session INTEGER, justification TEXT,
+                                                     p_initial_delay_s INTEGER, p_include_events BOOLEAN)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_superadmin() THEN RAISE EXCEPTION 'Somente o superadministrador (com MFA) altera a publicidade.'; END IF;
+  IF coalesce(length(trim(justification)), 0) < 5 THEN RAISE EXCEPTION 'Informe a justificativa (mínimo de 5 caracteres).'; END IF;
+  IF coalesce(p_interval_min, 0) NOT BETWEEN 1 AND 120 THEN RAISE EXCEPTION 'O intervalo deve ser de 1 a 120 minutos.'; END IF;
+  IF coalesce(p_max_per_session, -1) NOT BETWEEN 0 AND 30 THEN RAISE EXCEPTION 'O limite por acesso deve ser de 0 a 30 (0 desliga a janela).'; END IF;
+  IF coalesce(p_initial_delay_s, -1) NOT BETWEEN 5 AND 600 THEN RAISE EXCEPTION 'A espera inicial deve ser de 5 a 600 segundos.'; END IF;
+  INSERT INTO public.app_settings (key, value, updated_at)
+  VALUES ('public.ads_popup', jsonb_build_object('interval_min', p_interval_min, 'max_per_session', p_max_per_session,
+                                                 'initial_delay_s', p_initial_delay_s, 'include_events', coalesce(p_include_events, true))::text, now())
+  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+  INSERT INTO public.admin_audit_logs (admin_id, admin_role, action, target_type, target_id, reason)
+  VALUES (auth.uid(), public.admin_role_of(auth.uid()), 'ads_popup_frequency', 'app_settings', 'public.ads_popup', trim(justification));
+END;
+$$;
+-- versão anterior (3 parâmetros, de telas antigas ainda abertas): mantém espera inicial e eventos
+CREATE OR REPLACE FUNCTION public.admin_set_ads_popup(p_interval_min INTEGER, p_max_per_session INTEGER, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE atual JSONB;
+BEGIN
+  SELECT value::jsonb INTO atual FROM public.app_settings WHERE key = 'public.ads_popup';
+  PERFORM public.admin_set_ads_popup(p_interval_min, p_max_per_session, justification,
+    coalesce((atual ->> 'initial_delay_s')::int, 10), coalesce((atual ->> 'include_events')::boolean, true));
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT, INTEGER, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT, INTEGER, BOOLEAN) TO authenticated;

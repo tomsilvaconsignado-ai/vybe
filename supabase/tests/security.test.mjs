@@ -900,7 +900,7 @@ await db.query(`DELETE FROM ads WHERE title = 'Anúncio da janela'`);
 
 console.log('\nPublicidade: frequência da janela');
 r = await as(ids.b, `SELECT value FROM app_settings WHERE key = 'public.ads_popup'`);
-JSON.parse(r.rows[0]?.value ?? '{}').interval_min === 3 ? ok('membros leem a frequência da janela (3 min por padrão)') : bad('frequência: ' + JSON.stringify(r.rows));
+JSON.parse(r.rows[0]?.value ?? '{}').interval_min === 2 && JSON.parse(r.rows[0]?.value ?? '{}').include_events === true ? ok('membros leem a configuração da janela (2 min, com eventos, por padrão)') : bad('frequência: ' + JSON.stringify(r.rows));
 await expectFail('membro comum não muda a frequência', ids.b, `SELECT public.admin_set_ads_popup(1, 30, 'quero mais anúncios')`);
 await expectFail('intervalo fora do limite é recusado', ids.admin, `SELECT public.admin_set_ads_popup(0, 5, 'teste de limite')`, [], 'aal2');
 await expectOk('superadmin com MFA ajusta para a cada 2 min, até 10 por acesso', ids.admin, `SELECT public.admin_set_ads_popup(2, 10, 'Mais exposição aos anunciantes')`, [], 'aal2');
@@ -909,6 +909,18 @@ const v = JSON.parse(r.rows[0].value);
 v.interval_min === 2 && v.max_per_session === 10 ? ok('a nova frequência fica gravada') : bad('frequência gravada: ' + r.rows[0].value);
 r = await db.query(`SELECT count(*)::int AS n FROM admin_audit_logs WHERE action = 'ads_popup_frequency'`);
 r.rows[0].n === 1 ? ok('a mudança fica na auditoria') : bad('auditoria: ' + r.rows[0].n);
+const v2 = JSON.parse((await db.query(`SELECT value FROM app_settings WHERE key = 'public.ads_popup'`)).rows[0].value);
+v2.initial_delay_s === 10 && v2.include_events === true ? ok('a função antiga mantém espera inicial e eventos') : bad('opções perdidas: ' + JSON.stringify(v2));
+await expectFail('espera inicial fora do limite é recusada', ids.admin, `SELECT public.admin_set_ads_popup(2, 10, 'teste de limite', 1, true)`, [], 'aal2');
+await expectFail('membro comum não muda a janela (versão nova)', ids.b, `SELECT public.admin_set_ads_popup(1, 30, 'quero mais anúncios', 5, true)`);
+await expectOk('superadmin ajusta espera inicial e desliga eventos', ids.admin, `SELECT public.admin_set_ads_popup(1, 15, 'Campanha de fim de ano', 5, false)`, [], 'aal2');
+const v3 = JSON.parse((await db.query(`SELECT value FROM app_settings WHERE key = 'public.ads_popup'`)).rows[0].value);
+v3.interval_min === 1 && v3.max_per_session === 15 && v3.initial_delay_s === 5 && v3.include_events === false ? ok('a configuração completa fica gravada') : bad('gravado: ' + JSON.stringify(v3));
+
+console.log('\nPublicidade: espaço Descobrir');
+await expectOk('anúncio no espaço "destaques" é aceito', ids.admin, `INSERT INTO ads (advertiser, title, placement) VALUES ('Clube', 'No Descobrir', 'destaques')`, [], 'aal2');
+await expectFail('espaço desconhecido é recusado', ids.admin, `INSERT INTO ads (advertiser, title, placement) VALUES ('Clube', 'Errado', 'popup')`, [], 'aal2');
+await db.query(`DELETE FROM ads WHERE advertiser = 'Clube'`);
 
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

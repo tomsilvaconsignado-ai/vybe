@@ -186,18 +186,29 @@ export async function deleteAd(adId: string) {
   return error?.message ?? null;
 }
 
-// Frequência da janela de publicidade (painel de Publicidade): minutos entre janelas e limite por acesso
-export interface FrequenciaAnuncios { intervalMin: number; maxPorAcesso: number }
+// Janela de publicidade (painel de Publicidade): minutos entre janelas, limite por acesso, espera
+// antes da primeira e se os eventos da agenda também aparecem na janela
+export interface FrequenciaAnuncios { intervalMin: number; maxPorAcesso: number; esperaInicialS: number; incluirEventos: boolean }
+export const FREQUENCIA_PADRAO: FrequenciaAnuncios = { intervalMin: 2, maxPorAcesso: 10, esperaInicialS: 10, incluirEventos: true };
 export async function lerFrequenciaAnuncios(): Promise<FrequenciaAnuncios> {
-  const padrao = { intervalMin: 3, maxPorAcesso: 6 };
+  const padrao = FREQUENCIA_PADRAO;
   const { data } = await supabase.from('app_settings').select('value').eq('key', 'public.ads_popup').maybeSingle();
   try {
     const v = JSON.parse((data as { value?: string } | null)?.value ?? '{}');
-    return { intervalMin: Number(v.interval_min) || padrao.intervalMin, maxPorAcesso: Number.isFinite(Number(v.max_per_session)) ? Number(v.max_per_session) : padrao.maxPorAcesso };
+    const num = (x: unknown, p: number) => (x !== undefined && x !== null && Number.isFinite(Number(x)) ? Number(x) : p);
+    return {
+      intervalMin: Number(v.interval_min) || padrao.intervalMin,
+      maxPorAcesso: num(v.max_per_session, padrao.maxPorAcesso),
+      esperaInicialS: num(v.initial_delay_s, padrao.esperaInicialS),
+      incluirEventos: typeof v.include_events === 'boolean' ? v.include_events : padrao.incluirEventos
+    };
   } catch { return padrao; }
 }
 export async function salvarFrequenciaAnuncios(f: FrequenciaAnuncios, justificativa: string) {
-  const { error } = await supabase.rpc('admin_set_ads_popup', { p_interval_min: f.intervalMin, p_max_per_session: f.maxPorAcesso, justification: justificativa });
+  const { error } = await supabase.rpc('admin_set_ads_popup', {
+    p_interval_min: f.intervalMin, p_max_per_session: f.maxPorAcesso, justification: justificativa,
+    p_initial_delay_s: f.esperaInicialS, p_include_events: f.incluirEventos
+  });
   return error?.message ?? null;
 }
 

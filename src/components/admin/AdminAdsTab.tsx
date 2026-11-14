@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Megaphone, Plus, Pencil, Trash2, Image } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Ad, AdPlacement } from '../../types';
-import { deleteAd, fetchAllAds, lerFrequenciaAnuncios, salvarFrequenciaAnuncios, saveAd } from '../../lib/events';
+import { FREQUENCIA_PADRAO, deleteAd, fetchAllAds, lerFrequenciaAnuncios, salvarFrequenciaAnuncios, saveAd } from '../../lib/events';
 import { uploadPublicMedia } from '../../lib/supabase';
 import { notify, askConfirm, askText } from '../common/Feedback';
 import { Seletor } from '../common/Seletor';
@@ -11,7 +11,8 @@ const PLACEMENT_LABEL: Record<AdPlacement, string> = {
   feed: 'Feed (entre publicações)',
   sidebar: 'Coluna lateral',
   events: 'Página de eventos',
-  carousel: 'Carrossel (coluna lateral, em slides)'
+  carousel: 'Carrossel (coluna lateral, em slides)',
+  destaques: 'Descobrir (entre membros em destaque e populares)'
 };
 
 const EMPTY: Partial<Ad> = { advertiser: '', title: '', body: '', imageUrl: '', linkUrl: '', ctaLabel: 'Saiba mais', placement: 'feed', isActive: true, showInPopup: false };
@@ -25,13 +26,13 @@ const isRunning = (ad: Ad) => ad.isActive && new Date(ad.startsAt) <= new Date()
 export const AdminAdsTab: React.FC = () => {
   const { currentUser, adminRole } = useApp();
   const canEdit = adminRole === 'superadmin';
-  const [freq, setFreq] = useState({ intervalMin: 3, maxPorAcesso: 6 });
+  const [freq, setFreq] = useState(FREQUENCIA_PADRAO);
   useEffect(() => { lerFrequenciaAnuncios().then(setFreq); }, []);
   const salvarFreq = async () => {
-    const j = await askText({ title: 'Salvar frequência da janela', message: 'Informe a justificativa (fica na auditoria).', placeholder: 'Justificativa', confirmLabel: 'Salvar' });
+    const j = await askText({ title: 'Salvar configuração da janela', message: 'Informe a justificativa (fica na auditoria).', placeholder: 'Justificativa', confirmLabel: 'Salvar' });
     if (j === null) return;
     const e = await salvarFrequenciaAnuncios(freq, j);
-    notify(e ?? 'Frequência da janela salva.');
+    notify(e ?? 'Configuração da janela salva.');
   };
   const [ads, setAds] = useState<Ad[]>([]);
   const [editing, setEditing] = useState<Partial<Ad> | null>(null);
@@ -98,7 +99,8 @@ export const AdminAdsTab: React.FC = () => {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-xs text-zinc-400 max-w-xl">
-          Anúncios aparecem como "Patrocinado" no feed (a cada 5 publicações), na coluna lateral e na agenda de eventos.
+          Anúncios aparecem como "Patrocinado" no feed (a cada 5 publicações), na coluna lateral, na agenda de eventos
+          e no Descobrir, entre os membros em destaque e os populares (espaço "Descobrir").
           Sem anúncio ativo, o espaço convida a divulgar eventos.
           Os anúncios do espaço "Carrossel" passam em slides na coluna lateral, abaixo da divulgação ({carouselRunning} no ar agora).
         </p>
@@ -115,8 +117,16 @@ export const AdminAdsTab: React.FC = () => {
       <div className="p-4 rounded-2xl bg-fuchsia-950/20 border border-fuchsia-800/40 flex flex-col sm:flex-row sm:items-end gap-3">
         <div className="flex-1">
           <p className="text-xs font-bold text-white">Janela de publicidade</p>
-          <p className="text-[12px] text-zinc-400">Reveza os anúncios marcados "Na janela". A primeira aparece 20 s após entrar (ou 45 s depois da janela de convite); nunca enquanto a pessoa digita.</p>
+          <p className="text-[12px] text-zinc-400">Reveza os anúncios marcados "Na janela" e, se ligado, os eventos da agenda (os em destaque; sem destaque, os 3 próximos). Nunca enquanto a pessoa digita nem junto da janela de convite. Limite 0 desliga a janela.</p>
+          <label className="mt-2 inline-flex items-center gap-2 text-[12px] text-zinc-300 cursor-pointer">
+            <input type="checkbox" className="accent-fuchsia-500" disabled={!canEdit} checked={freq.incluirEventos} onChange={e => setFreq({ ...freq, incluirEventos: e.target.checked })} />
+            Mostrar eventos na janela
+          </label>
         </div>
+        <label className="text-[12px] text-zinc-400">1ª janela após (segundos)
+          <input type="number" min={5} max={600} disabled={!canEdit} value={freq.esperaInicialS} onChange={e => setFreq({ ...freq, esperaInicialS: Number(e.target.value) })}
+            className="block w-28 mt-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-white" />
+        </label>
         <label className="text-[12px] text-zinc-400">A cada (minutos)
           <input type="number" min={1} max={120} disabled={!canEdit} value={freq.intervalMin} onChange={e => setFreq({ ...freq, intervalMin: Number(e.target.value) })}
             className="block w-28 mt-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-white" />
@@ -171,7 +181,7 @@ export const AdminAdsTab: React.FC = () => {
                     <span className={`px-2 py-0.5 rounded font-bold ${isRunning(ad) ? 'bg-emerald-950 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>
                       {isRunning(ad) ? 'No ar' : ad.isActive ? 'Fora do período' : 'Pausado'}
                     </span>
-                    {ad.showInPopup && <span className="ml-1 px-2 py-0.5 rounded font-bold bg-fuchsia-950 text-fuchsia-300" title="Aparece na janela de publicidade (uma vez por acesso)">Na janela</span>}
+                    {ad.showInPopup && <span className="ml-1 px-2 py-0.5 rounded font-bold bg-fuchsia-950 text-fuchsia-300" title="Aparece na janela de publicidade, revezando durante o uso">Na janela</span>}
                   </td>
                   {canEdit && (
                     <td className="p-3">
@@ -238,7 +248,7 @@ export const AdminAdsTab: React.FC = () => {
               <input type="checkbox" className="mt-0.5 accent-fuchsia-500" checked={!!editing.showInPopup} onChange={e => set('showInPopup', e.target.checked)} />
               <span className="text-[12px] text-zinc-300">
                 <strong className="block text-xs text-white">Exibir na janela de publicidade</strong>
-                Abre uma vez a cada acesso de cada pessoa, revezando entre os anúncios marcados (precisa de imagem).
+                Abre durante o uso, revezando entre os anúncios marcados e os eventos, na frequência configurada acima (precisa de imagem).
               </span>
             </label>
             {editing.placement === 'carousel' && (

@@ -407,7 +407,7 @@ export interface VybeEvent {
   myStatus?: EventRsvpStatus;
 }
 
-export type AdPlacement = 'feed' | 'sidebar' | 'events' | 'carousel';
+export type AdPlacement = 'feed' | 'sidebar' | 'events' | 'carousel' | 'destaques';
 
 export interface Ad {
   id: string;
@@ -421,7 +421,7 @@ export interface Ad {
   startsAt: string;
   endsAt?: string;
   isActive: boolean;
-  /** a administração escolheu este anúncio para a janela de publicidade (uma vez por acesso) */
+  /** a administração escolheu este anúncio para a janela de publicidade (revezando durante o uso) */
   showInPopup: boolean;
   impressions: number;
   clicks: number;
