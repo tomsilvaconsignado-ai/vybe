@@ -153,8 +153,8 @@ export const NotificationsView: React.FC = () => {
             }}
             className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start gap-3.5 ${
               !n.read 
-                ? 'bg-[#160e28] border-purple-600/50 shadow-md shadow-purple-950/30' 
-                : 'bg-[#120d20] border-purple-900/20 hover:border-purple-800/40'
+                ? 'bg-painel-alto border-purple-600/50 shadow-md shadow-purple-950/30' 
+                : 'bg-painel border-purple-900/20 hover:border-purple-800/40'
             }`}
           >
             {/* Avatar or Icon */}
@@ -213,7 +213,7 @@ export const NotificationsView: React.FC = () => {
         ))}
 
         {notifications.length === 0 && (
-          <div className="p-8 text-center text-xs text-zinc-400 bg-[#120d20] rounded-3xl border border-purple-900/20">
+          <div className="p-8 text-center text-xs text-zinc-400 bg-painel rounded-3xl border border-purple-900/20">
             Nenhuma notificação recente.
           </div>
         )}

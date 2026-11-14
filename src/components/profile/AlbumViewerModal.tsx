@@ -59,7 +59,7 @@ export const AlbumViewerModal: React.FC<AlbumViewerModalProps> = ({ album, isOwn
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-      <div className="max-w-3xl w-full max-h-[90vh] bg-[#130d22] border border-purple-800/40 rounded-3xl p-5 sm:p-6 shadow-2xl relative flex flex-col">
+      <div className="max-w-3xl w-full max-h-[90vh] bg-painel border border-purple-800/40 rounded-3xl p-5 sm:p-6 shadow-2xl relative flex flex-col">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-full hover:bg-zinc-800 cursor-pointer"

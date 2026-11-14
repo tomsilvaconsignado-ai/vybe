@@ -47,7 +47,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, compact, onOpen }) 
       tabIndex={0}
       onClick={() => onOpen?.(event)}
       onKeyDown={e => { if (e.key === 'Enter') onOpen?.(event); }}
-      className={`bg-[#120d20] border rounded-3xl overflow-hidden shadow-xl cursor-pointer transition-transform active:scale-[0.99] ${event.isFeatured ? 'border-amber-500/50' : 'border-purple-900/30 hover:border-purple-700/50'}`}
+      className={`bg-painel border rounded-3xl overflow-hidden shadow-xl cursor-pointer transition-transform active:scale-[0.99] ${event.isFeatured ? 'border-amber-500/50' : 'border-purple-900/30 hover:border-purple-700/50'}`}
     >
       <div className="relative w-full aspect-[16/9] bg-zinc-950">
         <img src={event.coverUrl} alt="" loading="lazy" className="w-full h-full object-cover" />

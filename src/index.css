@@ -4,11 +4,37 @@
 @theme {
   --text-xs: 0.8125rem;
   --text-xs--line-height: calc(1.125 / 0.8125);
+
+  /* Fonte hospedada no próprio site (sem Google Fonts: abre mais rápido e não envia o IP do visitante) */
+  --font-sans: 'Plus Jakarta Sans Variable', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Fundos da marca: 4 tons com nome no lugar dos códigos escritos à mão */
+  --color-fundo: #08060c;
+  --color-painel-baixo: #0d0a17;
+  --color-painel: #120d20;
+  --color-painel-alto: #1a1229;
+
+  /* Cinza secundário mais claro: contraste ~5,6:1 sobre o painel (antes 3,9:1, abaixo do mínimo de 4,5:1) */
+  --color-zinc-500: #8b8b95;
+
+  /* Tons "purple" no matiz magenta da nova logo. Mesma claridade e intensidade do roxo de antes,
+     então a hierarquia visual não muda; só a cor se alinha à marca (magenta, rosa e laranja). */
+  --color-purple-50: oklch(97.7% 0.014 322);
+  --color-purple-100: oklch(94.6% 0.033 322);
+  --color-purple-200: oklch(90.2% 0.063 322);
+  --color-purple-300: oklch(82.7% 0.119 322);
+  --color-purple-400: oklch(71.4% 0.203 322);
+  --color-purple-500: oklch(62.7% 0.265 322);
+  --color-purple-600: oklch(55.8% 0.26 322);
+  --color-purple-700: oklch(49.6% 0.235 322);
+  --color-purple-800: oklch(43.8% 0.195 322);
+  --color-purple-900: oklch(38.1% 0.155 322);
+  --color-purple-950: oklch(29.1% 0.125 322);
 }
 
 :root {
   color-scheme: dark;
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: var(--font-sans);
 }
 
 body {
@@ -23,6 +49,12 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Títulos: espaçamento mais justo e quebra de linha equilibrada */
+:where(h1, h2, h3) {
+  letter-spacing: -0.015em;
+  text-wrap: balance;
 }
 
 /* Seleção de texto e foco de teclado com a cor da marca */
@@ -183,7 +215,7 @@ a,
   to { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 @keyframes logo-glow {
-  0%, 100% { filter: drop-shadow(0 0 18px rgba(168, 85, 247, 0.25)); }
+  0%, 100% { filter: drop-shadow(0 0 18px rgba(217, 70, 239, 0.25)); }
   50% { filter: drop-shadow(0 0 32px rgba(244, 114, 182, 0.4)); }
 }
 .intro-logo {
@@ -237,7 +269,7 @@ video {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0d0a14;
+  background: var(--color-fundo);
 }
 ::-webkit-scrollbar-thumb {
   background: #2b213a;
@@ -258,15 +290,15 @@ video {
 .glass-dropdown {
   background: rgba(22, 16, 33, 0.92);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(217, 70, 239, 0.2);
 }
 
 .glow-coral {
-  box-shadow: 0 0 25px -5px rgba(244, 63, 94, 0.35);
+  box-shadow: 0 0 25px -5px rgba(236, 72, 153, 0.35);
 }
 
 .glow-purple {
-  box-shadow: 0 0 25px -5px rgba(168, 85, 247, 0.35);
+  box-shadow: 0 0 25px -5px rgba(217, 70, 239, 0.35);
 }
 
 

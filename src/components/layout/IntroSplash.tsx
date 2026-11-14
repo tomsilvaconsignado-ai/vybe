@@ -31,7 +31,7 @@ export const IntroSplash: React.FC = () => {
     <div
       role="presentation"
       onClick={() => setVisible(false)}
-      className={`fixed inset-0 z-[10000] bg-[#0b031b] flex items-center justify-center transition-opacity duration-300 ${leaving ? 'opacity-0' : 'opacity-100'}`}
+      className={`fixed inset-0 z-[10000] bg-painel-baixo flex items-center justify-center transition-opacity duration-300 ${leaving ? 'opacity-0' : 'opacity-100'}`}
     >
       <img src={logoFullUrl} alt="Vybelog" className="intro-logo w-56 sm:w-72 select-none drop-shadow-[0_0_40px_rgba(208,23,189,0.35)]" draggable={false} />
     </div>

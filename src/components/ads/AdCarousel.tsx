@@ -54,7 +54,7 @@ export const AdCarousel: React.FC = () => {
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setPaused(false); }}
-      className="rounded-3xl border border-purple-900/30 bg-[#120d20] overflow-hidden"
+      className="rounded-3xl border border-purple-900/30 bg-painel overflow-hidden"
     >
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-zinc-500 min-w-0">

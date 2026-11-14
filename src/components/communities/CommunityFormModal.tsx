@@ -59,7 +59,7 @@ export const CommunityFormModal: React.FC<{ community?: Community; aoFechar: () 
 
   return (
     <div className="modal-overlay fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={aoFechar}>
-      <form onSubmit={salvar} onClick={e => e.stopPropagation()} className="w-full max-w-lg my-auto bg-[#130d22] border border-purple-800/40 rounded-3xl shadow-2xl overflow-hidden">
+      <form onSubmit={salvar} onClick={e => e.stopPropagation()} className="w-full max-w-lg my-auto bg-painel border border-purple-800/40 rounded-3xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
           <h2 className="text-base font-bold text-white">{community ? 'Editar comunidade' : 'Criar comunidade'}</h2>
           <button type="button" onClick={aoFechar} className="p-1.5 rounded-full text-zinc-400 hover:text-white cursor-pointer" aria-label="Fechar"><X className="w-5 h-5" /></button>

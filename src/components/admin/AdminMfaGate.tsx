@@ -60,7 +60,7 @@ export const AdminMfaGate: React.FC = () => {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-[#110a1c] border border-amber-600/40 rounded-3xl p-8 shadow-2xl text-center space-y-4">
+      <div className="max-w-md w-full bg-painel border border-amber-600/40 rounded-3xl p-8 shadow-2xl text-center space-y-4">
         <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
           <KeyRound className="w-8 h-8" />
         </div>

@@ -73,7 +73,7 @@ export const FeedView: React.FC = () => {
       </div>
 
       {/* Quick Create Post Bar */}
-      <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-4 mb-6 shadow-xl flex items-center gap-3">
+      <div className="bg-painel border border-purple-900/30 rounded-3xl p-4 mb-6 shadow-xl flex items-center gap-3">
         <img
           src={currentUser.avatarUrl}
           alt={currentUser.displayName}
@@ -136,7 +136,7 @@ export const FeedView: React.FC = () => {
         ))}
 
         {filteredPosts.length === 0 && !feedLoadingMore && (
-          <div className="p-8 text-center bg-[#130d22] border border-purple-900/30 rounded-3xl">
+          <div className="p-8 text-center bg-painel border border-purple-900/30 rounded-3xl">
             <HeartHandshake className="w-10 h-10 text-purple-400 mx-auto mb-2 opacity-60" />
             <h4 className="text-sm font-bold text-white mb-1">
               {filterType === 'following' ? 'Quem você segue ainda não publicou' : filterType === 'verified' ? 'Nenhuma publicação de perfis verificados' : 'Nenhuma publicação encontrada'}

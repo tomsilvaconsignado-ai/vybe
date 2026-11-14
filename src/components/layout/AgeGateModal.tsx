@@ -10,7 +10,7 @@ export const AgeGateModal: React.FC = () => {
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden">
+      <div className="max-w-md w-full bg-painel border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl text-center relative overflow-hidden">
         {/* Glow accent */}
         <div className="absolute -top-16 -left-16 w-32 h-32 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-16 -right-16 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -46,7 +46,7 @@ export const AgeGateModal: React.FC = () => {
         <div className="flex flex-col gap-3">
           <button
             onClick={confirmAge}
-            className="w-full py-3.5 px-6 rounded-2xl font-bold text-white bg-gradient-to-r from-purple-600 via-fuchsia-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-lg shadow-purple-900/40 transition-all cursor-pointer"
+            className="w-full py-3.5 px-6 rounded-2xl font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-lg shadow-purple-900/40 transition-all cursor-pointer"
           >
             Tenho 18 anos ou mais — Entrar
           </button>

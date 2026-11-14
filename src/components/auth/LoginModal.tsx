@@ -67,7 +67,7 @@ export const LoginModal: React.FC = () => {
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+      <div className="max-w-md w-full bg-painel border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative">
         <button
           onClick={() => setAuthModalType(null)}
           className="absolute top-5 right-5 text-zinc-400 hover:text-white p-1 rounded-full hover:bg-zinc-800 transition-colors cursor-pointer"

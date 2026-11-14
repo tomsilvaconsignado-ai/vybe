@@ -261,10 +261,10 @@ export const MessagesView: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto md:py-6 md:px-4">
-      <div className="bg-[#120d20] md:border border-purple-900/30 md:rounded-3xl overflow-hidden shadow-2xl h-[calc(100dvh-9.6rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:h-[78vh] flex flex-col md:flex-row">
+      <div className="bg-painel md:border border-purple-900/30 md:rounded-3xl overflow-hidden shadow-2xl h-[calc(100dvh-9.6rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:h-[78vh] flex flex-col md:flex-row">
 
         {/* Lista de conversas */}
-        <div className={`w-full md:w-80 shrink-0 md:border-r border-purple-900/30 flex flex-col bg-[#0e0918] min-h-0 ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
+        <div className={`w-full md:w-80 shrink-0 md:border-r border-purple-900/30 flex flex-col bg-painel-baixo min-h-0 ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
           <div className="px-4 pt-4 pb-3 space-y-3">
             <h2 className="text-2xl font-extrabold text-white">Mensagens</h2>
             <label className="flex items-center gap-2 px-3.5 h-10 rounded-full bg-zinc-900/80 border border-purple-900/30 focus-within:border-purple-500">
@@ -330,11 +330,11 @@ export const MessagesView: React.FC = () => {
         {/* Conversa aberta: no celular vira tela cheia por cima de tudo */}
         {activeConv && otherParticipant ? emTelaCheia(
           <div
-            className={`flex-1 min-w-0 min-h-0 flex flex-col bg-[#120d20] ${selectedConversationId ? 'flex' : 'hidden md:flex'} ${telaCheia ? 'fixed inset-x-0 top-0 z-[45]' : ''}`}
+            className={`flex-1 min-w-0 min-h-0 flex flex-col bg-painel ${selectedConversationId ? 'flex' : 'hidden md:flex'} ${telaCheia ? 'fixed inset-x-0 top-0 z-[45]' : ''}`}
             style={telaCheia ? { height: alturaVisivel ? `${alturaVisivel}px` : '100dvh' } : undefined}
           >
             {/* Cabeçalho */}
-            <div className="shrink-0 px-2 sm:px-4 py-2.5 border-b border-purple-900/30 flex items-center gap-1 bg-[#150e24]" style={telaCheia ? { paddingTop: 'max(0.625rem, env(safe-area-inset-top))' } : undefined}>
+            <div className="shrink-0 px-2 sm:px-4 py-2.5 border-b border-purple-900/30 flex items-center gap-1 bg-painel-alto" style={telaCheia ? { paddingTop: 'max(0.625rem, env(safe-area-inset-top))' } : undefined}>
               <button
                 type="button"
                 onClick={() => setSelectedConversationId(null)}
@@ -468,7 +468,7 @@ export const MessagesView: React.FC = () => {
                       ) : (
                         <div className={`px-3 pt-2 pb-1.5 text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
                           isMine
-                            ? `bg-gradient-to-br from-purple-600 to-fuchsia-600 text-white rounded-2xl ${fimDoBloco ? 'rounded-br-md' : ''}`
+                            ? `bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 text-white rounded-2xl ${fimDoBloco ? 'rounded-br-md' : ''}`
                             : `bg-zinc-800/90 text-zinc-100 rounded-2xl ${fimDoBloco ? 'rounded-bl-md' : ''}`
                         } ${desfoque}`}>
                           {msg.mediaUrl && <MidiaDaMensagem url={msg.mediaUrl} temTexto={!!msg.content} aoAmpliar={setViewerUrl} />}
@@ -498,7 +498,7 @@ export const MessagesView: React.FC = () => {
 
             {/* Anexo pronto para enviar */}
             {attachment && (
-              <div className="shrink-0 px-3 pt-3 border-t border-purple-900/30 bg-[#150e24] flex items-center gap-3">
+              <div className="shrink-0 px-3 pt-3 border-t border-purple-900/30 bg-painel-alto flex items-center gap-3">
                 <div className="relative shrink-0">
                   {attachment.file.type.startsWith('video/')
                     ? <video src={attachment.preview} muted playsInline className="h-16 w-16 rounded-xl object-cover border border-purple-700/50" />
@@ -521,7 +521,7 @@ export const MessagesView: React.FC = () => {
             {/* Barra de digitação: [anexo] [campo + emoji] [microfone | enviar] */}
             <form
               onSubmit={handleSendMessage}
-              className={`shrink-0 relative px-2 sm:px-3 pt-2 bg-[#150e24] flex items-end gap-2 ${attachment ? '' : 'border-t border-purple-900/30'}`}
+              className={`shrink-0 relative px-2 sm:px-3 pt-2 bg-painel-alto flex items-end gap-2 ${attachment ? '' : 'border-t border-purple-900/30'}`}
               style={{ paddingBottom: telaCheia ? 'max(0.5rem, env(safe-area-inset-bottom))' : '0.5rem' }}
             >
               {showEmoji && <EmojiPicker onPick={insertEmoji} onClose={() => setShowEmoji(false)} />}
@@ -586,7 +586,7 @@ export const MessagesView: React.FC = () => {
             </form>
           </div>
         ) : (
-          <div className="flex-1 hidden md:flex flex-col items-center justify-center p-8 text-center bg-[#120d20]">
+          <div className="flex-1 hidden md:flex flex-col items-center justify-center p-8 text-center bg-painel">
             <MessageSquare className="w-12 h-12 text-purple-400 opacity-50 mb-3" />
             <h3 className="text-base font-bold text-white mb-1">Selecione uma conversa</h3>
             <p className="text-xs text-zinc-400 max-w-sm">

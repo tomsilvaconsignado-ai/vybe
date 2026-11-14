@@ -197,7 +197,7 @@ export const Seletor: React.FC<Props> = ({ value, defaultValue, onChange, childr
         celular ? (
           <div className="seletor-fundo fixed inset-0 z-[10001] bg-black/60 backdrop-blur-sm flex items-end" onClick={() => { setAberto(false); gatilho.current?.focus(); }}>
             <div
-              className="seletor-gaveta w-full max-h-[75vh] flex flex-col bg-[#1a1229] border-t border-purple-700/40 rounded-t-3xl shadow-2xl shadow-purple-950/60"
+              className="seletor-gaveta w-full max-h-[75vh] flex flex-col bg-painel-alto border-t border-purple-700/40 rounded-t-3xl shadow-2xl shadow-purple-950/60"
               style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
               onClick={e => e.stopPropagation()}
             >
@@ -210,7 +210,7 @@ export const Seletor: React.FC<Props> = ({ value, defaultValue, onChange, childr
           <div className="fixed inset-0 z-[10001]" onMouseDown={() => setAberto(false)}>
             {pos && (
               <div
-                className="seletor-menu fixed overflow-y-auto overscroll-contain bg-[#1a1229]/95 backdrop-blur-xl border border-purple-700/40 rounded-2xl shadow-2xl shadow-purple-950/60"
+                className="seletor-menu fixed overflow-y-auto overscroll-contain bg-painel-alto/95 backdrop-blur-xl border border-purple-700/40 rounded-2xl shadow-2xl shadow-purple-950/60"
                 style={{ left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxH }}
                 onMouseDown={e => e.stopPropagation()}
               >

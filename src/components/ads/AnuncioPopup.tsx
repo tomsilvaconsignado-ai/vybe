@@ -66,7 +66,7 @@ export const AnuncioPopup: React.FC = () => {
   return (
     <div className="modal-overlay fixed inset-0 z-[55] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4" onClick={fechar}
       role="dialog" aria-modal="true" aria-label={`Publicidade: ${anuncio.title}`}>
-      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-purple-700/40 bg-[#120b1f] shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-purple-700/40 bg-painel shadow-2xl" onClick={e => e.stopPropagation()}>
         <button type="button" onClick={fechar} aria-label="Fechar publicidade"
           className="absolute top-3 right-3 z-10 w-10 h-10 rounded-full bg-black/70 hover:bg-black text-white flex items-center justify-center border border-white/20 cursor-pointer">
           <X className="w-5 h-5" />

@@ -123,7 +123,7 @@ export const AdminConversationsTab: React.FC = () => {
           >
             <div className="flex -space-x-3 shrink-0">
               {c.participants.slice(0, 2).map(p => (
-                <img key={p.id} src={p.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-[#120d20]" />
+                <img key={p.id} src={p.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover border-2 border-painel" />
               ))}
             </div>
             <div className="flex-1 min-w-0">
@@ -145,7 +145,7 @@ export const AdminConversationsTab: React.FC = () => {
 
       {open && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-2xl bg-[#120d20] border border-purple-800/40 rounded-3xl shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="w-full max-w-2xl bg-painel border border-purple-800/40 rounded-3xl shadow-2xl flex flex-col max-h-[90vh]">
             <div className="flex items-center gap-3 p-4 border-b border-purple-900/30">
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-white truncate">{names(open)}</h3>

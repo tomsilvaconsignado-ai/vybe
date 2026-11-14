@@ -29,7 +29,7 @@ export const FundadoresView: React.FC = () => {
       </section>
 
       {f && (
-        <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30">
+        <section className="p-5 rounded-3xl bg-painel border border-purple-900/30">
           {f.status === 'active' ? (
             <>
               <div className="flex justify-between items-baseline">
@@ -46,7 +46,7 @@ export const FundadoresView: React.FC = () => {
       )}
 
       {f && f.benefits.length > 0 && (
-        <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30">
+        <section className="p-5 rounded-3xl bg-painel border border-purple-900/30">
           <h2 className="text-sm font-bold text-white mb-3">O que o Membro Fundador recebe</h2>
           <ul className="space-y-2">
             {f.benefits.map((b, i) => <li key={i} className="flex items-start gap-2 text-sm text-zinc-300"><CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />{b}</li>)}

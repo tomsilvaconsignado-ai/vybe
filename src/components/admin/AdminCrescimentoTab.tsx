@@ -16,7 +16,7 @@ const campo = 'w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 te
 const pedirJustificativa = (titulo: string) => askText({ title: titulo, message: 'Informe a justificativa (fica registrada na auditoria).', placeholder: 'Justificativa', confirmLabel: 'Salvar' });
 
 const Tile: React.FC<{ titulo: string; valor: React.ReactNode; detalhe?: string }> = ({ titulo, valor, detalhe }) => (
-  <div className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
+  <div className="p-4 rounded-2xl bg-painel border border-purple-900/30">
     <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">{titulo}</span>
     <span className="block text-2xl font-black text-white tabular-nums">{valor}</span>
     {detalhe && <span className="block text-[12px] text-zinc-500 mt-0.5">{detalhe}</span>}
@@ -30,7 +30,7 @@ const GraficoCadastros: React.FC<{ serie: EstatisticasCrescimento['signups_serie
   const dia = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   const atual = foco !== null ? serie[foco] : null;
   return (
-    <div className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
+    <div className="p-4 rounded-2xl bg-painel border border-purple-900/30">
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
         <h3 className="text-xs font-bold text-zinc-200">Novos cadastros por dia (30 dias)</h3>
         <span className="text-[12px] text-zinc-400 tabular-nums" aria-live="polite">
@@ -118,7 +118,7 @@ export const AdminCrescimentoTab: React.FC = () => {
       {d.signups_series?.length > 0 && <GraficoCadastros serie={d.signups_series} />}
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <section className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
+        <section className="p-4 rounded-2xl bg-painel border border-purple-900/30">
           <h3 className="text-xs font-bold text-zinc-200 mb-3 flex items-center gap-1.5"><TrendingUp className="w-4 h-4 text-emerald-300" /> Quem mais indica</h3>
           {d.top_referrers.length === 0 ? <p className="text-xs text-zinc-500">Sem indicações ainda.</p> : (
             <table className="w-full text-xs"><thead><tr className="text-zinc-500 text-left"><th className="font-semibold pb-1">Pessoa</th><th className="font-semibold pb-1 text-right">Válidas</th><th className="font-semibold pb-1 text-right">Total</th></tr></thead>
@@ -127,7 +127,7 @@ export const AdminCrescimentoTab: React.FC = () => {
                   <td className="py-1.5 text-right tabular-nums text-white font-bold">{r.valid}</td><td className="py-1.5 text-right tabular-nums text-zinc-400">{r.total}</td></tr>))}</tbody></table>
           )}
         </section>
-        <section className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
+        <section className="p-4 rounded-2xl bg-painel border border-purple-900/30">
           <h3 className="text-xs font-bold text-zinc-200 mb-3 flex items-center gap-1.5"><Megaphone className="w-4 h-4 text-fuchsia-300" /> Embaixadores</h3>
           {d.ambassador_list.length === 0 ? <p className="text-xs text-zinc-500">Nenhum embaixador nomeado.</p> : (
             <table className="w-full text-xs"><thead><tr className="text-zinc-500 text-left"><th className="font-semibold pb-1">Embaixador</th><th className="font-semibold pb-1 text-right">Cadastros</th><th className="font-semibold pb-1 text-right">Válidos</th><th className="font-semibold pb-1 text-right">Ativos</th></tr></thead>
@@ -139,7 +139,7 @@ export const AdminCrescimentoTab: React.FC = () => {
       </div>
 
       {/* Campanhas */}
-      <section className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30 space-y-3">
+      <section className="p-4 rounded-2xl bg-painel border border-purple-900/30 space-y-3">
         <h3 className="text-xs font-bold text-zinc-200 flex items-center gap-1.5"><Gift className="w-4 h-4 text-rose-300" /> Campanhas</h3>
         {d.campaigns.length === 0 ? <p className="text-xs text-zinc-500">Nenhuma campanha criada.</p> : (
           <ul className="space-y-2">{d.campaigns.map(c => (
@@ -166,7 +166,7 @@ export const AdminCrescimentoTab: React.FC = () => {
       {podeConfigurar && (
         <div className="grid lg:grid-cols-2 gap-4">
           {/* Fundadores */}
-          <section className="p-4 rounded-2xl bg-[#120d20] border border-amber-900/30 space-y-2">
+          <section className="p-4 rounded-2xl bg-painel border border-amber-900/30 space-y-2">
             <h3 className="text-xs font-bold text-zinc-200 flex items-center gap-1.5"><Crown className="w-4 h-4 text-amber-300" /> Campanha Fundadores</h3>
             <div className="grid grid-cols-2 gap-2">
               <Seletor value={fund.status} onChange={e => setFund({ ...fund, status: e.target.value })} aria-label="Situação da campanha" className={campo}>
@@ -180,7 +180,7 @@ export const AdminCrescimentoTab: React.FC = () => {
           </section>
 
           {/* Mensagem e regras */}
-          <section className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30 space-y-2">
+          <section className="p-4 rounded-2xl bg-painel border border-purple-900/30 space-y-2">
             <h3 className="text-xs font-bold text-zinc-200">Mensagem do WhatsApp e regras antifraude</h3>
             <textarea rows={4} className={campo} value={mensagem} onChange={e => setMensagem(e.target.value)} aria-label="Mensagem padrão de convite" />
             <p className="text-[10px] text-zinc-500">Use {'{link}'} onde o link do convite deve aparecer.</p>
@@ -195,7 +195,7 @@ export const AdminCrescimentoTab: React.FC = () => {
           </section>
 
           {/* Recompensas */}
-          <section className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30 space-y-2 lg:col-span-2">
+          <section className="p-4 rounded-2xl bg-painel border border-purple-900/30 space-y-2 lg:col-span-2">
             <h3 className="text-xs font-bold text-zinc-200 flex items-center gap-1.5"><Award className="w-4 h-4 text-amber-300" /> Recompensas por indicações válidas</h3>
             <ul className="space-y-1.5">
               {d.rewards.map(r => (
@@ -223,7 +223,7 @@ export const AdminCrescimentoTab: React.FC = () => {
           </section>
 
           {/* Embaixadores e benefícios */}
-          <section className="p-4 rounded-2xl bg-[#120d20] border border-fuchsia-900/30 space-y-2 lg:col-span-2">
+          <section className="p-4 rounded-2xl bg-painel border border-fuchsia-900/30 space-y-2 lg:col-span-2">
             <h3 className="text-xs font-bold text-zinc-200 flex items-center gap-1.5"><Megaphone className="w-4 h-4 text-fuchsia-300" /> Embaixadores e benefícios</h3>
             <Seletor value={pessoa} onChange={e => setPessoa(e.target.value)} aria-label="Escolha a pessoa" className={campo}>
               <option value="">Escolha a pessoa…</option>
@@ -249,7 +249,7 @@ export const AdminCrescimentoTab: React.FC = () => {
       )}
 
       {/* Indicações recentes */}
-      <section className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
+      <section className="p-4 rounded-2xl bg-painel border border-purple-900/30">
         <h3 className="text-xs font-bold text-zinc-200 mb-3">Indicações recentes</h3>
         {d.recent_referrals.length === 0 ? <p className="text-xs text-zinc-500">Nenhuma indicação ainda.</p> : (
           <ul className="divide-y divide-zinc-800/60">{d.recent_referrals.map(r => (

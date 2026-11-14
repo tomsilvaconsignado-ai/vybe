@@ -56,7 +56,7 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-64 shrink-0 hidden lg:flex flex-col justify-between py-6 px-4 bg-[#0a0712] border-r border-purple-950/40 min-h-[calc(100vh-65px)] sticky top-[65px]">
+    <aside className="w-64 shrink-0 hidden lg:flex flex-col justify-between py-6 px-4 bg-fundo border-r border-purple-950/40 min-h-[calc(100vh-65px)] sticky top-[65px]">
       
       {/* Navigation Links */}
       <div className="space-y-1">

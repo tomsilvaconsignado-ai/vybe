@@ -16,7 +16,7 @@ const STATUS = {
 } as const;
 
 const Numero: React.FC<{ rotulo: string; valor: number; icone: React.ReactNode; destaque?: boolean }> = ({ rotulo, valor, icone, destaque }) => (
-  <div className={`p-3.5 rounded-2xl border ${destaque ? 'bg-gradient-to-br from-purple-900/40 to-rose-900/30 border-purple-600/40' : 'bg-[#120d20] border-purple-900/30'}`}>
+  <div className={`p-3.5 rounded-2xl border ${destaque ? 'bg-gradient-to-br from-purple-900/40 to-rose-900/30 border-purple-600/40' : 'bg-painel border-purple-900/30'}`}>
     <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">{icone}{rotulo}</div>
     <p className="text-2xl font-black text-white tabular-nums mt-1">{valor.toLocaleString('pt-BR')}</p>
   </div>
@@ -53,7 +53,7 @@ export const ConvideView: React.FC = () => {
       </header>
 
       {/* Link e compartilhamento */}
-      <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30 space-y-3">
+      <section className="p-5 rounded-3xl bg-painel border border-purple-900/30 space-y-3">
         <h2 className="text-sm font-bold text-white flex items-center gap-2"><UserPlus className="w-4 h-4 text-fuchsia-400" /> Seu link de convite</h2>
         {info && info.campaigns.length > 0 && (
           <label className="block">
@@ -76,7 +76,7 @@ export const ConvideView: React.FC = () => {
       </section>
 
       {/* Progresso e recompensas */}
-      <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30 space-y-4">
+      <section className="p-5 rounded-3xl bg-painel border border-purple-900/30 space-y-4">
         <h2 className="text-sm font-bold text-white flex items-center gap-2"><Award className="w-4 h-4 text-amber-300" /> Recompensas</h2>
         {proxima ? (
           <div>
@@ -133,7 +133,7 @@ export const ConvideView: React.FC = () => {
       )}
 
       {/* Convidados */}
-      <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30">
+      <section className="p-5 rounded-3xl bg-painel border border-purple-900/30">
         <h2 className="text-sm font-bold text-white mb-3">Quem entrou pelo seu convite</h2>
         {painel.referrals.length === 0 ? (
           <p className="text-xs text-zinc-500">Ainda ninguém. Que tal mandar o link para aquele casal que combina com o Vybelog?</p>
@@ -154,7 +154,7 @@ export const ConvideView: React.FC = () => {
       </section>
 
       {/* Ranking */}
-      <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30">
+      <section className="p-5 rounded-3xl bg-painel border border-purple-900/30">
         <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
           <h2 className="text-sm font-bold text-white flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-300" /> Ranking de indicações</h2>
           <div className="flex bg-zinc-900 rounded-full p-0.5 text-[12px] font-bold">
@@ -186,7 +186,7 @@ export const ConvideView: React.FC = () => {
 
       {/* Histórico */}
       {painel.grants.length > 0 && (
-        <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30">
+        <section className="p-5 rounded-3xl bg-painel border border-purple-900/30">
           <h2 className="text-sm font-bold text-white mb-3">Histórico de benefícios</h2>
           <ul className="space-y-2">
             {painel.grants.map((g, i) => (

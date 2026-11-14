@@ -34,7 +34,7 @@ export const MobileNav: React.FC = () => {
   ];
 
   return (
-    <nav aria-label="Navegação principal" className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#09070f]/95 backdrop-blur-xl border-t border-purple-900/30 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+    <nav aria-label="Navegação principal" className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-fundo/95 backdrop-blur-xl border-t border-purple-900/30 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-around">
         {tabs.map(tab => {
           const Icon = tab.icon;
@@ -56,7 +56,7 @@ export const MobileNav: React.FC = () => {
               <div className="relative">
                 <Icon className="w-6 h-6" strokeWidth={isActive ? 2.4 : 1.8} />
                 {!!tab.badge && tab.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-bold px-1 rounded-full border-2 border-[#09070f] flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-bold px-1 rounded-full border-2 border-fundo flex items-center justify-center">
                     {tab.badge > 99 ? '99+' : tab.badge}
                   </span>
                 )}

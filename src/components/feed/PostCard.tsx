@@ -132,7 +132,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
 
   return (
     <article
-      className="bg-[#120d20] border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl mb-6"
+      className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl mb-6"
       aria-label={`Publicação de @${post.user.username}`}
       aria-posinset={position}
       aria-setsize={total}
@@ -181,7 +181,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
             <MoreHorizontal className="w-5 h-5" />
           </button>
           {showMenu && (
-            <div className="absolute right-0 top-11 w-52 bg-[#19112a] border border-purple-800/50 rounded-2xl shadow-2xl py-1.5 z-20" role="menu">
+            <div className="absolute right-0 top-11 w-52 bg-painel-alto border border-purple-800/50 rounded-2xl shadow-2xl py-1.5 z-20" role="menu">
               {isOwner ? (
                 <button
                   type="button"

@@ -56,7 +56,7 @@ export const Header: React.FC = () => {
   const unreadMessages = Array.isArray(conversations) ? conversations.reduce((acc, c) => acc + (c?.unreadCount || 0), 0) : 0;
 
   return (
-    <header className="sticky top-0 z-40 bg-[#09070f]/90 backdrop-blur-xl border-b border-purple-900/20 px-4 lg:px-8 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-all">
+    <header className="sticky top-0 z-40 bg-fundo/90 backdrop-blur-xl border-b border-purple-900/20 px-4 lg:px-8 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         
         {/* Brand Logo */}
@@ -157,7 +157,7 @@ export const Header: React.FC = () => {
               >
                 <MessageCircle className="w-5 h-5" />
                 {unreadMessages > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-rose-500 to-pink-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center border-2 border-[#09070f] animate-pulse">
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center border-2 border-fundo animate-pulse">
                     {unreadMessages}
                   </span>
                 )}
@@ -178,7 +178,7 @@ export const Header: React.FC = () => {
               >
                 <Bell className="w-5 h-5" />
                 {unreadNotifications > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center border-2 border-[#09070f]">
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 text-[10px] font-bold text-white rounded-full flex items-center justify-center border-2 border-fundo">
                     {unreadNotifications}
                   </span>
                 )}
@@ -215,7 +215,7 @@ export const Header: React.FC = () => {
 
                 {/* Account Switcher & Context Dropdown */}
                 {showAccountDropdown && (
-                  <div className="absolute right-0 top-12 w-64 bg-[#140d24] border border-purple-800/50 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in">
+                  <div className="absolute right-0 top-12 w-64 bg-painel-alto border border-purple-800/50 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in">
                     
                     <div className="p-2.5 border-b border-purple-900/40 mb-1">
                       <p className="text-xs font-bold text-white truncate">{currentUser.displayName}</p>

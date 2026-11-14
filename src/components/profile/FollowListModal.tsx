@@ -103,7 +103,7 @@ export const FollowListModal: React.FC<FollowListModalProps> = ({ profileId, use
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md bg-[#130d22] border border-purple-800/40 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[80vh]"
+        className="w-full max-w-md bg-painel border border-purple-800/40 rounded-3xl shadow-2xl flex flex-col max-h-[85vh] sm:max-h-[80vh]"
         onClick={e => e.stopPropagation()}
       >
         <div className="relative px-5 pt-5 pb-0 text-center">

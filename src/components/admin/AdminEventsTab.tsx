@@ -99,7 +99,7 @@ export const AdminEventsTab: React.FC = () => {
 
       {loading && <p className="text-xs text-zinc-400">Carregando eventos...</p>}
       {!loading && visible.length === 0 && (
-        <div className="p-10 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl text-xs text-zinc-400">
+        <div className="p-10 text-center bg-painel border border-purple-900/30 rounded-3xl text-xs text-zinc-400">
           <CalendarHeart className="w-10 h-10 mx-auto mb-2 text-purple-400 opacity-60" />
           Nenhum evento {STATUS_LABEL[filter].toLowerCase()}.
         </div>
@@ -107,7 +107,7 @@ export const AdminEventsTab: React.FC = () => {
 
       <div className="space-y-4">
         {visible.map(ev => (
-          <article key={ev.id} className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-4 flex flex-col md:flex-row gap-4">
+          <article key={ev.id} className="bg-painel border border-purple-900/30 rounded-3xl p-4 flex flex-col md:flex-row gap-4">
             <AdminThumb src={ev.coverUrl} label={`Arte do evento ${ev.title}`} className="w-full md:w-48 aspect-[16/9] md:aspect-square object-cover rounded-2xl shrink-0" />
             <div className="flex-1 min-w-0 space-y-2 text-xs">
               <div className="flex flex-wrap items-center gap-2">

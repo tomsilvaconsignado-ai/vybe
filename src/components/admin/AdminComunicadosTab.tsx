@@ -51,7 +51,7 @@ export const AdminComunicadosTab: React.FC = () => {
 
   return (
     <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6">
-      <section className="p-5 rounded-3xl bg-[#120d20] border border-amber-900/30 h-fit">
+      <section className="p-5 rounded-3xl bg-painel border border-amber-900/30 h-fit">
         <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-1"><Megaphone className="w-4 h-4 text-amber-300" /> Novo comunicado</h2>
         <p className="text-[12px] text-zinc-400 mb-4">Chega como push (para quem ativou) e fica na central de notificações. Fica registrado na auditoria.</p>
         {!podeEnviar ? (
@@ -109,7 +109,7 @@ export const AdminComunicadosTab: React.FC = () => {
         )}
       </section>
 
-      <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30">
+      <section className="p-5 rounded-3xl bg-painel border border-purple-900/30">
         <h2 className="text-sm font-bold text-white mb-3">Histórico</h2>
         {historico.length === 0 ? <p className="text-xs text-zinc-500 py-6 text-center">Nenhum comunicado ainda.</p> : (
           <ul className="space-y-2.5">

@@ -178,7 +178,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
       {/* Capa e cabeçalho */}
       <div className="relative h-40 sm:h-52 md:rounded-t-3xl overflow-hidden bg-gradient-to-br from-purple-900 via-fuchsia-900 to-rose-900">
         {c.coverUrl && <img src={c.coverUrl} alt="" className="w-full h-full object-cover" />}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0d0a17] via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-painel-baixo via-black/20 to-transparent" />
         <button type="button" onClick={aoVoltar} className="absolute top-3 left-3 p-2 rounded-full bg-black/50 backdrop-blur text-white cursor-pointer" aria-label="Voltar para comunidades">
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -188,7 +188,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
       </div>
       <div className="px-4 -mt-10 relative">
         <div className="flex items-end gap-3">
-          <div className="w-16 h-16 rounded-2xl bg-[#120d20] border border-purple-700/50 flex items-center justify-center text-3xl shadow-xl">{c.iconUrl}</div>
+          <div className="w-16 h-16 rounded-2xl bg-painel border border-purple-700/50 flex items-center justify-center text-3xl shadow-xl">{c.iconUrl}</div>
           <div className="flex-1 min-w-0 pb-1">
             <h1 className="text-xl font-extrabold text-white leading-tight">{c.name}</h1>
             <p className="text-[12px] text-zinc-400 flex items-center gap-1.5 flex-wrap">
@@ -248,7 +248,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
         {aba === 'posts' && (
           <div className="space-y-4">
             {c.isJoined && (
-              <form onSubmit={publicar} className="mx-4 sm:mx-0 p-3 rounded-2xl bg-[#120d20] border border-purple-900/30 space-y-2">
+              <form onSubmit={publicar} className="mx-4 sm:mx-0 p-3 rounded-2xl bg-painel border border-purple-900/30 space-y-2">
                 <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2} maxLength={5000} placeholder={`Escreva para ${c.name}…`}
                   className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 resize-none focus:outline-none" aria-label="Nova publicação na comunidade" />
                 {foto && (
@@ -269,7 +269,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
               </form>
             )}
             {!podeVer ? (
-              <div className="mx-4 sm:mx-0 p-8 text-center rounded-3xl bg-[#120d20] border border-purple-900/30">
+              <div className="mx-4 sm:mx-0 p-8 text-center rounded-3xl bg-painel border border-purple-900/30">
                 <Lock className="w-10 h-10 text-purple-400 mx-auto mb-2 opacity-70" />
                 <p className="text-sm font-bold text-white">Publicações só para membros</p>
                 <p className="text-xs text-zinc-400 mt-1">{c.requested ? 'Seu pedido está com a moderação.' : 'Peça para entrar e aguarde a aprovação.'}</p>
@@ -325,7 +325,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
         )}
 
         {aba === 'membros' && (
-          <ul className="mx-4 sm:mx-0 rounded-2xl bg-[#120d20] border border-purple-900/30 divide-y divide-purple-950/40">
+          <ul className="mx-4 sm:mx-0 rounded-2xl bg-painel border border-purple-900/30 divide-y divide-purple-950/40">
             {membros.map(m => (
               <Pessoa key={m.userId} p={m}>
                 {m.role === 'admin' && <Crown className="w-4 h-4 text-amber-300" aria-label="Administrador" />}
@@ -355,7 +355,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
         {aba === 'pedidos' && (
           <div className="mx-4 sm:mx-0 space-y-4">
             {pedidos.length === 0 ? <p className="py-8 text-center text-xs text-zinc-500">Nenhum pedido pendente.</p> : (
-              <ul className="rounded-2xl bg-[#120d20] border border-purple-900/30 divide-y divide-purple-950/40">
+              <ul className="rounded-2xl bg-painel border border-purple-900/30 divide-y divide-purple-950/40">
                 {pedidos.map(p => (
                   <Pessoa key={p.userId} p={p}>
                     <button type="button" onClick={() => responder(p, true)} className={`${botao} bg-purple-600 text-white`}>Aprovar</button>
@@ -367,7 +367,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
             {banidos.length > 0 && (
               <div>
                 <h2 className="text-[12px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Banidos</h2>
-                <ul className="rounded-2xl bg-[#120d20] border border-purple-900/30 divide-y divide-purple-950/40">
+                <ul className="rounded-2xl bg-painel border border-purple-900/30 divide-y divide-purple-950/40">
                   {banidos.map(b => (
                     <Pessoa key={b.userId} p={b}>
                       <button type="button" onClick={async () => { const e = await unbanCommunityMember(c.id, b.userId); if (e) notify(e); carregarGestao(); }} className={`${botao} bg-zinc-900 text-zinc-300`}>Desfazer</button>

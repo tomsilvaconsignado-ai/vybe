@@ -216,7 +216,7 @@ export const AdminPortal: React.FC = () => {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             
             {/* 1. Total Usuários */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-purple-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
               <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
                 Total de Usuários
               </span>
@@ -227,7 +227,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 2. Contas Ativas */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-emerald-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-emerald-900/30">
               <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block mb-1">
                 Contas Ativas
               </span>
@@ -238,7 +238,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 3. Contas Restritas / Advertidas */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-amber-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-amber-900/30">
               <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">
                 Contas Restritas
               </span>
@@ -249,7 +249,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 4. Contas Suspensas */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-rose-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-rose-900/30">
               <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider block mb-1">
                 Contas Suspensas
               </span>
@@ -260,7 +260,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 5. Perfis Verificados */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-purple-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
               <span className="text-[10px] text-purple-300 font-bold uppercase tracking-wider block mb-1">
                 Perfis Verificados (+18)
               </span>
@@ -271,7 +271,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 6. Quantidade de Publicações */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-purple-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
               <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
                 Publicações no Feed
               </span>
@@ -282,7 +282,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 7. Fotos e Vídeos Publicados */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-purple-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
               <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
                 Mídias Registradas
               </span>
@@ -293,7 +293,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 8. Conteúdos Pendentes de Moderação */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-amber-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-amber-900/30">
               <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">
                 Mídias Sinalizadas
               </span>
@@ -304,7 +304,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 9. Denúncias Recebidas */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-amber-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-amber-900/30">
               <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mb-1">
                 Denúncias Pendentes
               </span>
@@ -315,7 +315,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 10. Denúncias de Mensagens */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-purple-900/30">
+            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30">
               <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
                 Denúncias de Mensagens
               </span>
@@ -326,7 +326,7 @@ export const AdminPortal: React.FC = () => {
             </div>
 
             {/* 11. Histórico de Ações de Moderação */}
-            <div className="p-4 rounded-3xl bg-[#120d20] border border-purple-900/30 col-span-2">
+            <div className="p-4 rounded-3xl bg-painel border border-purple-900/30 col-span-2">
               <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">
                 Registros de Auditoria Imutáveis
               </span>
@@ -364,7 +364,7 @@ export const AdminPortal: React.FC = () => {
           )}
 
           {/* Recent Audit Action Feed */}
-          <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl">
+          <div className="p-6 bg-painel border border-purple-900/30 rounded-3xl shadow-xl">
             <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
               <FileText className="w-4 h-4 text-amber-400" />
               <span>Últimas Ações Registradas em Log de Auditoria</span>
@@ -417,7 +417,7 @@ export const AdminPortal: React.FC = () => {
                 className={`p-4 rounded-3xl border transition-all cursor-pointer ${
                   selectedReport?.id === rep.id
                     ? 'bg-purple-950/70 border-amber-500 shadow-xl'
-                    : 'bg-[#120d20] border-purple-900/30 hover:border-purple-700/50'
+                    : 'bg-painel border-purple-900/30 hover:border-purple-700/50'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -463,7 +463,7 @@ export const AdminPortal: React.FC = () => {
           </div>
 
           {/* Report Detail & Investigation Decision Panel */}
-          <div className="lg:col-span-5 bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4 h-fit">
+          <div className="lg:col-span-5 bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4 h-fit">
             {selectedReport ? (
               <>
                 <div className="border-b border-purple-900/30 pb-3">
@@ -539,7 +539,7 @@ export const AdminPortal: React.FC = () => {
                           }
                           adminResolveReport(selectedReport.id, 'resolved', resolutionNote.trim()).then(ok => ok && setResolutionNote(''));
                         }}
-                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 text-white text-xs font-bold cursor-pointer transition-all shadow"
+                        className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 text-white text-xs font-bold cursor-pointer transition-all shadow"
                       >
                         Aplicar Medida & Resolver
                       </button>
@@ -572,7 +572,7 @@ export const AdminPortal: React.FC = () => {
 
       {/* ==================== TAB 3: USER MANAGEMENT ==================== */}
       {activeAdminTab === 'users' && (
-        <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -680,7 +680,7 @@ export const AdminPortal: React.FC = () => {
 
       {/* ==================== TAB 4: MEDIA & VIDEO MODERATION ==================== */}
       {activeAdminTab === 'media' && (
-        <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
@@ -800,7 +800,7 @@ export const AdminPortal: React.FC = () => {
       {activeAdminTab === 'conversations' && <AdminConversationsTab />}
 
       {activeAdminTab === 'audit' && (
-        <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-white">Livro de Auditoria Imutável (Audit Trail)</h3>

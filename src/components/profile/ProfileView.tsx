@@ -175,7 +175,7 @@ export const ProfileView: React.FC = () => {
       )}
 
       {/* Main Profile Header Card */}
-      <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl overflow-hidden shadow-2xl mb-6">
+      <div className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-2xl mb-6">
         
         {/* Cover Photo */}
         <div className="h-48 sm:h-64 relative bg-zinc-950 overflow-hidden">
@@ -184,7 +184,7 @@ export const ProfileView: React.FC = () => {
             alt="Capa do Perfil"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#120d20] via-transparent to-black/30" />
+          <div className="absolute inset-0 bg-gradient-to-t from-painel via-transparent to-black/30" />
 
           {/* Badges on top of cover */}
           <div className="absolute top-4 right-4 flex items-center gap-2">
@@ -238,11 +238,11 @@ export const ProfileView: React.FC = () => {
               <img
                 src={profile.avatarUrl}
                 alt={profile.displayName}
-                className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 border-[#120d20] shadow-2xl"
+                className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 border-painel shadow-2xl"
               />
               {!isSelf && <OnlineDot userId={profile.id} size="lg" className="top-2 right-2 sm:top-3 sm:right-3" />}
               {profile.isVerified && (
-                <span className="absolute bottom-1 right-1 w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-[#120d20] shadow">
+                <span className="absolute bottom-1 right-1 w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-painel shadow">
                   ✓
                 </span>
               )}
@@ -541,7 +541,7 @@ export const ProfileView: React.FC = () => {
 
           {albumsLoading && <p className="text-xs text-zinc-400 text-center py-6">Carregando álbuns...</p>}
           {!albumsLoading && albums.length === 0 && (
-            <div className="p-8 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
+            <div className="p-8 text-center bg-painel border border-purple-900/30 rounded-3xl">
               <Lock className="w-10 h-10 text-purple-400 mx-auto mb-2 opacity-60" />
               <p className="text-xs text-zinc-400">
                 {isSelf ? 'Você ainda não tem álbuns. Crie um cofre privado e escolha quem pode ver.' : 'Este perfil ainda não tem álbuns visíveis para você.'}
@@ -557,7 +557,7 @@ export const ProfileView: React.FC = () => {
               const hasRequested = alb.pendingRequestUserIds.includes(currentUser.id);
 
               return (
-                <div key={alb.id} className="bg-[#120d20] border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl flex flex-col justify-between">
+                <div key={alb.id} className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl flex flex-col justify-between">
                   
                   {/* Album Cover preview */}
                   <div className="relative aspect-[16/10] bg-zinc-950 overflow-hidden">

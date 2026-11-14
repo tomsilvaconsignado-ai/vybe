@@ -2,6 +2,8 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { reloadForNewVersion } from './lib/chunkReload';
+import '@fontsource-variable/plus-jakarta-sans/wght.css';
+import '@fontsource-variable/plus-jakarta-sans/wght-italic.css';
 import './index.css';
 import { conviteDoEndereco, guardarConvite } from './lib/convite';
 import { registrarVisita } from './lib/crescimento';

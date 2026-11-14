@@ -66,7 +66,7 @@ export const PushInvite: React.FC = () => {
 
   return (
     <div role="dialog" aria-label="Ativar notificações" className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-6 lg:left-auto lg:right-6 lg:w-[380px] z-40 animate-[vybe-sobe_.35s_ease-out]">
-      <div className="relative rounded-3xl border border-white/10 bg-[#120c1f]/95 backdrop-blur-xl p-5 shadow-2xl shadow-black/60">
+      <div className="relative rounded-3xl border border-white/10 bg-painel/95 backdrop-blur-xl p-5 shadow-2xl shadow-black/60">
         <button type="button" onClick={() => fechar({ pausadoAte: Date.now() + PAUSA_DIAS * 86_400_000 })} aria-label="Fechar"
           className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 cursor-pointer">
           <X className="w-4 h-4" />
@@ -94,7 +94,7 @@ export const PushInvite: React.FC = () => {
         <div className="mt-4 flex items-center gap-2">
           {situacao !== 'ios_instalar' && (
             <button type="button" disabled={ocupado} onClick={ativar}
-              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:brightness-110 active:scale-[.98] transition disabled:opacity-60 cursor-pointer">
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:brightness-110 active:scale-[.98] transition disabled:opacity-60 cursor-pointer">
               {ocupado ? 'Ativando…' : 'Ativar notificações'}
             </button>
           )}

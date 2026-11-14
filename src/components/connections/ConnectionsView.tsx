@@ -90,7 +90,7 @@ export const ConnectionsView: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="p-12 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
+        <div className="p-12 text-center bg-painel border border-purple-900/30 rounded-3xl">
           <HeartHandshake className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
           <h3 className="text-base font-bold text-white mb-1">{emptyMessages[tab].title}</h3>
           <p className="text-xs text-zinc-400 max-w-sm mx-auto">{emptyMessages[tab].text}</p>

@@ -38,7 +38,7 @@ export const CommunitiesView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-fuchsia-600 via-pink-600 to-orange-600 p-[1.5px] flex items-center justify-center">
-              <div className="w-full h-full bg-[#0d0a17] rounded-[7px] flex items-center justify-center">
+              <div className="w-full h-full bg-painel-baixo rounded-[7px] flex items-center justify-center">
                 <Hash className="w-4 h-4 text-purple-400" />
               </div>
             </div>
@@ -89,7 +89,7 @@ export const CommunitiesView: React.FC = () => {
       </div>
 
       {filtered.length === 0 && (
-        <div className="p-10 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
+        <div className="p-10 text-center bg-painel border border-purple-900/30 rounded-3xl">
           <Hash className="w-10 h-10 text-purple-400 mx-auto mb-2 opacity-60" />
           <p className="text-sm font-bold text-white">{activeCategory === 'mine' ? 'Você ainda não participa de comunidades' : 'Nenhuma comunidade encontrada'}</p>
           <p className="text-xs text-zinc-400 mt-1">Que tal criar uma?</p>
@@ -102,12 +102,12 @@ export const CommunitiesView: React.FC = () => {
           return (
             <div
               key={comm.id}
-              className="bg-[#120d20] border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl hover:border-purple-600/50 transition-all flex flex-col justify-between"
+              className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl hover:border-purple-600/50 transition-all flex flex-col justify-between"
             >
               <button type="button" onClick={() => setSelectedCommunityId(comm.id)} className="text-left cursor-pointer" aria-label={`Abrir ${comm.name}`}>
                 <div className="h-28 relative bg-gradient-to-br from-purple-900 via-fuchsia-900 to-rose-900 overflow-hidden">
                   {comm.coverUrl && <img src={comm.coverUrl} alt="" loading="lazy" className="w-full h-full object-cover" />}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#120d20] via-black/30 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-painel via-black/30 to-transparent" />
                   <div className="absolute top-3 left-3 w-10 h-10 rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-xl shadow">
                     {comm.iconUrl}
                   </div>

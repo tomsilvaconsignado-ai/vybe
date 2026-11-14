@@ -8,7 +8,7 @@ export const OnlineDot: React.FC<{ userId: string; size?: 'sm' | 'md' | 'lg'; cl
   const dimension = { sm: 'w-2.5 h-2.5 border-[1.5px]', md: 'w-3.5 h-3.5 border-2', lg: 'w-5 h-5 border-[3px]' }[size];
   return (
     <span
-      className={`absolute rounded-full bg-emerald-500 border-[#120d20] ${dimension} ${className}`}
+      className={`absolute rounded-full bg-emerald-500 border-painel ${dimension} ${className}`}
       title="Online agora"
       aria-label="Online agora"
     />

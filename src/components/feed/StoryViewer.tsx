@@ -188,7 +188,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({ groups, startGroupInde
 
         {/* Lista de quem visualizou */}
         {viewers && (
-          <div className="absolute inset-x-0 bottom-0 z-30 max-h-[60%] bg-[#130d22] rounded-t-3xl p-4 overflow-y-auto">
+          <div className="absolute inset-x-0 bottom-0 z-30 max-h-[60%] bg-painel rounded-t-3xl p-4 overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-bold text-white">{viewers.length} visualizaç{viewers.length === 1 ? 'ão' : 'ões'}</h4>
               <button type="button" onClick={() => { setViewers(null); setPaused(false); }} className="p-1 text-zinc-400 cursor-pointer" aria-label="Fechar lista">

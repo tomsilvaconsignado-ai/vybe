@@ -45,7 +45,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
 
   if (viewMode === 'list') {
     return (
-      <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-4 sm:p-5 shadow-xl hover:border-purple-700/50 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-painel border border-purple-900/30 rounded-3xl p-4 sm:p-5 shadow-xl hover:border-purple-700/50 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         
         <div 
           onClick={() => setSelectedProfileId(profile.id)}
@@ -153,7 +153,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
 
   // Grid Card representation
   return (
-    <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl hover:border-purple-600/50 transition-all flex flex-col group">
+    <div className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl hover:border-purple-600/50 transition-all flex flex-col group">
       
       {/* Cover / Avatar Banner */}
       <div 
@@ -165,7 +165,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
           alt={profile.displayName}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#120d20] via-black/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-painel via-black/20 to-transparent" />
         {isOnline(profile.id) && (
           <span className="absolute top-12 left-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur text-[10px] font-bold text-emerald-300 flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Online

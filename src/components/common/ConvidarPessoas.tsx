@@ -45,7 +45,7 @@ export const ConvidarPessoas: React.FC<Props> = ({ titulo, ajuda, excluir = [], 
 
   return (
     <div className="modal-overlay fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={aoFechar} role="dialog" aria-modal="true" aria-label={titulo}>
-      <div className="w-full sm:max-w-md max-h-[85vh] flex flex-col bg-[#130d22] border border-purple-800/40 rounded-t-3xl sm:rounded-3xl shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="w-full sm:max-w-md max-h-[85vh] flex flex-col bg-painel border border-purple-800/40 rounded-t-3xl sm:rounded-3xl shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-2"><UserPlus className="w-4 h-4 text-fuchsia-400" /> {titulo}</h2>

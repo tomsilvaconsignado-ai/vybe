@@ -92,7 +92,7 @@ const DialogCard: React.FC<{ dialog: Dialog }> = ({ dialog }) => {
         role="alertdialog"
         aria-modal="true"
         onClick={e => e.stopPropagation()}
-        className="feedback-dialog w-full max-w-[300px] bg-[#1a1229] border border-purple-800/40 rounded-3xl overflow-hidden shadow-2xl shadow-purple-950/60 text-center"
+        className="feedback-dialog w-full max-w-[300px] bg-painel-alto border border-purple-800/40 rounded-3xl overflow-hidden shadow-2xl shadow-purple-950/60 text-center"
       >
         <div className="px-6 pt-6 pb-5">
           {options.title && <h3 className="text-base font-bold text-white mb-1.5">{options.title}</h3>}
@@ -159,7 +159,7 @@ export const FeedbackHost: React.FC = () => {
           return (
             <div
               key={t.id}
-              className="feedback-toast pointer-events-auto max-w-sm w-full sm:w-auto flex items-start gap-2.5 px-4 py-3 rounded-2xl bg-[#1a1229]/95 backdrop-blur-xl border border-purple-800/40 shadow-2xl shadow-black/50 text-sm text-zinc-100"
+              className="feedback-toast pointer-events-auto max-w-sm w-full sm:w-auto flex items-start gap-2.5 px-4 py-3 rounded-2xl bg-painel-alto/95 backdrop-blur-xl border border-purple-800/40 shadow-2xl shadow-black/50 text-sm text-zinc-100"
             >
               <Icon className={`w-5 h-5 shrink-0 ${TOAST_COLOR[t.kind]}`} />
               <span className="leading-snug">{t.message}</span>

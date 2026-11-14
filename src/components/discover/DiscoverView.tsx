@@ -241,7 +241,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
       </div>
 
       {/* Quick Search & Pill Filters */}
-      <div className="bg-[#120d20] border border-purple-900/30 rounded-2xl p-3 mb-6 shadow-lg flex flex-col md:flex-row items-center gap-3">
+      <div className="bg-painel border border-purple-900/30 rounded-2xl p-3 mb-6 shadow-lg flex flex-col md:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
@@ -280,7 +280,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
       </div>
 
       {/* Perto de mim: busca por distância real */}
-      <div className="bg-[#120d20] border border-purple-900/30 rounded-2xl p-3.5 mb-6 shadow-lg">
+      <div className="bg-painel border border-purple-900/30 rounded-2xl p-3.5 mb-6 shadow-lg">
         {currentUser.locationPrivacy === 'hidden' ? (
           <p className="text-xs text-zinc-400 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-zinc-500 shrink-0" />
@@ -366,7 +366,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
 
       {/* Advanced Filters Expandable Drawer */}
       {showFiltersModal && (
-        <div className="bg-[#160f27] border border-purple-800/40 rounded-3xl p-5 mb-6 shadow-2xl animate-in fade-in space-y-4">
+        <div className="bg-painel-alto border border-purple-800/40 rounded-3xl p-5 mb-6 shadow-2xl animate-in fade-in space-y-4">
           <div className="flex items-center justify-between border-b border-purple-900/30 pb-3">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-fuchsia-400" />
@@ -429,7 +429,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
           ))}
         </div>
       ) : (
-        <div className="p-12 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
+        <div className="p-12 text-center bg-painel border border-purple-900/30 rounded-3xl">
           <Users className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
           {nearbyActive && nearbyLoading ? (
             <p className="text-xs text-zinc-400">Procurando pessoas perto de você...</p>

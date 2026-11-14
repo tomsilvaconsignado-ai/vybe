@@ -49,8 +49,8 @@ export class ErrorBoundary extends Component<Props, State> {
     // Falha ao baixar uma tela: quase sempre é versão nova publicada ou conexão instável
     if (this.state.hasError && isChunkLoadError(this.state.error)) {
       return (
-        <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col items-center justify-center p-6 text-center select-none">
-          <div className="w-full max-w-sm bg-[#120f1a] border border-purple-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl">
+        <div className="min-h-dvh bg-fundo text-zinc-100 flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="w-full max-w-sm bg-painel border border-purple-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl">
             <img src={logoUrl} alt="" className="w-16 h-16 object-contain mx-auto mb-4" />
             <h1 className="text-lg font-bold text-white mb-2">O Vybelog foi atualizado</h1>
             <p className="text-sm text-zinc-400 mb-6">
@@ -68,12 +68,12 @@ export class ErrorBoundary extends Component<Props, State> {
     }
     if (this.state.hasError) {
       return (
-        <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col items-center justify-center p-6 text-center select-none">
-          <div className="w-full max-w-md bg-[#120f1a] border border-rose-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-rose-950/40">
+        <div className="min-h-dvh bg-fundo text-zinc-100 flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="w-full max-w-md bg-painel border border-rose-500/30 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-rose-950/40">
             {/* Brand Logo & Icon */}
             <div className="flex items-center justify-center gap-2 mb-4">
               <img src={logoUrl} alt="" className="w-10 h-10 object-contain" />
-              <span className="text-2xl font-black tracking-widest bg-gradient-to-r from-rose-500 via-fuchsia-500 to-violet-400 bg-clip-text text-transparent">
+              <span className="text-2xl font-black tracking-widest bg-gradient-to-r from-fuchsia-400 via-pink-400 to-orange-400 bg-clip-text text-transparent">
                 Vybelog
               </span>
               <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
@@ -101,7 +101,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={this.handleReload}
-                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-fuchsia-600 hover:from-rose-500 hover:to-fuchsia-500 text-white font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 transition cursor-pointer"
+                className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:to-fuchsia-500 text-white font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 transition cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
                 Recarregar Página

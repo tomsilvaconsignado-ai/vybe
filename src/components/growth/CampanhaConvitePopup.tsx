@@ -52,7 +52,7 @@ export const CampanhaConvitePopup: React.FC = () => {
 
   return (
     <div className="modal-overlay fixed inset-0 z-[55] bg-black/75 backdrop-blur-sm flex items-center justify-center p-4" onClick={fechar} role="dialog" aria-modal="true" aria-labelledby="titulo-campanha">
-      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-fuchsia-500/30 bg-[#120b1f] shadow-2xl shadow-fuchsia-950/50" onClick={e => e.stopPropagation()}>
+      <div className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-fuchsia-500/30 bg-painel shadow-2xl shadow-fuchsia-950/50" onClick={e => e.stopPropagation()}>
         {/* faixa com o degradê da marca */}
         <div className="relative px-6 pt-7 pb-6 text-center bg-gradient-to-br from-fuchsia-700/40 via-pink-600/25 to-orange-500/30">
           <div className="absolute -top-16 -right-16 w-44 h-44 rounded-full bg-orange-500/25 blur-3xl pointer-events-none" />

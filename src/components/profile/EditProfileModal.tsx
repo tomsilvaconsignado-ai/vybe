@@ -311,9 +311,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="max-w-lg w-full bg-[#130d22] border border-purple-800/40 rounded-3xl shadow-2xl relative my-auto">
+      <div className="max-w-lg w-full bg-painel border border-purple-800/40 rounded-3xl shadow-2xl relative my-auto">
         {/* Cabeçalho fixo com as abas */}
-        <div className="sticky top-0 z-10 bg-[#130d22]/95 backdrop-blur rounded-t-3xl px-6 sm:px-8 pt-6 pb-3 border-b border-purple-950/60">
+        <div className="sticky top-0 z-10 bg-painel/95 backdrop-blur rounded-t-3xl px-6 sm:px-8 pt-6 pb-3 border-b border-purple-950/60">
           <button
             onClick={onClose}
             className="absolute top-5 right-5 text-zinc-400 hover:text-white p-1 rounded-full hover:bg-zinc-800 transition-colors cursor-pointer"
@@ -759,7 +759,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
         </div>
 
         {/* Rodapé fixo: salva "Meus dados" e "Preferências" de uma vez (a aba Conta tem botões próprios) */}
-        <div className={`${tab === 'account' ? 'hidden' : 'flex'} sticky bottom-0 bg-[#130d22]/95 backdrop-blur rounded-b-3xl px-6 sm:px-8 py-4 border-t border-purple-950/60 items-center justify-end gap-3`}>
+        <div className={`${tab === 'account' ? 'hidden' : 'flex'} sticky bottom-0 bg-painel/95 backdrop-blur rounded-b-3xl px-6 sm:px-8 py-4 border-t border-purple-950/60 items-center justify-end gap-3`}>
           <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white cursor-pointer">
             Cancelar
           </button>

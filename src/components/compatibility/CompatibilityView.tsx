@@ -27,8 +27,8 @@ export const CompatibilityView: React.FC = () => {
       {/* Title & Methodology Banner */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-fuchsia-600 to-rose-600 p-[1.5px] flex items-center justify-center">
-            <div className="w-full h-full bg-[#0d0a17] rounded-[7px] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-fuchsia-600 via-pink-600 to-orange-600 p-[1.5px] flex items-center justify-center">
+            <div className="w-full h-full bg-painel-baixo rounded-[7px] flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-fuchsia-400" />
             </div>
           </div>
@@ -42,7 +42,7 @@ export const CompatibilityView: React.FC = () => {
       </div>
 
       {/* Target Profile Picker Carousel */}
-      <div className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-4 mb-6 shadow-xl">
+      <div className="bg-painel border border-purple-900/30 rounded-3xl p-4 mb-6 shadow-xl">
         <label className="block text-xs font-bold text-zinc-300 mb-3">
           Selecione um perfil para analisar a sintonia mútua:
         </label>
@@ -82,7 +82,7 @@ export const CompatibilityView: React.FC = () => {
         <div className="grid lg:grid-cols-12 gap-6">
           
           {/* Left Column: Overall Score & Radar Meter */}
-          <div className="lg:col-span-5 bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
+          <div className="lg:col-span-5 bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
             <div className="text-center">
               
               {/* Score circle */}
@@ -158,7 +158,7 @@ export const CompatibilityView: React.FC = () => {
           </div>
 
           {/* Right Column: Breakdown Factors */}
-          <div className="lg:col-span-7 bg-[#120d20] border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-6">
+          <div className="lg:col-span-7 bg-painel border border-purple-900/30 rounded-3xl p-6 shadow-xl space-y-6">
             
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />

@@ -28,7 +28,7 @@ export const ResetPasswordModal: React.FC = () => {
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl">
+      <div className="max-w-md w-full bg-painel border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl">
         <div className="flex flex-col items-center text-center mb-6">
           <img src={logoUrl} alt="Vybelog" draggable={false} className="brand-logo w-24 h-24 object-contain mb-3 select-none" />
           <h3 className="text-xl font-bold text-white">Definir nova senha</h3>

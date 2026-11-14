@@ -22,15 +22,15 @@ export const StoriesBar: React.FC = () => {
             <button
               type="button"
               onClick={() => (myGroupIndex >= 0 ? setOpenGroupIndex(myGroupIndex) : setComposerOpen(true))}
-              className={`w-16 h-16 rounded-full p-[2.5px] cursor-pointer ${myGroupIndex >= 0 ? 'bg-gradient-to-tr from-purple-600 via-fuchsia-600 to-orange-500' : 'bg-zinc-800'}`}
+              className={`w-16 h-16 rounded-full p-[2.5px] cursor-pointer ${myGroupIndex >= 0 ? 'bg-gradient-to-tr from-fuchsia-600 via-pink-600 to-orange-600' : 'bg-zinc-800'}`}
               aria-label={myGroupIndex >= 0 ? 'Ver seu story' : 'Publicar story'}
             >
-              <img src={currentUser.avatarUrl} alt="" className="w-full h-full object-cover rounded-full border-2 border-[#09070f]" />
+              <img src={currentUser.avatarUrl} alt="" className="w-full h-full object-cover rounded-full border-2 border-fundo" />
             </button>
             <button
               type="button"
               onClick={() => setComposerOpen(true)}
-              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-rose-500 border-2 border-[#09070f] flex items-center justify-center text-white cursor-pointer"
+              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-rose-500 border-2 border-fundo flex items-center justify-center text-white cursor-pointer"
               aria-label="Publicar novo story"
             >
               <Plus className="w-4 h-4" />
@@ -50,7 +50,7 @@ export const StoriesBar: React.FC = () => {
             <span className={`w-16 h-16 rounded-full p-[2.5px] transition-all ${
               g.hasUnseen ? 'bg-gradient-to-tr from-fuchsia-500 via-purple-600 to-rose-500' : 'bg-zinc-700'
             }`}>
-              <img src={g.avatarUrl} alt="" className="w-full h-full object-cover rounded-full border-2 border-[#09070f] group-hover:scale-105 transition-transform" />
+              <img src={g.avatarUrl} alt="" className="w-full h-full object-cover rounded-full border-2 border-fundo group-hover:scale-105 transition-transform" />
             </span>
             <span className={`text-[12px] font-medium truncate max-w-[68px] ${g.hasUnseen ? 'text-zinc-200' : 'text-zinc-500'}`}>
               {g.username}

@@ -80,8 +80,8 @@ export const SettingsView: React.FC = () => {
 
         {/* Atalho: notificações push e preferências */}
         <button type="button" onClick={() => setActiveTab('notification-prefs')}
-          className="w-full p-5 bg-[#120d20] border border-purple-900/30 rounded-3xl flex items-center gap-4 text-left hover:border-fuchsia-700/50 transition-colors cursor-pointer">
-          <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-fuchsia-600 to-rose-600 flex items-center justify-center shrink-0"><Bell className="w-5 h-5 text-white" /></span>
+          className="w-full p-5 bg-painel border border-purple-900/30 rounded-3xl flex items-center gap-4 text-left hover:border-fuchsia-700/50 transition-colors cursor-pointer">
+          <span className="w-11 h-11 rounded-2xl bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 flex items-center justify-center shrink-0"><Bell className="w-5 h-5 text-white" /></span>
           <span className="min-w-0">
             <span className="block text-sm font-bold text-white">Preferências de notificações</span>
             <span className="block text-xs text-zinc-400">Push no celular e no computador, silenciar, horário silencioso e aparelhos conectados.</span>
@@ -89,7 +89,7 @@ export const SettingsView: React.FC = () => {
         </button>
 
         {/* Section 1: Location & Discretion */}
-        <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
+        <div className="p-6 bg-painel border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <MapPin className="w-4 h-4 text-rose-400" />
             <span>Privacidade da sua Localização</span>
@@ -164,7 +164,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Status online (ligado por padrão; recíproco) */}
-        <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
+        <div className="p-6 bg-painel border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
             <span>Status Online</span>
@@ -197,7 +197,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Section 2: Notifications & Discreet Screen Mode */}
-        <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
+        <div className="p-6 bg-painel border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <EyeOff className="w-4 h-4 text-fuchsia-400" />
             <span>Modo Discreto de Visualização</span>
@@ -224,7 +224,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Section 3: Blocked profiles */}
-        <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
+        <div className="p-6 bg-painel border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <Ban className="w-4 h-4 text-rose-400" />
             <span>Perfis Bloqueados</span>
@@ -260,7 +260,7 @@ export const SettingsView: React.FC = () => {
         </div>
 
         {/* Section 4: LGPD & Rights of the Data Subject */}
-        <div className="p-6 bg-[#120d20] border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
+        <div className="p-6 bg-painel border border-purple-900/30 rounded-3xl shadow-xl space-y-4">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>Direitos do Titular de Dados (LGPD)</span>

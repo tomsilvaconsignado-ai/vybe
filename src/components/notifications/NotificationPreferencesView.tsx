@@ -28,13 +28,13 @@ const SILENCIAR = [{ h: 1, r: '1 hora' }, { h: 8, r: '8 horas' }, { h: 24, r: '2
 
 const Interruptor: React.FC<{ ligado: boolean; aoMudar: (v: boolean) => void; rotulo: string; desabilitado?: boolean }> = ({ ligado, aoMudar, rotulo, desabilitado }) => (
   <button type="button" role="switch" aria-checked={ligado} aria-label={rotulo} disabled={desabilitado} onClick={() => aoMudar(!ligado)}
-    className={`relative w-11 h-6 shrink-0 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${ligado ? 'bg-gradient-to-r from-fuchsia-600 to-rose-600' : 'bg-zinc-700'}`}>
+    className={`relative w-11 h-6 shrink-0 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${ligado ? 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600' : 'bg-zinc-700'}`}>
     <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${ligado ? 'translate-x-5' : ''}`} />
   </button>
 );
 
 const Bloco: React.FC<{ titulo: string; icone: React.ReactNode; children: React.ReactNode }> = ({ titulo, icone, children }) => (
-  <section className="rounded-3xl border border-white/[.06] bg-[#110c1c] p-5">
+  <section className="rounded-3xl border border-white/[.06] bg-painel p-5">
     <h2 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">{icone}{titulo}</h2>
     {children}
   </section>
@@ -93,7 +93,7 @@ export const NotificationPreferencesView: React.FC = () => {
         </div>}
         {situacao === 'desativado' && <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-zinc-400">Receba avisos mesmo com o Vybelog fechado.</p>
-          <button type="button" disabled={ocupado} onClick={ativarAqui} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 to-rose-600 cursor-pointer disabled:opacity-60">{ocupado ? 'Ativando…' : 'Ativar notificações'}</button>
+          <button type="button" disabled={ocupado} onClick={ativarAqui} className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 cursor-pointer disabled:opacity-60">{ocupado ? 'Ativando…' : 'Ativar notificações'}</button>
         </div>}
         {situacao === 'bloqueado' && <p className="text-xs text-amber-300">As notificações estão bloqueadas para o Vybelog neste navegador. Libere em Configurações do site › Notificações e volte aqui para reativar.</p>}
         {situacao === 'ios_instalar' && <p className="text-xs text-zinc-300">No iPhone/iPad (iOS 16.4 ou mais novo): toque em Compartilhar › <b>Adicionar à Tela de Início</b>, abra o Vybelog pelo ícone e ative aqui.</p>}

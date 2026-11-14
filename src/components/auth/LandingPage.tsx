@@ -35,7 +35,7 @@ export const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-dvh bg-[#08060c] text-zinc-100 flex flex-col selection:bg-purple-600 selection:text-white">
+    <div className="min-h-dvh bg-fundo text-zinc-100 flex flex-col selection:bg-purple-600 selection:text-white">
       
       {/* Top Banner Warning +18 */}
       <div className="bg-gradient-to-r from-purple-950/80 via-rose-950/80 to-purple-950/80 border-b border-rose-900/40 py-2 px-4 text-center text-xs font-semibold text-rose-300 flex items-center justify-center gap-2">
@@ -46,7 +46,7 @@ export const LandingPage: React.FC = () => {
       {/* Hero Section */}
       <section className="relative overflow-hidden flex-1 flex items-center min-h-[calc(100dvh-7rem)] px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
         {/* Fundo: preto profundo com brilhos rosé e roxo da identidade */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#120a1f] via-[#08060c] to-[#1a0d12] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-painel via-fundo to-[#1a0d12] pointer-events-none" />
         <div className="absolute -top-32 -left-32 w-[520px] h-[520px] bg-purple-700/25 rounded-full blur-[160px] pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-[480px] h-[480px] bg-rose-600/15 rounded-full blur-[150px] pointer-events-none" />
 
@@ -121,7 +121,7 @@ export const LandingPage: React.FC = () => {
                   id="landing-profile-type"
                   value={profileType}
                   onChange={(e) => setProfileType(e.target.value as ProfileType | '')}
-                  className="w-full appearance-none rounded-xl bg-[#0d0a17] border border-zinc-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 outline-none px-4 py-4 pr-10 text-base text-white cursor-pointer"
+                  className="w-full appearance-none rounded-xl bg-painel-baixo border border-zinc-700 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 outline-none px-4 py-4 pr-10 text-base text-white cursor-pointer"
                 >
                   <option value="" disabled>Selecione seu perfil</option>
                   {PROFILE_OPTIONS.map(opt => (
@@ -132,7 +132,7 @@ export const LandingPage: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full py-4 rounded-xl font-extrabold text-lg text-white bg-gradient-to-r from-orange-400 via-rose-500 to-purple-600 hover:from-orange-300 hover:to-purple-500 shadow-xl shadow-purple-950/50 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-4 rounded-xl font-extrabold text-lg text-white bg-gradient-to-r from-orange-400 via-rose-500 to-purple-600 hover:from-orange-300 hover:to-orange-500 shadow-xl shadow-purple-950/50 hover:scale-[1.01] active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Criar minha conta grátis!</span>
                 <ArrowRight className="w-5 h-5" />
@@ -159,7 +159,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Core Features Pillars */}
-      <section className="py-16 bg-[#0a0712] border-t border-purple-950/40 px-4 sm:px-6 lg:px-8">
+      <section className="py-16 bg-fundo border-t border-purple-950/40 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">
@@ -210,7 +210,7 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-purple-950/40 bg-[#06040a] px-4 text-center text-xs text-zinc-400">
+      <footer className="py-8 border-t border-purple-950/40 bg-fundo px-4 text-center text-xs text-zinc-400">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <img src={logoUrl} alt="" className="w-9 h-9 object-contain" />

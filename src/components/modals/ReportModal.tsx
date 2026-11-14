@@ -66,7 +66,7 @@ export const ReportModal: React.FC = () => {
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="max-w-lg w-full bg-[#130d21] border border-purple-800/40 rounded-3xl p-6 shadow-2xl relative">
+      <div className="max-w-lg w-full bg-painel border border-purple-800/40 rounded-3xl p-6 shadow-2xl relative">
         <button
           onClick={() => setReportModalTarget(null)}
           className="absolute top-5 right-5 text-zinc-400 hover:text-white p-1 rounded-full hover:bg-zinc-800 transition-colors cursor-pointer"
@@ -145,7 +145,7 @@ export const ReportModal: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-purple-600 hover:from-rose-500 hover:to-purple-500 shadow-md shadow-rose-950/40 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:to-orange-500 shadow-md shadow-rose-950/40 flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Send className="w-3.5 h-3.5" />
               {isSubmitting ? 'Enviando...' : 'Enviar Denúncia'}

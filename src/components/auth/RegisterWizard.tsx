@@ -199,7 +199,7 @@ export const RegisterWizard: React.FC = () => {
   if (confirmationSentTo) {
     return (
       <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-        <div className="max-w-md w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-8 shadow-2xl text-center space-y-4 my-auto">
+        <div className="max-w-md w-full bg-painel border border-purple-800/40 rounded-3xl p-8 shadow-2xl text-center space-y-4 my-auto">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
             <ShieldCheck className="w-7 h-7 text-emerald-400" />
           </div>
@@ -222,7 +222,7 @@ export const RegisterWizard: React.FC = () => {
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="max-w-xl w-full bg-[#110c1c] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-auto">
+      <div className="max-w-xl w-full bg-painel border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-auto">
         
         {/* Close Button */}
         <button
@@ -250,7 +250,7 @@ export const RegisterWizard: React.FC = () => {
           </div>
           <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-gradient-to-r from-purple-500 via-fuchsia-500 to-orange-500 transition-all duration-300"
+              className="h-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 transition-all duration-300"
               style={{ width: `${(step / 6) * 100}%` }}
             />
           </div>
@@ -736,7 +736,7 @@ export const RegisterWizard: React.FC = () => {
         {step === 6 && (
           <div className="space-y-4 text-center">
             <div className="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-fuchsia-600 via-pink-600 to-orange-600 p-[2px] flex items-center justify-center">
-              <div className="w-full h-full bg-[#0d0a17] rounded-[14px] flex items-center justify-center text-rose-400">
+              <div className="w-full h-full bg-painel-baixo rounded-[14px] flex items-center justify-center text-rose-400">
                 <ShieldCheck className="w-7 h-7 text-emerald-400" />
               </div>
             </div>

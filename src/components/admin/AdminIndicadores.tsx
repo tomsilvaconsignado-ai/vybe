@@ -6,7 +6,7 @@ import { fetchPlatformStats, fetchPushStats, type PlatformStats, type PushStats 
 const fmt = (n: number) => n.toLocaleString('pt-BR');
 
 const Tile: React.FC<{ titulo: string; valor: number; detalhe?: string }> = ({ titulo, valor, detalhe }) => (
-  <div className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
+  <div className="p-4 rounded-2xl bg-painel border border-purple-900/30">
     <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">{titulo}</span>
     <span className="block text-2xl font-black text-white tabular-nums">{fmt(valor)}</span>
     {detalhe && <span className="block text-[12px] text-zinc-500 mt-0.5">{detalhe}</span>}
@@ -21,7 +21,7 @@ const Cadastros: React.FC<{ serie: { day: string; n: number }[] }> = ({ serie })
   const total = serie.reduce((a, s) => a + s.n, 0);
   const atual = foco !== null ? serie[foco] : null;
   return (
-    <div className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
+    <div className="p-4 rounded-2xl bg-painel border border-purple-900/30">
       <div className="flex items-baseline justify-between mb-3">
         <h3 className="text-xs font-bold text-zinc-200">Novos cadastros por dia (14 dias)</h3>
         <span className="text-[12px] text-zinc-400 tabular-nums" aria-live="polite">
@@ -59,7 +59,7 @@ export const AdminIndicadores: React.FC = () => {
   useEffect(() => { carregar(); }, []);
 
   if (erro) return <p className="p-4 rounded-2xl bg-rose-950/30 border border-rose-900/40 text-xs text-rose-300">Indicadores indisponíveis: {erro}</p>;
-  if (!stats) return <div className="h-40 rounded-2xl bg-[#120d20] border border-purple-900/30 animate-pulse" aria-label="Carregando indicadores" />;
+  if (!stats) return <div className="h-40 rounded-2xl bg-painel border border-purple-900/30 animate-pulse" aria-label="Carregando indicadores" />;
 
   return (
     <section className="space-y-4" aria-label="Indicadores da plataforma">

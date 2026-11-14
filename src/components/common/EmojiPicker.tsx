@@ -42,7 +42,7 @@ export const EmojiPicker: React.FC<{ onPick: (emoji: string) => void; onClose: (
   return (
     <div
       ref={ref}
-      className="absolute bottom-full left-0 mb-2 w-[min(20rem,calc(100vw-2rem))] bg-[#1a1229] border border-purple-800/50 rounded-2xl shadow-2xl z-30 overflow-hidden"
+      className="absolute bottom-full left-0 mb-2 w-[min(20rem,calc(100vw-2rem))] bg-painel-alto border border-purple-800/50 rounded-2xl shadow-2xl z-30 overflow-hidden"
     >
       <div className="flex border-b border-purple-900/40">
         {EMOJI_GROUPS.map((g, i) => (

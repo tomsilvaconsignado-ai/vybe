@@ -129,12 +129,12 @@ export const AdminAdsTab: React.FC = () => {
       </div>
 
       {ads.length === 0 ? (
-        <div className="p-10 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl text-xs text-zinc-400">
+        <div className="p-10 text-center bg-painel border border-purple-900/30 rounded-3xl text-xs text-zinc-400">
           <Megaphone className="w-10 h-10 mx-auto mb-2 text-purple-400 opacity-60" />
           Nenhum anúncio cadastrado.
         </div>
       ) : (
-        <div className="overflow-x-auto bg-[#120d20] border border-purple-900/30 rounded-3xl">
+        <div className="overflow-x-auto bg-painel border border-purple-900/30 rounded-3xl">
           <table className="w-full text-left text-xs">
             <thead className="bg-zinc-950/80 text-zinc-400 border-b border-zinc-800">
               <tr>
@@ -212,7 +212,7 @@ export const AdminAdsTab: React.FC = () => {
 
       {editing && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <form onSubmit={handleSave} className="max-w-lg w-full bg-[#120d20] border border-amber-500/40 rounded-3xl p-6 space-y-3 my-auto">
+          <form onSubmit={handleSave} className="max-w-lg w-full bg-painel border border-amber-500/40 rounded-3xl p-6 space-y-3 my-auto">
             <h3 className="text-base font-bold text-white">{editing.id ? 'Editar anúncio' : 'Novo anúncio'}</h3>
 
             <label className="relative flex items-center justify-center aspect-[16/9] rounded-2xl border-2 border-dashed border-amber-700/50 overflow-hidden cursor-pointer">

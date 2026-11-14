@@ -156,7 +156,7 @@ export const EventsView: React.FC = () => {
           {filtered.map(ev => <EventCard key={ev.id} event={ev} onOpen={openDetail} />)}
         </div>
       ) : (
-        <div className="p-10 text-center bg-[#120d20] border border-purple-900/30 rounded-3xl">
+        <div className="p-10 text-center bg-painel border border-purple-900/30 rounded-3xl">
           <CalendarHeart className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
           <h3 className="text-base font-bold text-white mb-1">
             {filter === 'mine' ? 'Você ainda não divulgou eventos' : filter === 'going' ? 'Nada na sua agenda' : periodo !== 'todos' ? 'Nenhum evento nesse período' : 'Nenhum evento por aqui ainda'}
@@ -177,7 +177,7 @@ export const EventsView: React.FC = () => {
 
       {detail && (
         <div className="modal-overlay fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={closeDetail}>
-          <div className="max-w-lg w-full bg-[#130d22] border border-purple-800/40 rounded-3xl overflow-hidden shadow-2xl relative my-auto" onClick={e => e.stopPropagation()}>
+          <div className="max-w-lg w-full bg-painel border border-purple-800/40 rounded-3xl overflow-hidden shadow-2xl relative my-auto" onClick={e => e.stopPropagation()}>
             <button type="button" onClick={closeDetail} className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-black/60 text-white cursor-pointer" aria-label="Fechar">
               <X className="w-5 h-5" />
             </button>

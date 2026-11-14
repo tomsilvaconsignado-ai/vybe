@@ -57,7 +57,7 @@ export const SharedPostModal: React.FC = () => {
             </div>
           )}
           {estado === 'indisponivel' && (
-            <div className="mt-12 p-8 text-center bg-[#130d22] border border-purple-900/30 rounded-3xl">
+            <div className="mt-12 p-8 text-center bg-painel border border-purple-900/30 rounded-3xl">
               <h2 className="text-sm font-bold text-white mb-1">Publicação indisponível</h2>
               <p className="text-xs text-zinc-400">Ela foi removida ou é visível só para as conexões de quem publicou.</p>
             </div>

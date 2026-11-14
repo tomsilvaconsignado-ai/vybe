@@ -76,7 +76,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({ placement, index = 0, variant = 
   );
 
   return (
-    <div ref={ref} className={`rounded-3xl border border-purple-900/30 bg-[#120d20] overflow-hidden ${variant === 'feed' ? 'mb-6' : 'p-4'}`}>
+    <div ref={ref} className={`rounded-3xl border border-purple-900/30 bg-painel overflow-hidden ${variant === 'feed' ? 'mb-6' : 'p-4'}`}>
       <div className={`flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-zinc-500 ${variant === 'feed' ? 'px-4 pt-3 pb-2' : 'pb-2'}`}>
         <Megaphone className="w-3 h-3" /> Patrocinado · {ad.advertiser}
       </div>

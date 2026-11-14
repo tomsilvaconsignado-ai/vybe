@@ -138,7 +138,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="max-w-3xl w-full bg-[#120d20] border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
+      <div className="max-w-3xl w-full bg-painel border border-purple-800/40 rounded-3xl p-6 sm:p-8 shadow-2xl relative my-auto max-h-[90vh] flex flex-col">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-purple-900/30">
@@ -415,7 +415,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                 <button
                   type="button"
                   onClick={handleUpdateStatus}
-                  className="px-4 py-2 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-purple-500 text-white rounded-xl font-bold text-xs cursor-pointer shadow"
+                  className="px-4 py-2 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 text-white rounded-xl font-bold text-xs cursor-pointer shadow"
                 >
                   Salvar Situação no Banco
                 </button>

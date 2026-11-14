@@ -28,7 +28,7 @@ export const RightRail: React.FC = () => {
   return (
     <aside className="hidden xl:flex w-80 shrink-0 flex-col gap-5 py-6 pr-4 sticky top-16 self-start max-h-[calc(100vh-4rem)] overflow-y-auto no-scrollbar" aria-label="Destaques">
 
-      <section className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-4 space-y-3">
+      <section className="bg-painel border border-purple-900/30 rounded-3xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
             <CalendarHeart className="w-4 h-4 text-fuchsia-400" /> Próximos eventos
@@ -51,7 +51,7 @@ export const RightRail: React.FC = () => {
       <AdCarousel />
 
       {suggestions.length > 0 && (
-        <section className="bg-[#120d20] border border-purple-900/30 rounded-3xl p-4 space-y-3">
+        <section className="bg-painel border border-purple-900/30 rounded-3xl p-4 space-y-3">
           <h2 className="text-sm font-bold text-white">Sugestões para você</h2>
           {suggestions.map(({ p, score }) => (
             <div key={p.id} className="flex items-center gap-2.5">

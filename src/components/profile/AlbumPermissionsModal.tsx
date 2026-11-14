@@ -24,7 +24,7 @@ export const AlbumPermissionsModal: React.FC<AlbumPermissionsModalProps> = ({ al
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-[#130d22] border border-purple-800/40 rounded-3xl p-6 shadow-2xl relative">
+      <div className="max-w-md w-full bg-painel border border-purple-800/40 rounded-3xl p-6 shadow-2xl relative">
         <button
           onClick={onClose}
           className="absolute top-5 right-5 text-zinc-400 hover:text-white p-1 rounded-full hover:bg-zinc-800 transition-colors cursor-pointer"
@@ -71,7 +71,7 @@ export const AlbumPermissionsModal: React.FC<AlbumPermissionsModalProps> = ({ al
                   </button>
                   <button
                     onClick={() => run(approveAlbumAccess(album.id, u.id))}
-                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-purple-600 hover:from-emerald-500 hover:to-purple-500 text-white text-xs font-bold cursor-pointer transition-all"
+                    className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-purple-600 hover:from-emerald-500 hover:to-orange-500 text-white text-xs font-bold cursor-pointer transition-all"
                   >
                     Aprovar
                   </button>
