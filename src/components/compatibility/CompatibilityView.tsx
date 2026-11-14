@@ -115,7 +115,7 @@ export const CompatibilityView: React.FC = () => {
                     alt={currentUser.displayName}
                     className="w-12 h-12 rounded-full object-cover mx-auto mb-1 border-2 border-purple-500"
                   />
-                  <span className="text-[11px] text-zinc-300 font-medium block truncate max-w-[90px]">
+                  <span className="text-[12px] text-zinc-300 font-medium block truncate max-w-[90px]">
                     {currentUser.displayName}
                   </span>
                 </div>
@@ -130,7 +130,7 @@ export const CompatibilityView: React.FC = () => {
                     alt={targetProfile.displayName}
                     className="w-12 h-12 rounded-full object-cover mx-auto mb-1 border-2 border-fuchsia-500"
                   />
-                  <span className="text-[11px] text-zinc-300 font-medium block truncate max-w-[90px]">
+                  <span className="text-[12px] text-zinc-300 font-medium block truncate max-w-[90px]">
                     {targetProfile.displayName}
                   </span>
                 </div>

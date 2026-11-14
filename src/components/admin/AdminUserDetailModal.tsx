@@ -216,48 +216,48 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
               {/* Sanitized Admin Data Grid (No passwords, tokens or intimate private leaks) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-zinc-950/70 border border-purple-900/30 rounded-2xl">
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">E-mail Cadastral</span>
-                  <span className="text-zinc-200 font-mono text-[11px] truncate block">{user.email}</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">E-mail Cadastral</span>
+                  <span className="text-zinc-200 font-mono text-[12px] truncate block">{user.email}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Localização</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">Localização</span>
                   <span className="text-zinc-200">{user.city}, {user.state}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Idade Primária</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">Idade Primária</span>
                   <span className="text-zinc-200">{user.age} anos</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Formato de Perfil</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">Formato de Perfil</span>
                   <span className="text-zinc-200 capitalize">{user.profileType}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Nascimento (declarado)</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">Nascimento (declarado)</span>
                   <span className="text-zinc-200">{user.birthdate ? new Date(user.birthdate + 'T12:00:00').toLocaleDateString('pt-BR') : 'Não informado'}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Denúncias Recebidas</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">Denúncias Recebidas</span>
                   <span className={`font-bold ${user.reportsReceivedCount > 0 ? 'text-rose-400' : 'text-zinc-400'}`}>
                     {user.reportsReceivedCount} ocorrências
                   </span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Papel na Equipe</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">Papel na Equipe</span>
                   <span className="text-amber-300 font-semibold">{user.adminRole ?? 'Nenhum'}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Última Atividade</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">Última Atividade</span>
                   <span className="text-zinc-200">{user.lastActive}</span>
                 </div>
                 <div>
-                  <span className="text-[11px] text-zinc-500 font-semibold block">Publicações</span>
+                  <span className="text-[12px] text-zinc-500 font-semibold block">Publicações</span>
                   <span className="text-zinc-200">{user.postsCount}</span>
                 </div>
               </div>
 
               {/* Cover Preview */}
               <div>
-                <span className="text-[11px] text-zinc-400 font-semibold block mb-1">Foto de Capa Atual:</span>
+                <span className="text-[12px] text-zinc-400 font-semibold block mb-1">Foto de Capa Atual:</span>
                 <div className="h-28 rounded-2xl overflow-hidden bg-black border border-purple-900/30">
                   <AdminThumb src={user.coverUrl} label={`Capa de @${user.username}`} alt="Capa" className="w-full h-full object-cover" />
                 </div>
@@ -265,7 +265,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
 
               {/* View as User Button */}
               <div className="pt-2 flex items-center justify-between">
-                <span className="text-[11px] text-zinc-400">
+                <span className="text-[12px] text-zinc-400">
                   Registrado no sistema desde {user.createdAt}
                 </span>
                 <button
@@ -322,7 +322,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                   </h4>
                   {albumItems === null ? (
                     <div className="space-y-2">
-                      <p className="text-[11px] text-zinc-400">Informe o motivo. O acesso fica registrado no livro de auditoria.</p>
+                      <p className="text-[12px] text-zinc-400">Informe o motivo. O acesso fica registrado no livro de auditoria.</p>
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -400,7 +400,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-zinc-400 font-semibold mb-1">
+                  <label className="block text-[12px] text-zinc-400 font-semibold mb-1">
                     Justificativa da Ação (Auditada em Log):
                   </label>
                   <input
@@ -473,7 +473,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                 <div className="p-4 bg-emerald-950/20 border border-emerald-900/40 rounded-2xl flex items-center justify-between">
                   <div>
                     <h5 className="font-bold text-emerald-300 text-xs">Selo de Verificação +18</h5>
-                    <p className="text-[11px] text-zinc-400">
+                    <p className="text-[12px] text-zinc-400">
                       {user.verificationRequested ? 'O usuário pediu a verificação no cadastro.' : 'O usuário não pediu verificação.'}
                     </p>
                   </div>
@@ -490,7 +490,7 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
               {adminRole === 'superadmin' && (
                 <div className="p-4 bg-amber-950/20 border border-amber-900/40 rounded-2xl space-y-3">
                   <span className="text-xs font-bold text-amber-300 block">Papel na Equipe Administrativa</span>
-                  <p className="text-[11px] text-zinc-400">Moderadores precisam ativar o MFA no primeiro acesso ao painel.</p>
+                  <p className="text-[12px] text-zinc-400">Moderadores precisam ativar o MFA no primeiro acesso ao painel.</p>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Seletor
                       value={selectedRole}

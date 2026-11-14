@@ -116,7 +116,7 @@ export const NotificationsView: React.FC = () => {
           <EyeOff className="w-5 h-5 text-fuchsia-400 shrink-0" />
           <div>
             <h4 className="text-xs font-bold text-white">Modo Discreto de Notificações</h4>
-            <p className="text-[11px] text-zinc-400">
+            <p className="text-[12px] text-zinc-400">
               Oculta prévias ou textos sensíveis que possam aparecer na tela bloqueada ou no ambiente de trabalho.
             </p>
           </div>

@@ -49,7 +49,7 @@ export const ConvidarPessoas: React.FC<Props> = ({ titulo, ajuda, excluir = [], 
         <div className="flex items-center justify-between p-4 border-b border-purple-900/30">
           <div>
             <h2 className="text-sm font-bold text-white flex items-center gap-2"><UserPlus className="w-4 h-4 text-fuchsia-400" /> {titulo}</h2>
-            {ajuda && <p className="text-[11px] text-zinc-400 mt-0.5">{ajuda}</p>}
+            {ajuda && <p className="text-[12px] text-zinc-400 mt-0.5">{ajuda}</p>}
           </div>
           <button type="button" onClick={aoFechar} className="p-1.5 rounded-full text-zinc-400 hover:text-white cursor-pointer" aria-label="Fechar"><X className="w-5 h-5" /></button>
         </div>
@@ -73,7 +73,7 @@ export const ConvidarPessoas: React.FC<Props> = ({ titulo, ajuda, excluir = [], 
                   <img src={p.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover bg-zinc-800" />
                   <span className="flex-1 min-w-0">
                     <span className="block text-xs font-bold text-zinc-100 truncate">{p.displayName}</span>
-                    <span className="block text-[11px] text-zinc-500 truncate">@{p.username}{connections.includes(p.id) ? ' · conexão' : ''}</span>
+                    <span className="block text-[12px] text-zinc-500 truncate">@{p.username}{connections.includes(p.id) ? ' · conexão' : ''}</span>
                   </span>
                   <span className={`w-5 h-5 rounded-full border flex items-center justify-center ${marcado ? 'bg-fuchsia-500 border-fuchsia-500' : 'border-zinc-600'}`}>
                     {marcado && <Check className="w-3 h-3 text-white" />}

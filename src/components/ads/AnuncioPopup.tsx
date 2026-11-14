@@ -75,7 +75,7 @@ export const AnuncioPopup: React.FC = () => {
         <img src={anuncio.imageUrl} alt={anuncio.title} className="w-full max-h-[55vh] object-cover bg-black" />
         <div className="p-5 space-y-3">
           <div>
-            <p className="text-[11px] font-semibold text-zinc-400">{anuncio.advertiser}</p>
+            <p className="text-[12px] font-semibold text-zinc-400">{anuncio.advertiser}</p>
             <h2 className="text-lg font-bold text-white leading-snug">{anuncio.title}</h2>
             {anuncio.body && <p className="text-sm text-zinc-300 mt-1 whitespace-pre-line line-clamp-4">{anuncio.body}</p>}
           </div>

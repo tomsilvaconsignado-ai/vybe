@@ -198,7 +198,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
       <h1 className="sr-only">Descobrir</h1>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         {isAuthorizedAdmin ? (
-          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/40" title="Visível só para a administração">
+          <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/40" title="Visível só para a administração">
             {sortedProfiles.length} perfis disponíveis (admin)
           </span>
         ) : <span />}
@@ -351,14 +351,14 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                     Meu estado · {currentUser.state}
                   </button>
                 )}
-                {nearbyLoading && <span className="text-[11px] text-zinc-500 shrink-0">buscando...</span>}
+                {nearbyLoading && <span className="text-[12px] text-zinc-500 shrink-0">buscando...</span>}
               </div>
             )}
             {nearbyOnly && effectiveMode === 'radius' && sharesCity && (
-              <p className="text-[11px] text-zinc-500">Inclui também quem cadastrou {currentUser.city || 'a sua cidade'}, mesmo sem GPS.</p>
+              <p className="text-[12px] text-zinc-500">Inclui também quem cadastrou {currentUser.city || 'a sua cidade'}, mesmo sem GPS.</p>
             )}
             {nearbyOnly && !sharesCity && (
-              <p className="text-[11px] text-zinc-500">Para buscar pela cidade, escolha "Mostrar Cidade" em Configurações.</p>
+              <p className="text-[12px] text-zinc-500">Para buscar pela cidade, escolha "Mostrar Cidade" em Configurações.</p>
             )}
           </div>
         )}

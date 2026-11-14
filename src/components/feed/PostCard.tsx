@@ -158,11 +158,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
           <span className="min-w-0">
             <span className="flex items-center gap-1.5">
               <span className="font-bold text-sm text-zinc-100 group-hover:text-purple-300 truncate">{post.user.username}</span>
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/40 shrink-0">
+              <span className="text-[12px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/40 shrink-0">
                 {post.user.profileType === 'couple' ? 'Casal' : post.user.profileType === 'polyamorous' ? 'Poli' : 'Solteiro(a)'}
               </span>
             </span>
-            <span className="flex items-center gap-1 text-[11px] text-zinc-400 truncate">
+            <span className="flex items-center gap-1 text-[12px] text-zinc-400 truncate">
               {(post.location || post.user.city) && <MapPin className="w-2.5 h-2.5 shrink-0" />}
               <span className="truncate">{post.location || post.user.city}</span>
             </span>
@@ -268,7 +268,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
 
           {mediaCount > 1 && (
             <>
-              <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-black/60 text-white text-[11px] font-semibold">
+              <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-black/60 text-white text-[12px] font-semibold">
                 {activeMediaIndex + 1}/{mediaCount}
               </span>
               {activeMediaIndex > 0 && (
@@ -330,7 +330,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
                       {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-fuchsia-400" />}
                       {opt.text}
                     </span>
-                    {userPollVote && <span className="text-[11px] font-bold text-purple-300">{percent}% ({opt.votes})</span>}
+                    {userPollVote && <span className="text-[12px] font-bold text-purple-300">{percent}% ({opt.votes})</span>}
                   </div>
                 </button>
               );
@@ -435,7 +435,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
                       setReplyTo({ id: c.id, username: item.username });
                       setCommentInput(item.userId !== currentUser.id && item.username ? `@${item.username} ` : '');
                       commentInputRef.current?.focus();
-                    }} className="text-[11px] font-semibold text-zinc-500 hover:text-zinc-300 cursor-pointer">Responder</button>
+                    }} className="text-[12px] font-semibold text-zinc-500 hover:text-zinc-300 cursor-pointer">Responder</button>
                   </div>
                 ))}
               </div>
@@ -443,10 +443,10 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
           </div>
         )}
 
-        <p className="text-[11px] uppercase tracking-wide text-zinc-500">{post.createdAt}</p>
+        <p className="text-[12px] uppercase tracking-wide text-zinc-500">{post.createdAt}</p>
 
         {replyTo && (
-          <p className="flex items-center justify-between text-[11px] text-zinc-400 pt-1">
+          <p className="flex items-center justify-between text-[12px] text-zinc-400 pt-1">
             <span>Respondendo a <b className="text-zinc-200">@{replyTo.username}</b></span>
             <button type="button" onClick={() => { setReplyTo(null); setCommentInput(''); }} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">Cancelar</button>
           </p>

@@ -45,7 +45,7 @@ export const IdentityBadges: React.FC<{ profile: UserProfile; className?: string
     {identityEntries(profile).map((e, i) => (
       <span
         key={i}
-        className="text-[11px] px-2.5 py-1 rounded-full bg-rose-950/60 text-rose-200 border border-rose-800/40 font-semibold flex items-center gap-1"
+        className="text-[12px] px-2.5 py-1 rounded-full bg-rose-950/60 text-rose-200 border border-rose-800/40 font-semibold flex items-center gap-1"
       >
         {e.who && <span className="text-rose-300/80 font-normal">{e.who}:</span>}
         {e.gender && <span>{genderSymbol(e.gender)} {e.gender}</span>}

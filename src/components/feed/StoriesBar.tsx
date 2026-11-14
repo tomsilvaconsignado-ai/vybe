@@ -36,7 +36,7 @@ export const StoriesBar: React.FC = () => {
               <Plus className="w-4 h-4" />
             </button>
           </div>
-          <span className="text-[11px] font-medium text-zinc-300 truncate max-w-[68px]">Seu story</span>
+          <span className="text-[12px] font-medium text-zinc-300 truncate max-w-[68px]">Seu story</span>
         </div>
 
         {others.map(({ g, index }) => (
@@ -52,7 +52,7 @@ export const StoriesBar: React.FC = () => {
             }`}>
               <img src={g.avatarUrl} alt="" className="w-full h-full object-cover rounded-full border-2 border-[#09070f] group-hover:scale-105 transition-transform" />
             </span>
-            <span className={`text-[11px] font-medium truncate max-w-[68px] ${g.hasUnseen ? 'text-zinc-200' : 'text-zinc-500'}`}>
+            <span className={`text-[12px] font-medium truncate max-w-[68px] ${g.hasUnseen ? 'text-zinc-200' : 'text-zinc-500'}`}>
               {g.username}
             </span>
           </button>
@@ -60,7 +60,7 @@ export const StoriesBar: React.FC = () => {
         ))}
 
         {others.length === 0 && (
-          <p className="self-center text-[11px] text-zinc-500 max-w-[220px] leading-snug">
+          <p className="self-center text-[12px] text-zinc-500 max-w-[220px] leading-snug">
             Nenhum story nas últimas 24h. Publique o primeiro: ele some sozinho em um dia.
           </p>
         )}

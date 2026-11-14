@@ -390,7 +390,7 @@ export const RegisterWizard: React.FC = () => {
                   }`}
                 >
                   <div className="font-bold text-sm text-zinc-100 mb-1">{opt.title}</div>
-                  <div className="text-[11px] text-zinc-400 leading-tight">{opt.desc}</div>
+                  <div className="text-[12px] text-zinc-400 leading-tight">{opt.desc}</div>
                 </button>
               ))}
             </div>
@@ -400,21 +400,21 @@ export const RegisterWizard: React.FC = () => {
               <div className="p-4 bg-zinc-900/60 border border-purple-900/30 rounded-2xl space-y-2">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-zinc-400">Gênero *</label>
+                    <label className="text-[12px] text-zinc-400">Gênero *</label>
                     <Seletor value={gender} onChange={e => setGender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       <option value="">Selecione...</option>
                       {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                     </Seletor>
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400">Orientação *</label>
+                    <label className="text-[12px] text-zinc-400">Orientação *</label>
                     <Seletor value={orientation} onChange={e => setOrientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       <option value="">Selecione...</option>
                       {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                     </Seletor>
                   </div>
                 </div>
-                <p className="text-[11px] text-zinc-500">Gênero e orientação aparecem no seu perfil para todos os membros. Escolha o que melhor representa você — se não encontrar, use “Outro”.</p>
+                <p className="text-[12px] text-zinc-500">Gênero e orientação aparecem no seu perfil para todos os membros. Escolha o que melhor representa você — se não encontrar, use “Outro”.</p>
               </div>
             )}
 
@@ -428,7 +428,7 @@ export const RegisterWizard: React.FC = () => {
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-zinc-400">Nome / Apelido Parceiro 1</label>
+                    <label className="text-[12px] text-zinc-400">Nome / Apelido Parceiro 1</label>
                     <input
                       type="text"
                       placeholder="Ex: Carlos"
@@ -438,7 +438,7 @@ export const RegisterWizard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400">Idade Parceiro 1</label>
+                    <label className="text-[12px] text-zinc-400">Idade Parceiro 1</label>
                     <input
                       type="number"
                       value={partner1Age}
@@ -450,13 +450,13 @@ export const RegisterWizard: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-zinc-400">Gênero Parceiro 1</label>
+                    <label className="text-[12px] text-zinc-400">Gênero Parceiro 1</label>
                     <Seletor value={partner1Gender} onChange={e => setPartner1Gender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                     </Seletor>
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400">Orientação Parceiro 1 *</label>
+                    <label className="text-[12px] text-zinc-400">Orientação Parceiro 1 *</label>
                     <Seletor value={partner1Orientation} onChange={e => setPartner1Orientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       <option value="">Selecione...</option>
                       {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
@@ -466,7 +466,7 @@ export const RegisterWizard: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-zinc-400">Nome / Apelido Parceiro 2</label>
+                    <label className="text-[12px] text-zinc-400">Nome / Apelido Parceiro 2</label>
                     <input
                       type="text"
                       placeholder="Ex: Marina"
@@ -476,7 +476,7 @@ export const RegisterWizard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400">Idade Parceiro 2</label>
+                    <label className="text-[12px] text-zinc-400">Idade Parceiro 2</label>
                     <input
                       type="number"
                       value={partner2Age}
@@ -488,13 +488,13 @@ export const RegisterWizard: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-zinc-400">Gênero Parceiro 2</label>
+                    <label className="text-[12px] text-zinc-400">Gênero Parceiro 2</label>
                     <Seletor value={partner2Gender} onChange={e => setPartner2Gender(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
                     </Seletor>
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400">Orientação Parceiro 2 *</label>
+                    <label className="text-[12px] text-zinc-400">Orientação Parceiro 2 *</label>
                     <Seletor value={partner2Orientation} onChange={e => setPartner2Orientation(e.target.value)} className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-white">
                       <option value="">Selecione...</option>
                       {ORIENTATION_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
@@ -509,7 +509,7 @@ export const RegisterWizard: React.FC = () => {
                     onChange={e => setMutualConsentChecked(e.target.checked)}
                     className="mt-0.5 accent-purple-600 rounded cursor-pointer"
                   />
-                  <span className="text-[11px] text-zinc-300">
+                  <span className="text-[12px] text-zinc-300">
                     Ambos os parceiros têm ciência e autorizam expressamente a criação deste perfil conjunto.
                   </span>
                 </label>
@@ -574,7 +574,7 @@ export const RegisterWizard: React.FC = () => {
                       key={loc.id}
                       type="button"
                       onClick={() => setLocationPrivacy(loc.id as LocationPrivacy)}
-                      className={`py-2 px-2 text-[11px] font-semibold rounded-xl border text-center transition-all cursor-pointer ${
+                      className={`py-2 px-2 text-[12px] font-semibold rounded-xl border text-center transition-all cursor-pointer ${
                         locationPrivacy === loc.id
                           ? 'bg-purple-950 border-purple-500 text-white'
                           : 'bg-zinc-900/40 border-zinc-800 text-zinc-400'
@@ -713,7 +713,7 @@ export const RegisterWizard: React.FC = () => {
                   alt="Avatar"
                   className="w-16 h-16 rounded-full object-cover border-2 border-purple-500"
                 />
-                <p className="flex-1 text-[11px] text-zinc-400">
+                <p className="flex-1 text-[12px] text-zinc-400">
                   Depois de confirmar seu e-mail, você pode enviar foto de perfil e capa direto do celular ou computador em <strong className="text-zinc-200">Meu Perfil → Editar</strong>. Removemos automaticamente a localização GPS e outros dados escondidos das fotos.
                 </p>
               </div>
@@ -724,7 +724,7 @@ export const RegisterWizard: React.FC = () => {
                   <Key className="w-4 h-4 text-fuchsia-400" />
                   <span className="text-xs font-bold text-white">Cofre Íntimo Criado Automaticamente</span>
                 </div>
-                <p className="text-[11px] text-zinc-300 leading-relaxed">
+                <p className="text-[12px] text-zinc-300 leading-relaxed">
                   Seu cofre privado estará habilitado. Nele você poderá carregar fotos sensuais posteriormente, e nenhum membro terá acesso até que você clique em <strong>Aprovar</strong> individualmente.
                 </p>
               </div>

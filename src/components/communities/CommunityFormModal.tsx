@@ -75,7 +75,7 @@ export const CommunityFormModal: React.FC<{ community?: Community; aoFechar: () 
           </label>
 
           <div>
-            <span className="block text-[11px] font-bold text-zinc-400 mb-1.5">Ícone</span>
+            <span className="block text-[12px] font-bold text-zinc-400 mb-1.5">Ícone</span>
             <div className="flex flex-wrap gap-1.5">
               {ICONES.map(i => (
                 <button key={i} type="button" onClick={() => muda({ icon: i })} aria-pressed={d.icon === i}
@@ -85,29 +85,29 @@ export const CommunityFormModal: React.FC<{ community?: Community; aoFechar: () 
           </div>
 
           <label className="block">
-            <span className="block text-[11px] font-bold text-zinc-400 mb-1.5">Nome</span>
+            <span className="block text-[12px] font-bold text-zinc-400 mb-1.5">Nome</span>
             <input required minLength={3} maxLength={80} value={d.name} onChange={e => muda({ name: e.target.value })} className={campo} placeholder="Ex.: Casais de Curitiba" />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-bold text-zinc-400 mb-1.5">Descrição</span>
+            <span className="block text-[12px] font-bold text-zinc-400 mb-1.5">Descrição</span>
             <textarea required minLength={10} maxLength={1000} rows={3} value={d.description} onChange={e => muda({ description: e.target.value })} className={campo} placeholder="Sobre o que é a comunidade e quem deve participar" />
           </label>
           <label className="block">
-            <span className="block text-[11px] font-bold text-zinc-400 mb-1.5">Categoria</span>
+            <span className="block text-[12px] font-bold text-zinc-400 mb-1.5">Categoria</span>
             <Seletor value={d.category} onChange={e => muda({ category: e.target.value as Community['category'] })} className={campo}>
               {COMMUNITY_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
             </Seletor>
           </label>
 
           <fieldset>
-            <legend className="block text-[11px] font-bold text-zinc-400 mb-1.5">Quem pode entrar</legend>
+            <legend className="block text-[12px] font-bold text-zinc-400 mb-1.5">Quem pode entrar</legend>
             <div className="space-y-1.5">
               {(Object.keys(ACCESS_INFO) as CommunityAccess[]).map(a => (
                 <label key={a} className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer ${d.access === a ? 'border-purple-500 bg-purple-900/20' : 'border-zinc-800 bg-zinc-900/50'}`}>
                   <input type="radio" name="acesso" checked={d.access === a} onChange={() => muda({ access: a })} className="mt-0.5 accent-fuchsia-500" />
                   <span>
                     <span className="block text-xs font-bold text-zinc-100">{ACCESS_INFO[a].label}</span>
-                    <span className="block text-[11px] text-zinc-400">{ACCESS_INFO[a].help}</span>
+                    <span className="block text-[12px] text-zinc-400">{ACCESS_INFO[a].help}</span>
                   </span>
                 </label>
               ))}
@@ -115,7 +115,7 @@ export const CommunityFormModal: React.FC<{ community?: Community; aoFechar: () 
           </fieldset>
 
           <div>
-            <span className="block text-[11px] font-bold text-zinc-400 mb-1.5">Regras ({d.rules.filter(r => r.trim()).length}/10)</span>
+            <span className="block text-[12px] font-bold text-zinc-400 mb-1.5">Regras ({d.rules.filter(r => r.trim()).length}/10)</span>
             <div className="space-y-1.5">
               {d.rules.map((r, i) => (
                 <div key={i} className="flex gap-1.5">

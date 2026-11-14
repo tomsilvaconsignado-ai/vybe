@@ -109,19 +109,19 @@ export const AdminAdsTab: React.FC = () => {
         )}
       </div>
 
-      {!canEdit && <p className="text-[11px] text-amber-300">Somente o superadministrador cria e edita anúncios.</p>}
+      {!canEdit && <p className="text-[12px] text-amber-300">Somente o superadministrador cria e edita anúncios.</p>}
 
       {/* Frequência da janela de publicidade */}
       <div className="p-4 rounded-2xl bg-fuchsia-950/20 border border-fuchsia-800/40 flex flex-col sm:flex-row sm:items-end gap-3">
         <div className="flex-1">
           <p className="text-xs font-bold text-white">Janela de publicidade</p>
-          <p className="text-[11px] text-zinc-400">Reveza os anúncios marcados "Na janela". A primeira aparece 20 s após entrar (ou 45 s depois da janela de convite); nunca enquanto a pessoa digita.</p>
+          <p className="text-[12px] text-zinc-400">Reveza os anúncios marcados "Na janela". A primeira aparece 20 s após entrar (ou 45 s depois da janela de convite); nunca enquanto a pessoa digita.</p>
         </div>
-        <label className="text-[11px] text-zinc-400">A cada (minutos)
+        <label className="text-[12px] text-zinc-400">A cada (minutos)
           <input type="number" min={1} max={120} disabled={!canEdit} value={freq.intervalMin} onChange={e => setFreq({ ...freq, intervalMin: Number(e.target.value) })}
             className="block w-28 mt-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-white" />
         </label>
-        <label className="text-[11px] text-zinc-400">Máximo por acesso
+        <label className="text-[12px] text-zinc-400">Máximo por acesso
           <input type="number" min={0} max={30} disabled={!canEdit} value={freq.maxPorAcesso} onChange={e => setFreq({ ...freq, maxPorAcesso: Number(e.target.value) })}
             className="block w-28 mt-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-white" />
         </label>
@@ -176,19 +176,19 @@ export const AdminAdsTab: React.FC = () => {
                   {canEdit && (
                     <td className="p-3">
                       <div className="flex items-center gap-1 justify-end">
-                        <button type="button" onClick={() => toggleActive(ad)} className="px-2 py-1 rounded-lg text-[11px] font-semibold text-zinc-300 hover:bg-zinc-800 cursor-pointer">
+                        <button type="button" onClick={() => toggleActive(ad)} className="px-2 py-1 rounded-lg text-[12px] font-semibold text-zinc-300 hover:bg-zinc-800 cursor-pointer">
                           {ad.isActive ? 'Pausar' : 'Ativar'}
                         </button>
                         <button type="button" onClick={() => togglePopup(ad)} disabled={!ad.imageUrl}
                           title={!ad.imageUrl ? 'A janela exige imagem' : ad.showInPopup ? 'Tirar da janela de publicidade' : 'Exibir na janela de publicidade'}
-                          className="px-2 py-1 rounded-lg text-[11px] font-semibold text-fuchsia-300 hover:bg-zinc-800 disabled:opacity-40 cursor-pointer">
+                          className="px-2 py-1 rounded-lg text-[12px] font-semibold text-fuchsia-300 hover:bg-zinc-800 disabled:opacity-40 cursor-pointer">
                           {ad.showInPopup ? 'Tirar da janela' : 'Pôr na janela'}
                         </button>
                         {ad.placement !== 'carousel' && (
                           <button
                             type="button"
                             onClick={() => setEditing({ ...ad, id: undefined, placement: 'carousel' })}
-                            className="px-2 py-1 rounded-lg text-[11px] font-semibold text-fuchsia-300 hover:bg-zinc-800 cursor-pointer whitespace-nowrap"
+                            className="px-2 py-1 rounded-lg text-[12px] font-semibold text-fuchsia-300 hover:bg-zinc-800 cursor-pointer whitespace-nowrap"
                             title="Cria uma cópia deste anúncio no carrossel; o original continua onde está"
                           >
                             + Carrossel
@@ -236,23 +236,23 @@ export const AdminAdsTab: React.FC = () => {
             </Seletor>
             <label className="flex items-start gap-2.5 p-3 rounded-xl bg-fuchsia-950/30 border border-fuchsia-800/40 cursor-pointer">
               <input type="checkbox" className="mt-0.5 accent-fuchsia-500" checked={!!editing.showInPopup} onChange={e => set('showInPopup', e.target.checked)} />
-              <span className="text-[11px] text-zinc-300">
+              <span className="text-[12px] text-zinc-300">
                 <strong className="block text-xs text-white">Exibir na janela de publicidade</strong>
                 Abre uma vez a cada acesso de cada pessoa, revezando entre os anúncios marcados (precisa de imagem).
               </span>
             </label>
             {editing.placement === 'carousel' && (
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[12px] text-zinc-400">
                 Cada anúncio do carrossel vira um slide que troca a cada 6 segundos (pausa com o mouse em cima). Use imagem na proporção 4:3.
                 Para manter um anúncio também nos outros espaços, cadastre uma cópia com o outro espaço.
               </p>
             )}
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-[11px] text-zinc-400 space-y-1">
+              <label className="text-[12px] text-zinc-400 space-y-1">
                 <span>Início</span>
                 <input type="datetime-local" className={inputClass} value={toLocalInput(editing.startsAt)} onChange={e => set('startsAt', e.target.value)} />
               </label>
-              <label className="text-[11px] text-zinc-400 space-y-1">
+              <label className="text-[12px] text-zinc-400 space-y-1">
                 <span>Fim (opcional)</span>
                 <input type="datetime-local" className={inputClass} value={toLocalInput(editing.endsAt)} onChange={e => set('endsAt', e.target.value || undefined)} />
               </label>

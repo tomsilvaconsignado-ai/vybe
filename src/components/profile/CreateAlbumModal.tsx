@@ -86,7 +86,7 @@ export const CreateAlbumModal: React.FC<CreateAlbumModalProps> = ({ onClose, onC
                 <Icon className="w-4 h-4 text-fuchsia-400 mt-0.5 shrink-0" />
                 <span>
                   <span className="block text-xs font-bold text-white">{opt.label}</span>
-                  <span className="block text-[11px] text-zinc-400">{opt.desc}</span>
+                  <span className="block text-[12px] text-zinc-400">{opt.desc}</span>
                 </span>
               </button>
             );

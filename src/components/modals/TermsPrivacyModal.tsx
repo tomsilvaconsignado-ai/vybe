@@ -95,7 +95,7 @@ export const TermsPrivacyModal: React.FC = () => {
 
         {/* Footer */}
         <div className="pt-4 border-t border-purple-900/30 flex items-center justify-between">
-          <span className="text-[11px] text-zinc-400">Última atualização: Outubro de 2026</span>
+          <span className="text-[12px] text-zinc-400">Última atualização: Outubro de 2026</span>
           <button
             onClick={() => setPrivacyTermsModalOpen(false)}
             className="px-6 py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 transition-all cursor-pointer shadow-md shadow-purple-950/50"

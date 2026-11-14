@@ -61,7 +61,7 @@ export const MobileNav: React.FC = () => {
                   </span>
                 )}
               </div>
-              <span className="text-[11px] mt-0.5">{tab.label}</span>
+              <span className="text-[12px] mt-0.5">{tab.label}</span>
               {isActive && <span className="absolute top-0 w-8 h-0.5 rounded-full bg-fuchsia-400" />}
             </button>
           );

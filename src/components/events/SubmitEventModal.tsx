@@ -117,11 +117,11 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <label className="text-[11px] text-zinc-400 space-y-1">
+              <label className="text-[12px] text-zinc-400 space-y-1">
                 <span>Início</span>
                 <input required type="datetime-local" className={inputClass} value={draft.startsAt} onChange={e => set('startsAt', e.target.value)} />
               </label>
-              <label className="text-[11px] text-zinc-400 space-y-1">
+              <label className="text-[12px] text-zinc-400 space-y-1">
                 <span>Término (opcional)</span>
                 <input type="datetime-local" className={inputClass} value={draft.endsAt} onChange={e => set('endsAt', e.target.value)} />
               </label>

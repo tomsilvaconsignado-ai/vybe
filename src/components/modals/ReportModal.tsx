@@ -114,7 +114,7 @@ export const ReportModal: React.FC = () => {
                   />
                   <div>
                     <div className="text-xs font-semibold text-zinc-200">{cat.label}</div>
-                    <div className="text-[11px] text-zinc-400 leading-tight">{cat.desc}</div>
+                    <div className="text-[12px] text-zinc-400 leading-tight">{cat.desc}</div>
                   </div>
                 </label>
               ))}

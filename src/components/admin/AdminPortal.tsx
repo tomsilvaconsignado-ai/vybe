@@ -222,7 +222,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-white">{totalUsers}</span>
-                <span className="text-[11px] text-zinc-400">contas cadastradas</span>
+                <span className="text-[12px] text-zinc-400">contas cadastradas</span>
               </div>
             </div>
 
@@ -233,7 +233,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-emerald-400">{activeAccounts}</span>
-                <span className="text-[11px] text-zinc-400">Em conformidade</span>
+                <span className="text-[12px] text-zinc-400">Em conformidade</span>
               </div>
             </div>
 
@@ -244,7 +244,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-amber-300">{restrictedAccounts + warnedAccounts}</span>
-                <span className="text-[11px] text-amber-500 font-semibold">Sob análise</span>
+                <span className="text-[12px] text-amber-500 font-semibold">Sob análise</span>
               </div>
             </div>
 
@@ -255,7 +255,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-rose-400">{suspendedAccounts}</span>
-                <span className="text-[11px] text-rose-500 font-semibold">Bloqueio preventivo</span>
+                <span className="text-[12px] text-rose-500 font-semibold">Bloqueio preventivo</span>
               </div>
             </div>
 
@@ -266,7 +266,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-white">{verifiedProfiles}</span>
-                <span className="text-[11px] text-emerald-400 font-semibold">Biometria / Doc</span>
+                <span className="text-[12px] text-emerald-400 font-semibold">Biometria / Doc</span>
               </div>
             </div>
 
@@ -277,7 +277,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-white">4</span>
-                <span className="text-[11px] text-zinc-400">Total auditado</span>
+                <span className="text-[12px] text-zinc-400">Total auditado</span>
               </div>
             </div>
 
@@ -288,7 +288,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-white">{adminMediaList.length}</span>
-                <span className="text-[11px] text-purple-400 font-semibold">Storage protegido</span>
+                <span className="text-[12px] text-purple-400 font-semibold">Storage protegido</span>
               </div>
             </div>
 
@@ -299,7 +299,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-amber-300">{flaggedMediaCount}</span>
-                <span className="text-[11px] text-amber-500 font-semibold">Requer decisão</span>
+                <span className="text-[12px] text-amber-500 font-semibold">Requer decisão</span>
               </div>
             </div>
 
@@ -310,7 +310,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-amber-300">{pendingReports.length}</span>
-                <span className="text-[11px] text-rose-400 font-semibold">{urgentReports.length} Urgentes</span>
+                <span className="text-[12px] text-rose-400 font-semibold">{urgentReports.length} Urgentes</span>
               </div>
             </div>
 
@@ -321,7 +321,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-white">{messageReports.length}</span>
-                <span className="text-[11px] text-purple-400 font-semibold">Investigação estrita</span>
+                <span className="text-[12px] text-purple-400 font-semibold">Investigação estrita</span>
               </div>
             </div>
 
@@ -332,7 +332,7 @@ export const AdminPortal: React.FC = () => {
               </span>
               <div className="flex items-baseline justify-between">
                 <span className="text-2xl font-black text-white">{adminLogs.length} eventos</span>
-                <span className="text-[11px] text-emerald-400 font-semibold">100% Rastreável por IP/Data</span>
+                <span className="text-[12px] text-emerald-400 font-semibold">100% Rastreável por IP/Data</span>
               </div>
             </div>
 
@@ -495,7 +495,7 @@ export const AdminPortal: React.FC = () => {
                         <Lock className="w-3.5 h-3.5" />
                         Mensagem Privada Sinalizada
                       </span>
-                      <p className="text-[11px] text-zinc-300">
+                      <p className="text-[12px] text-zinc-300">
                         O conteúdo da mensagem é protegido e só pode ser exibido mediante justificativa gravada em auditoria.
                       </p>
                       <button
@@ -509,7 +509,7 @@ export const AdminPortal: React.FC = () => {
                   )}
 
                   {selectedReport.evidenceSnapshot && (
-                    <div className="p-3 bg-purple-950/30 border border-purple-900/30 rounded-2xl text-[11px] text-purple-300">
+                    <div className="p-3 bg-purple-950/30 border border-purple-900/30 rounded-2xl text-[12px] text-purple-300">
                       <strong>Evidência Protegida: </strong>
                       {selectedReport.evidenceSnapshot}
                     </div>
@@ -630,13 +630,13 @@ export const AdminPortal: React.FC = () => {
                         <div className="font-bold text-white flex items-center gap-1">
                           <span>{u.displayName}</span>
                           {u.email === 'tomsilvaconsignado@gmail.com' && (
-                            <span className="text-[9px] px-1 bg-amber-500/20 text-amber-300 rounded">Admin</span>
+                            <span className="text-[10px] px-1 bg-amber-500/20 text-amber-300 rounded">Admin</span>
                           )}
                         </div>
                         <div className="text-[10px] text-zinc-400">@{u.username} • {u.id}</div>
                       </div>
                     </td>
-                    <td className="p-3 font-mono text-[11px] text-zinc-300">{u.email}</td>
+                    <td className="p-3 font-mono text-[12px] text-zinc-300">{u.email}</td>
                     <td className="p-3 capitalize">{u.profileType} • {u.city}</td>
                     <td className="p-3">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
@@ -746,7 +746,7 @@ export const AdminPortal: React.FC = () => {
                   </div>
 
                   {m.caption && (
-                    <p className="text-[11px] text-zinc-300 line-clamp-1 italic">
+                    <p className="text-[12px] text-zinc-300 line-clamp-1 italic">
                       "{m.caption}"
                     </p>
                   )}
@@ -764,7 +764,7 @@ export const AdminPortal: React.FC = () => {
                           const r = await askText({ title: 'Aprovar mídia', message: 'Justificativa para aprovação:', confirmLabel: 'Aprovar' });
                           if (r) adminModerateMedia(m.id, 'approved', r);
                         }}
-                        className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 rounded-lg text-[11px] font-bold cursor-pointer"
+                        className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 rounded-lg text-[12px] font-bold cursor-pointer"
                       >
                         Aprovar
                       </button>
@@ -776,7 +776,7 @@ export const AdminPortal: React.FC = () => {
                           const r = await askText({ title: 'Remover mídia', message: 'Justificativa para remoção (registrada em log):', confirmLabel: 'Remover', danger: true });
                           if (r) adminModerateMedia(m.id, 'removed', r);
                         }}
-                        className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600/50 text-rose-300 rounded-lg text-[11px] font-bold cursor-pointer"
+                        className="px-2.5 py-1 bg-rose-600/30 hover:bg-rose-600/50 text-rose-300 rounded-lg text-[12px] font-bold cursor-pointer"
                       >
                         Remover Conteúdo
                       </button>
@@ -839,7 +839,7 @@ export const AdminPortal: React.FC = () => {
               <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
                 {adminLogs.map(l => (
                   <tr key={l.id} className="hover:bg-zinc-900/40 transition-colors">
-                    <td className="p-3 font-mono text-[11px] text-zinc-400">{l.timestamp}</td>
+                    <td className="p-3 font-mono text-[12px] text-zinc-400">{l.timestamp}</td>
                     <td className="p-3 font-semibold text-white">{l.adminName}</td>
                     <td className="p-3 font-mono text-amber-400 font-bold">{l.action}</td>
                     <td className="p-3 font-mono text-zinc-300">{l.targetType}:{l.targetId}</td>

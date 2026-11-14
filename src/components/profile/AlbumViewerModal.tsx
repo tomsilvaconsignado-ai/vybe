@@ -75,7 +75,7 @@ export const AlbumViewerModal: React.FC<AlbumViewerModalProps> = ({ album, isOwn
           </h3>
           {album.description && <p className="text-xs text-zinc-400 mt-0.5">{album.description}</p>}
           {isVault && (
-            <p className="text-[11px] text-fuchsia-300/80 mt-1">
+            <p className="text-[12px] text-fuchsia-300/80 mt-1">
               Fotos do cofre são exibidas por links temporários e nunca ficam públicas.
             </p>
           )}

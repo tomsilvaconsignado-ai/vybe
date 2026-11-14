@@ -43,7 +43,7 @@ const Section: React.FC<{ title: string; hint?: string; children: React.ReactNod
   <section className="space-y-3 pt-5 first:pt-0">
     <div>
       <h4 className="text-sm font-bold text-white">{title}</h4>
-      {hint && <p className="text-[11px] text-zinc-500">{hint}</p>}
+      {hint && <p className="text-[12px] text-zinc-500">{hint}</p>}
     </div>
     {children}
   </section>
@@ -352,7 +352,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                   <div className="space-y-2">
                     <span className="block text-xs font-semibold text-zinc-300">Foto de perfil</span>
                     <img src={avatarUrl} alt="" className="w-16 h-16 rounded-full object-cover border border-purple-500/40" />
-                    <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-900/40 border border-purple-700/40 text-[11px] font-semibold text-purple-200 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-900/40 border border-purple-700/40 text-[12px] font-semibold text-purple-200 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
                       <Camera className="w-3.5 h-3.5" />
                       {uploading === 'avatar' ? 'Enviando...' : 'Trocar foto'}
                       <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => handleUpload(e, 'avatar')} />
@@ -361,7 +361,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                   <div className="space-y-2">
                     <span className="block text-xs font-semibold text-zinc-300">Foto de capa</span>
                     <img src={coverUrl} alt="" className="w-full h-16 rounded-xl object-cover border border-purple-500/40" />
-                    <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-900/40 border border-purple-700/40 text-[11px] font-semibold text-purple-200 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-900/40 border border-purple-700/40 text-[12px] font-semibold text-purple-200 cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
                       <Camera className="w-3.5 h-3.5" />
                       {uploading === 'cover' ? 'Enviando...' : 'Trocar capa'}
                       <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => handleUpload(e, 'cover')} />
@@ -431,7 +431,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                   {partners.map((partner, i) => (
                     <div key={partner.id || `new-${i}`} className="p-3 bg-zinc-900/60 border border-purple-900/30 rounded-2xl space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold text-purple-300">Pessoa {i + 1}</span>
+                        <span className="text-[12px] font-bold text-purple-300">Pessoa {i + 1}</span>
                         <button
                           type="button"
                           onClick={() => setPartners(prev => prev.filter((_, idx) => idx !== i))}
@@ -462,7 +462,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                             onChange={e => updatePartner(i, { consentConfirmed: e.target.checked })}
                             className="mt-0.5 accent-purple-600"
                           />
-                          <span className="text-[11px] text-zinc-300">Esta pessoa tem 18 anos ou mais e concorda em fazer parte do perfil.</span>
+                          <span className="text-[12px] text-zinc-300">Esta pessoa tem 18 anos ou mais e concorda em fazer parte do perfil.</span>
                         </label>
                       )}
                     </div>
@@ -544,7 +544,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 <div>
                   <label className={labelClass}>Limites inegociáveis (um por linha)</label>
                   <textarea rows={3} value={limitsText} onChange={e => setLimitsText(e.target.value)} className={inputClass} />
-                  <p className="text-[11px] text-zinc-500 mt-1">Só suas conexões aceitas veem seus limites.</p>
+                  <p className="text-[12px] text-zinc-500 mt-1">Só suas conexões aceitas veem seus limites.</p>
                 </div>
               </Section>
 
@@ -560,7 +560,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                 <div className="mt-3 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                   <div className="h-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 transition-all" style={{ width: `${(answeredExtras / EXTRA_QUESTIONS.length) * 100}%` }} />
                 </div>
-                <p className="text-[11px] text-zinc-500 mt-1">{answeredExtras} de {EXTRA_QUESTIONS.length} perguntas sobre você respondidas</p>
+                <p className="text-[12px] text-zinc-500 mt-1">{answeredExtras} de {EXTRA_QUESTIONS.length} perguntas sobre você respondidas</p>
               </div>
 
               <Section title="Quem você quer conhecer">
@@ -651,7 +651,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
           )}
           {tab === 'account' && (accountUnlocked ? (
             <section className="space-y-3">
-              <p className="text-[11px] text-zinc-500">Estes dados não aparecem para outros membros.</p>
+              <p className="text-[12px] text-zinc-500">Estes dados não aparecem para outros membros.</p>
                 <div>
                   <label className={labelClass}>Nome de usuário</label>
                   <div className="flex gap-2">
@@ -674,7 +674,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                       {accountBusy === 'username' ? '...' : 'Trocar'}
                     </button>
                   </div>
-                  <p className="text-[11px] text-zinc-500 mt-1">Pode ser trocado uma vez a cada 7 dias.</p>
+                  <p className="text-[12px] text-zinc-500 mt-1">Pode ser trocado uma vez a cada 7 dias.</p>
                 </div>
 
                 <div>
@@ -698,7 +698,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
                       {accountBusy === 'email' ? '...' : 'Trocar'}
                     </button>
                   </div>
-                  <p className="text-[11px] text-zinc-500 mt-1">Enviamos um link de confirmação; o e-mail só muda depois do clique.</p>
+                  <p className="text-[12px] text-zinc-500 mt-1">Enviamos um link de confirmação; o e-mail só muda depois do clique.</p>
                 </div>
 
                 <div>
@@ -719,7 +719,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onCl
 
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
                   <Lock className="w-3.5 h-3.5 text-zinc-500 mt-0.5 shrink-0" />
-                  <p className="text-[11px] text-zinc-400">
+                  <p className="text-[12px] text-zinc-400">
                     Data de nascimento: <strong className="text-zinc-200">{birthdate}</strong>. Ela não pode ser alterada, pois garante que
                     todos no Vybelog são maiores de 18 anos. Se estiver errada, fale com a equipe.
                   </p>

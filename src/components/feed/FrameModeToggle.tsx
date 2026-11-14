@@ -5,7 +5,7 @@ import { FrameMode } from '../../lib/media';
 // Como a foto entra no formato 1080x1920 (9:16) do feed e dos stories
 export const FrameModeToggle: React.FC<{ value: FrameMode; onChange: (mode: FrameMode) => void; disabled?: boolean }> = ({ value, onChange, disabled }) => (
   <div>
-    <span className="block text-[11px] font-semibold text-zinc-400 mb-1.5">Enquadramento da foto (1080 × 1920)</span>
+    <span className="block text-[12px] font-semibold text-zinc-400 mb-1.5">Enquadramento da foto (1080 × 1920)</span>
     <div className="grid grid-cols-2 gap-2">
       {([
         { id: 'fill', label: 'Preencher a tela', icon: Maximize },

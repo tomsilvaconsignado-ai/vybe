@@ -346,7 +346,7 @@ export const ProfileView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setEditTab('data')}
-                className="text-[11px] text-amber-300 underline underline-offset-2 cursor-pointer"
+                className="text-[12px] text-amber-300 underline underline-offset-2 cursor-pointer"
               >
                 Complete seu gênero e orientação: eles aparecem no seu perfil para todos
               </button>
@@ -390,7 +390,7 @@ export const ProfileView: React.FC = () => {
                   className={`flex flex-col sm:flex-row sm:items-baseline sm:gap-1 items-center ${stat.list ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
                 >
                   <span className="text-base font-extrabold text-white">{stat.value}</span>
-                  <span className="text-[11px] sm:text-xs text-zinc-400">{stat.label}</span>
+                  <span className="text-[12px] sm:text-xs text-zinc-400">{stat.label}</span>
                 </button>
               ))}
             </div>
@@ -426,12 +426,12 @@ export const ProfileView: React.FC = () => {
                       <div className="text-xs font-bold text-white flex items-center gap-1.5">
                         <span>{p.name}, {p.age}</span>
                         {p.consentConfirmed && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
                             Autorizado
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-zinc-400">
+                      <div className="text-[12px] text-zinc-400">
                         {[p.gender, p.orientation || 'Orientação não informada'].filter(Boolean).join(' • ')}
                       </div>
                     </div>
@@ -455,18 +455,18 @@ export const ProfileView: React.FC = () => {
                   <div className="text-xs font-bold text-white" style={{ color: compat.color }}>
                     {compat.tier} com você
                   </div>
-                  <div className="text-[11px] text-zinc-300">
+                  <div className="text-[12px] text-zinc-300">
                     {compat.reasons[0] || 'Objetivos e limites alinhados'}
                   </div>
                 </div>
               </div>
 
               <div className="text-right hidden sm:block">
-                <span className="text-[11px] text-zinc-400 block">
+                <span className="text-[12px] text-zinc-400 block">
                   {compat.sharedObjectives.length} objetivos mútuos
                 </span>
                 {compat.distanceKm !== null && (
-                  <span className="text-[11px] text-zinc-400 block">
+                  <span className="text-[12px] text-zinc-400 block">
                     ~{compat.distanceKm} km de distância
                   </span>
                 )}
@@ -482,7 +482,7 @@ export const ProfileView: React.FC = () => {
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {profile.compatibilityPrefs.personalLimits.map((l, i) => (
-                  <span key={i} className="text-[11px] px-2.5 py-1 rounded-lg bg-zinc-900/80 border border-zinc-800 text-zinc-300">
+                  <span key={i} className="text-[12px] px-2.5 py-1 rounded-lg bg-zinc-900/80 border border-zinc-800 text-zinc-300">
                     ✓ {l}
                   </span>
                 ))}
@@ -506,7 +506,7 @@ export const ProfileView: React.FC = () => {
             role="tab"
             aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`py-3 -mt-px border-t-2 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
+            className={`py-3 -mt-px border-t-2 text-[12px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
               activeTab === tab.id ? 'border-fuchsia-400 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
             }`}
           >
@@ -580,7 +580,7 @@ export const ProfileView: React.FC = () => {
                         <span className="text-xs font-bold text-white drop-shadow">
                           Cofre Protegido com Chave
                         </span>
-                        <span className="text-[11px] text-zinc-300 drop-shadow">
+                        <span className="text-[12px] text-zinc-300 drop-shadow">
                           {alb.mediaCount} mídias íntimas
                         </span>
                       </div>
@@ -609,12 +609,12 @@ export const ProfileView: React.FC = () => {
 
                     <div className="pt-2 border-t border-purple-900/30 flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-zinc-400">{alb.mediaCount} {alb.mediaCount === 1 ? 'mídia' : 'mídias'}</span>
+                        <span className="text-[12px] text-zinc-400">{alb.mediaCount} {alb.mediaCount === 1 ? 'mídia' : 'mídias'}</span>
                         {hasAccess && (
                           <button
                             type="button"
                             onClick={() => setViewingAlbumId(alb.id)}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold text-purple-200 bg-purple-950/60 hover:bg-purple-900/60 cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg text-[12px] font-semibold text-purple-200 bg-purple-950/60 hover:bg-purple-900/60 cursor-pointer"
                           >
                             {isSelf ? 'Abrir e enviar fotos' : 'Ver fotos'}
                           </button>
@@ -696,7 +696,7 @@ export const ProfileView: React.FC = () => {
                   {p.mediaUrls.length > 0 ? (
                     <img src={p.mediaUrls[0]} alt="" loading="lazy" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="absolute inset-0 p-3 flex items-center justify-center text-center text-[11px] sm:text-xs text-zinc-200 bg-gradient-to-br from-purple-950 to-rose-950 line-clamp-6">
+                    <span className="absolute inset-0 p-3 flex items-center justify-center text-center text-[12px] sm:text-xs text-zinc-200 bg-gradient-to-br from-purple-950 to-rose-950 line-clamp-6">
                       {p.content}
                     </span>
                   )}

@@ -14,7 +14,7 @@ export const AvisoFundador: React.FC<{ destaque?: boolean }> = ({ destaque }) =>
       ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/15 border-amber-400/60'
       : 'bg-amber-500/10 border-amber-500/30'}`}>
       <Crown className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
-      <p className="text-[11px] leading-relaxed text-amber-100">
+      <p className="text-[12px] leading-relaxed text-amber-100">
         <strong className="text-amber-200">Campanha Fundadores: restam {f.remaining.toLocaleString('pt-BR')} vagas.</strong>{' '}
         Para ganhar o selo de <strong>Membro Fundador</strong> é obrigatório ter <strong className="inline-flex items-center gap-0.5"><Camera className="w-3 h-3" /> foto no perfil</strong> (além de confirmar o e-mail).
         {destaque && ' Assim que confirmar o e-mail, coloque sua foto em Meu Perfil → Editar.'}

@@ -80,7 +80,7 @@ export const Header: React.FC = () => {
                   +18
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-400 hidden sm:block tracking-wide font-medium">
+              <p className="text-[12px] text-zinc-400 hidden sm:block tracking-wide font-medium">
                 Sua conexão. Suas regras.
               </p>
             </div>
@@ -197,7 +197,7 @@ export const Header: React.FC = () => {
                       className="w-7 h-7 rounded-full object-cover border border-purple-500/40"
                     />
                     {currentUser?.isVerified && (
-                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-purple-500 rounded-full flex items-center justify-center text-[9px] text-white">
+                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-purple-500 rounded-full flex items-center justify-center text-[10px] text-white">
                         ✓
                       </span>
                     )}
@@ -219,8 +219,8 @@ export const Header: React.FC = () => {
                     
                     <div className="p-2.5 border-b border-purple-900/40 mb-1">
                       <p className="text-xs font-bold text-white truncate">{currentUser.displayName}</p>
-                      <p className="text-[11px] text-zinc-400 truncate">{currentUser.email}</p>
-                      <span className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                      <p className="text-[12px] text-zinc-400 truncate">{currentUser.email}</p>
+                      <span className={`inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded ${
                         isAuthorizedAdmin 
                           ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
                           : 'bg-zinc-800 text-zinc-400'

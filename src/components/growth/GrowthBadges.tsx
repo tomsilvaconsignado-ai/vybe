@@ -28,7 +28,7 @@ export const GrowthBadges: React.FC<{ growth?: ProfileGrowth; compacto?: boolean
     <div className={`flex flex-wrap items-center gap-1 ${className}`}>
       {selos.map(s => (
         <span key={s.chave} title={s.dica}
-          className={`inline-flex items-center gap-1 rounded-full border font-bold ${compacto ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-0.5 text-[10px]'} ${s.cor}`}>
+          className={`inline-flex items-center gap-1 rounded-full border font-bold ${compacto ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-[10px]'} ${s.cor}`}>
           {s.icone}{compacto ? s.curto : s.rotulo}
         </span>
       ))}

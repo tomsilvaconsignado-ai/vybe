@@ -19,7 +19,7 @@ const Tile: React.FC<{ titulo: string; valor: React.ReactNode; detalhe?: string 
   <div className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
     <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">{titulo}</span>
     <span className="block text-2xl font-black text-white tabular-nums">{valor}</span>
-    {detalhe && <span className="block text-[11px] text-zinc-500 mt-0.5">{detalhe}</span>}
+    {detalhe && <span className="block text-[12px] text-zinc-500 mt-0.5">{detalhe}</span>}
   </div>
 );
 
@@ -33,7 +33,7 @@ const GraficoCadastros: React.FC<{ serie: EstatisticasCrescimento['signups_serie
     <div className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
         <h3 className="text-xs font-bold text-zinc-200">Novos cadastros por dia (30 dias)</h3>
-        <span className="text-[11px] text-zinc-400 tabular-nums" aria-live="polite">
+        <span className="text-[12px] text-zinc-400 tabular-nums" aria-live="polite">
           {atual ? `${dia(atual.day)}: ${atual.n} cadastros, ${atual.ref} por convite` : `${fmt(serie.reduce((a, s) => a + s.n, 0))} no período`}
         </span>
       </div>
@@ -49,7 +49,7 @@ const GraficoCadastros: React.FC<{ serie: EstatisticasCrescimento['signups_serie
       <div className="flex justify-between mt-1.5 text-[10px] text-zinc-500 tabular-nums">
         <span>{serie[0] && dia(serie[0].day)}</span><span>{serie[15] && dia(serie[15].day)}</span><span>{serie.length > 0 && dia(serie[serie.length - 1]!.day)}</span>
       </div>
-      <div className="flex gap-4 mt-2 text-[11px] text-zinc-300">
+      <div className="flex gap-4 mt-2 text-[12px] text-zinc-300">
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />Por convite</span>
         <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-500/70" />Demais cadastros</span>
       </div>
@@ -100,7 +100,7 @@ export const AdminCrescimentoTab: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-black text-white flex items-center gap-2"><Rocket className="w-5 h-5 text-amber-300" /> GROWTH CENTER — Crescimento da Vybelog</h2>
-        <button type="button" onClick={carregar} disabled={carregando} className="text-[11px] font-semibold text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer">
+        <button type="button" onClick={carregar} disabled={carregando} className="text-[12px] font-semibold text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer">
           <RefreshCw className={`w-3.5 h-3.5 ${carregando ? 'animate-spin' : ''}`} /> Atualizar
         </button>
       </div>
@@ -145,9 +145,9 @@ export const AdminCrescimentoTab: React.FC = () => {
           <ul className="space-y-2">{d.campaigns.map(c => (
             <li key={c.id} className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 flex flex-wrap items-center gap-3 justify-between">
               <span><span className="block text-sm font-bold text-white">{c.title} <span className="text-[10px] text-zinc-500">?campanha={c.slug}</span></span>
-                <span className="block text-[11px] text-zinc-400">{c.signups} cadastros · {c.valid} válidos · {c.active ? 'ativa' : 'inativa'}{c.ends_at ? ` · até ${new Date(c.ends_at).toLocaleDateString('pt-BR')}` : ''}</span></span>
+                <span className="block text-[12px] text-zinc-400">{c.signups} cadastros · {c.valid} válidos · {c.active ? 'ativa' : 'inativa'}{c.ends_at ? ` · até ${new Date(c.ends_at).toLocaleDateString('pt-BR')}` : ''}</span></span>
               {podeConfigurar && <button type="button" onClick={() => executar(c.active ? 'Desativar campanha' : 'Ativar campanha', j => salvarCampanha({ ...c, active: !c.active }, j), 'Campanha atualizada.')}
-                className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-zinc-800 text-zinc-200 cursor-pointer">{c.active ? 'Desativar' : 'Ativar'}</button>}
+                className="px-3 py-1.5 rounded-lg text-[12px] font-bold bg-zinc-800 text-zinc-200 cursor-pointer">{c.active ? 'Desativar' : 'Ativar'}</button>}
             </li>))}</ul>
         )}
         {podeConfigurar && (
@@ -155,7 +155,7 @@ export const AdminCrescimentoTab: React.FC = () => {
             <input className={campo} placeholder="código (ex.: verao-2027)" value={camp.slug} onChange={e => setCamp({ ...camp, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })} />
             <input className={campo} placeholder="Título" value={camp.title} onChange={e => setCamp({ ...camp, title: e.target.value })} />
             <input className={`${campo} sm:col-span-2`} placeholder="Descrição (aparece para quem convida)" value={camp.description} onChange={e => setCamp({ ...camp, description: e.target.value })} />
-            <label className="text-[11px] text-zinc-400">Termina em (opcional)<input type="date" className={campo} value={camp.ends_at} onChange={e => setCamp({ ...camp, ends_at: e.target.value })} /></label>
+            <label className="text-[12px] text-zinc-400">Termina em (opcional)<input type="date" className={campo} value={camp.ends_at} onChange={e => setCamp({ ...camp, ends_at: e.target.value })} /></label>
             <button type="button" disabled={camp.slug.length < 3 || camp.title.trim().length < 3}
               onClick={() => executar('Criar campanha', j => salvarCampanha({ slug: camp.slug, title: camp.title, description: camp.description, ends_at: camp.ends_at ? new Date(camp.ends_at + 'T23:59:59').toISOString() : null, active: true }, j), 'Campanha criada.')}
               className="self-end py-2.5 rounded-xl bg-amber-500 text-black text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"><Plus className="w-4 h-4" /> Criar campanha</button>
@@ -187,8 +187,8 @@ export const AdminCrescimentoTab: React.FC = () => {
             <button type="button" onClick={() => executar('Salvar mensagem de convite', j => salvarConfiguracao('share_message', { text: mensagem }, j), 'Mensagem salva.')}
               className="w-full py-2 rounded-xl bg-zinc-800 text-white text-xs font-bold cursor-pointer">Salvar mensagem</button>
             <div className="grid grid-cols-2 gap-2 pt-2">
-              <label className="text-[11px] text-zinc-400">Validações por dia (por pessoa)<input type="number" min={1} max={100} className={campo} value={regras.daily_valid_cap} onChange={e => setRegras({ ...regras, daily_valid_cap: Number(e.target.value) })} /></label>
-              <label className="text-[11px] text-zinc-400">Horas até o retorno<input type="number" min={0} max={168} className={campo} value={regras.return_hours} onChange={e => setRegras({ ...regras, return_hours: Number(e.target.value) })} /></label>
+              <label className="text-[12px] text-zinc-400">Validações por dia (por pessoa)<input type="number" min={1} max={100} className={campo} value={regras.daily_valid_cap} onChange={e => setRegras({ ...regras, daily_valid_cap: Number(e.target.value) })} /></label>
+              <label className="text-[12px] text-zinc-400">Horas até o retorno<input type="number" min={0} max={168} className={campo} value={regras.return_hours} onChange={e => setRegras({ ...regras, return_hours: Number(e.target.value) })} /></label>
             </div>
             <button type="button" onClick={() => executar('Salvar regras antifraude', j => salvarConfiguracao('referral_rules', regras, j), 'Regras salvas.')}
               className="w-full py-2 rounded-xl bg-zinc-800 text-white text-xs font-bold cursor-pointer">Salvar regras</button>
@@ -203,7 +203,7 @@ export const AdminCrescimentoTab: React.FC = () => {
                   <span className="w-10 text-center font-black text-white">{r.threshold}</span>
                   <span className="flex-1 text-zinc-200">{r.label} <span className="text-zinc-500">({ROTULO_RECOMPENSA[r.kind]}{r.amount ? `: ${r.amount}` : ''})</span></span>
                   <button type="button" onClick={() => executar(r.active ? 'Desativar recompensa' : 'Ativar recompensa', j => salvarRecompensa({ ...r, badge: r.badge, active: !r.active }, j), 'Recompensa atualizada.')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer ${r.active ? 'bg-emerald-950 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>{r.active ? 'Ativa' : 'Inativa'}</button>
+                    className={`px-2.5 py-1 rounded-lg text-[12px] font-bold cursor-pointer ${r.active ? 'bg-emerald-950 text-emerald-300' : 'bg-zinc-800 text-zinc-400'}`}>{r.active ? 'Ativa' : 'Inativa'}</button>
                 </li>
               ))}
             </ul>
@@ -260,7 +260,7 @@ export const AdminCrescimentoTab: React.FC = () => {
                   {r.status === 'valid' ? 'Válida' : r.status === 'pending' ? 'Aguardando' : 'Recusada'}</span>
                 {podeConfigurar && r.status !== 'rejected' && (
                   <button type="button" onClick={() => executar('Recusar indicação (suspeita de fraude)', j => recusarIndicacao(r.referred_id, j), 'Indicação recusada.')}
-                    className="text-[11px] font-semibold text-rose-300 cursor-pointer">Recusar</button>)}
+                    className="text-[12px] font-semibold text-rose-300 cursor-pointer">Recusar</button>)}
               </span>
             </li>))}</ul>
         )}

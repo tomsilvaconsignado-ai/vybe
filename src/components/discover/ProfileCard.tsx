@@ -71,13 +71,13 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
                 {profile.displayName}
               </h3>
               <GrowthBadges growth={profile.growth} compacto max={2} />
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/40">
+              <span className="text-[12px] px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/40">
                 {PROFILE_TYPE_OPTIONS.find(o => o.id === profile.profileType)?.label ?? 'Perfil'}
               </span>
               <span className="text-xs text-zinc-400">
                 {profile.age} anos
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-950/60 text-rose-200 border border-rose-800/40 font-semibold">
+              <span className="text-[12px] px-2 py-0.5 rounded-full bg-rose-950/60 text-rose-200 border border-rose-800/40 font-semibold">
                 {identityShortLabel(profile)}
               </span>
             </div>
@@ -108,7 +108,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
             {/* Quick Compat Reason Tag */}
             <div className="flex items-center gap-2 pt-1">
               <span 
-                className="text-[11px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1"
+                className="text-[12px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1"
                 style={{ backgroundColor: `${compat.color}20`, color: compat.color }}
               >
                 <Sparkles className="w-3 h-3" />
@@ -175,7 +175,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
         {/* Top Badges */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
           <span 
-            className="text-[11px] font-extrabold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-md flex items-center gap-1 text-white"
+            className="text-[12px] font-extrabold px-2.5 py-1 rounded-full shadow-lg backdrop-blur-md flex items-center gap-1 text-white"
             style={{ backgroundColor: `${compat.color}cc` }}
           >
             <Sparkles className="w-3 h-3" />
@@ -195,11 +195,11 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
             <span>{profile.displayName}</span>
             <span className="text-xs font-normal text-zinc-300">({profile.age})</span>
           </div>
-          <div className="text-[11px] font-semibold text-rose-200 drop-shadow truncate">
+          <div className="text-[12px] font-semibold text-rose-200 drop-shadow truncate">
             {identityShortLabel(profile)}
           </div>
           <GrowthBadges growth={profile.growth} compacto max={2} className="my-0.5" />
-          <div className="flex items-center gap-1 text-[11px] text-zinc-300 drop-shadow">
+          <div className="flex items-center gap-1 text-[12px] text-zinc-300 drop-shadow">
             <MapPin className="w-3 h-3 text-rose-400" />
             <span>{[profile.city, profile.state].filter(Boolean).join(', ')}</span>
             {profile.approximateDistanceKm !== undefined && (
@@ -225,7 +225,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
         </p>
 
         {/* Compatibility reasoning pill */}
-        <div className="p-2 rounded-xl bg-purple-950/30 border border-purple-900/30 text-[11px] text-purple-300 flex items-center gap-1.5">
+        <div className="p-2 rounded-xl bg-purple-950/30 border border-purple-900/30 text-[12px] text-purple-300 flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-fuchsia-400 shrink-0" />
           <span className="truncate">{compat.reasons[0] || 'Compatibilidade de objetivos e limites'}</span>
         </div>

@@ -61,7 +61,7 @@ export const Sidebar: React.FC = () => {
       {/* Navigation Links */}
       <div className="space-y-1">
         <div className="px-3 mb-2">
-          <p className="text-[11px] uppercase tracking-wider font-bold text-zinc-400">
+          <p className="text-[12px] uppercase tracking-wider font-bold text-zinc-400">
             Explorar Plataforma
           </p>
         </div>
@@ -142,21 +142,21 @@ export const Sidebar: React.FC = () => {
             />
             <div className="truncate">
               <p className="text-xs font-bold text-zinc-200 truncate">{currentUser.displayName}</p>
-              <p className="text-[11px] text-purple-400">@{currentUser.username}</p>
+              <p className="text-[12px] text-purple-400">@{currentUser.username}</p>
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-purple-900/20">
             <button
               onClick={() => setActiveTab('settings')}
-              className="text-[11px] text-zinc-400 hover:text-zinc-200 flex items-center gap-1 cursor-pointer"
+              className="text-[12px] text-zinc-400 hover:text-zinc-200 flex items-center gap-1 cursor-pointer"
             >
               <Lock className="w-3 h-3 text-purple-400" />
               Privacidade
             </button>
             <button
               onClick={logout}
-              className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
+              className="text-[12px] text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
             >
               <LogOut className="w-3 h-3" />
               Sair

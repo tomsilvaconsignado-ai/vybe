@@ -104,7 +104,7 @@ export const LoginModal: React.FC = () => {
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                className="text-[11px] text-purple-400 hover:text-purple-300"
+                className="text-[12px] text-purple-400 hover:text-purple-300"
               >
                 Esqueci a senha
               </button>

@@ -119,7 +119,7 @@ export const FeedView: React.FC = () => {
           ))}
         </div>
 
-        <span className="text-[11px] text-zinc-400 hidden sm:inline">
+        <span className="text-[12px] text-zinc-400 hidden sm:inline">
           {filteredPosts.length} publicações
         </span>
       </div>

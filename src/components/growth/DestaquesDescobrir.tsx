@@ -21,7 +21,7 @@ const Faixa: React.FC<{ titulo: string; icone: React.ReactNode; perfis: UserProf
                 <GrowthBadges growth={p.growth} compacto max={1} />
               </div>
             </div>
-            <p className="text-[11px] font-bold text-zinc-100 truncate mt-1">{p.displayName}{p.isVerified && <span className="text-purple-400 ml-0.5">✓</span>}</p>
+            <p className="text-[12px] font-bold text-zinc-100 truncate mt-1">{p.displayName}{p.isVerified && <span className="text-purple-400 ml-0.5">✓</span>}</p>
             <p className="text-[10px] text-zinc-500 truncate">{p.city}</p>
           </button>
         ))}
@@ -35,7 +35,7 @@ const Semana: React.FC<{ titulo: string; perfil: UserProfile; abrir: (id: string
     <span className="min-w-0">
       <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1"><Crown className="w-3 h-3" />{titulo}</span>
       <span className="block text-sm font-bold text-white truncate">{perfil.displayName}</span>
-      <span className="block text-[11px] text-zinc-400 truncate">{perfil.city}</span>
+      <span className="block text-[12px] text-zinc-400 truncate">{perfil.city}</span>
     </span>
   </button>
 );

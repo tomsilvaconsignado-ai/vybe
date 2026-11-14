@@ -37,7 +37,7 @@ export const FundadoresView: React.FC = () => {
                 <span className="text-3xl font-black text-amber-300 tabular-nums">{f.remaining.toLocaleString('pt-BR')}</span>
               </div>
               <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden mt-3"><div className="h-full bg-gradient-to-r from-amber-400 to-rose-500" style={{ width: `${pct}%` }} /></div>
-              <p className="text-[11px] text-zinc-500 mt-1.5 tabular-nums">{f.taken.toLocaleString('pt-BR')} de {f.limit.toLocaleString('pt-BR')} fundadores</p>
+              <p className="text-[12px] text-zinc-500 mt-1.5 tabular-nums">{f.taken.toLocaleString('pt-BR')} de {f.limit.toLocaleString('pt-BR')} fundadores</p>
             </>
           ) : (
             <p className="text-sm text-zinc-300">{f.status === 'paused' ? 'A campanha está pausada no momento.' : 'As vagas de fundador foram preenchidas. Obrigado a cada pessoa que ajudou a construir o Vybelog!'}</p>
@@ -51,7 +51,7 @@ export const FundadoresView: React.FC = () => {
           <ul className="space-y-2">
             {f.benefits.map((b, i) => <li key={i} className="flex items-start gap-2 text-sm text-zinc-300"><CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />{b}</li>)}
           </ul>
-          <p className="text-[11px] text-zinc-500 mt-3">Requisitos: {f.requirements ?? 'e-mail confirmado e foto de perfil.'} O selo é concedido automaticamente, por ordem de cadastro, até o limite de vagas.</p>
+          <p className="text-[12px] text-zinc-500 mt-3">Requisitos: {f.requirements ?? 'e-mail confirmado e foto de perfil.'} O selo é concedido automaticamente, por ordem de cadastro, até o limite de vagas.</p>
         </section>
       )}
 

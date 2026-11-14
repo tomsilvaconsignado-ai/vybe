@@ -61,7 +61,7 @@ export const AdminImageViewerHost: React.FC = () => {
       <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10 text-white">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold truncate">{media.label || 'Mídia'}</p>
-          {dimensions && <p className="text-[11px] text-zinc-400">{dimensions}</p>}
+          {dimensions && <p className="text-[12px] text-zinc-400">{dimensions}</p>}
         </div>
         {!media.isVideo && (
           <button

@@ -124,7 +124,7 @@ export const AdminMfaGate: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsAdminMode(false)}
-          className="text-[11px] text-zinc-500 hover:text-zinc-300 cursor-pointer"
+          className="text-[12px] text-zinc-500 hover:text-zinc-300 cursor-pointer"
         >
           Voltar ao portal social
         </button>

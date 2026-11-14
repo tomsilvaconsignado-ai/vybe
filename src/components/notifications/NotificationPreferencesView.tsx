@@ -98,7 +98,7 @@ export const NotificationPreferencesView: React.FC = () => {
         {situacao === 'bloqueado' && <p className="text-xs text-amber-300">As notificações estão bloqueadas para o Vybelog neste navegador. Libere em Configurações do site › Notificações e volte aqui para reativar.</p>}
         {situacao === 'ios_instalar' && <p className="text-xs text-zinc-300">No iPhone/iPad (iOS 16.4 ou mais novo): toque em Compartilhar › <b>Adicionar à Tela de Início</b>, abra o Vybelog pelo ícone e ative aqui.</p>}
         {(situacao === 'sem_suporte' || situacao === 'inseguro') && <p className="text-xs text-zinc-400">Este navegador não recebe notificações push. Use Chrome, Edge, Firefox ou o Vybelog instalado.</p>}
-        <details className="mt-3 text-[11px] text-zinc-500">
+        <details className="mt-3 text-[12px] text-zinc-500">
           <summary className="cursor-pointer text-zinc-400">Como instalar o Vybelog como aplicativo</summary>
           <ul className="mt-2 space-y-1 list-disc pl-5">
             <li><b>Android:</b> menu ⋮ do Chrome › Instalar aplicativo.</li>
@@ -116,12 +116,12 @@ export const NotificationPreferencesView: React.FC = () => {
         <ul className="divide-y divide-white/[.05]">
           {CATEGORIAS.map((c) => (
             <li key={c.id} className="flex items-center justify-between gap-3 py-2.5">
-              <div className="min-w-0"><p className="text-sm text-white">{c.nome}</p><p className="text-[11px] text-zinc-500">{c.detalhe}</p></div>
+              <div className="min-w-0"><p className="text-sm text-white">{c.nome}</p><p className="text-[12px] text-zinc-500">{c.detalhe}</p></div>
               <Interruptor ligado={ligada(c.id)} rotulo={c.nome} desabilitado={!carregado} aoMudar={(v) => salvar({ ...p, categories: { ...p.categories, [c.id]: v } })} />
             </li>
           ))}
           <li className="flex items-center justify-between gap-3 py-2.5">
-            <div className="min-w-0"><p className="text-sm text-white flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />Segurança da conta</p><p className="text-[11px] text-zinc-500">Avisos essenciais sobre a sua conta — sempre ativos.</p></div>
+            <div className="min-w-0"><p className="text-sm text-white flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />Segurança da conta</p><p className="text-[12px] text-zinc-500">Avisos essenciais sobre a sua conta — sempre ativos.</p></div>
             <Interruptor ligado rotulo="Segurança da conta" desabilitado aoMudar={() => undefined} />
           </li>
         </ul>
@@ -139,7 +139,7 @@ export const NotificationPreferencesView: React.FC = () => {
           ))}</div>
         </div>}
         <div className="flex items-center justify-between gap-3">
-          <div><p className="text-sm text-white">Horário silencioso</p><p className="text-[11px] text-zinc-500">Os avisos desse período chegam quando ele terminar.</p></div>
+          <div><p className="text-sm text-white">Horário silencioso</p><p className="text-[12px] text-zinc-500">Os avisos desse período chegam quando ele terminar.</p></div>
           <Interruptor ligado={!!(p.quiet_start && p.quiet_end)} rotulo="Horário silencioso"
             aoMudar={(v) => salvar({ ...p, quiet_start: v ? '23:00' : null, quiet_end: v ? '07:00' : null, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || p.timezone })} />
         </div>
@@ -152,7 +152,7 @@ export const NotificationPreferencesView: React.FC = () => {
       <Bloco titulo="Privacidade na tela bloqueada" icone={<Lock className="w-4 h-4 text-fuchsia-400" />}>
         <div className="flex items-center justify-between gap-3">
           <div><p className="text-sm text-white">Mostrar nomes nas notificações</p>
-            <p className="text-[11px] text-zinc-500">Desligado (recomendado): "Você recebeu uma nova mensagem". Ligado: "…de Maria". O conteúdo das mensagens e comentários nunca aparece.</p></div>
+            <p className="text-[12px] text-zinc-500">Desligado (recomendado): "Você recebeu uma nova mensagem". Ligado: "…de Maria". O conteúdo das mensagens e comentários nunca aparece.</p></div>
           <Interruptor ligado={p.show_names} rotulo="Mostrar nomes" aoMudar={(v) => salvar({ ...p, show_names: v })} />
         </div>
       </Bloco>
@@ -166,7 +166,7 @@ export const NotificationPreferencesView: React.FC = () => {
                 {/Android|iPhone/.test(a.device_label ?? '') ? <Smartphone className="w-5 h-5 text-zinc-400" /> : <Laptop className="w-5 h-5 text-zinc-400" />}
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-white">{a.device_label ?? 'Aparelho'}{aqui && <span className="ml-2 rounded bg-fuchsia-500/15 px-1.5 py-0.5 text-[10px] text-fuchsia-300">este aparelho</span>}</p>
-                  <p className="text-[11px] text-zinc-500">Desde {quando(a.created_at)}{a.last_success_at ? ` · último aviso ${quando(a.last_success_at)}` : ''}{!a.active ? ' · desativado' : ''}</p>
+                  <p className="text-[12px] text-zinc-500">Desde {quando(a.created_at)}{a.last_success_at ? ` · último aviso ${quando(a.last_success_at)}` : ''}{!a.active ? ' · desativado' : ''}</p>
                 </div>
                 {a.active && <button type="button" aria-label="Remover aparelho" onClick={async () => {
                   if (aqui) await desativarPushNesteAparelho(); else await removerAparelho(a.id);

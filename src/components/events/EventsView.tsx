@@ -139,7 +139,7 @@ export const EventsView: React.FC = () => {
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mt-3" role="group" aria-label="Período">
           {([['todos', 'Qualquer data'], ['hoje', 'Hoje'], ['fim', 'Fim de semana'], ['semana', 'Próximos 7 dias'], ['mes', 'Este mês']] as [Periodo, string][]).map(([id, label]) => (
             <button key={id} type="button" onClick={() => setPeriodo(id)} aria-pressed={periodo === id}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-semibold whitespace-nowrap cursor-pointer ${periodo === id ? 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/50' : 'text-zinc-500 border border-zinc-800 hover:text-zinc-300'}`}>
+              className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer ${periodo === id ? 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/50' : 'text-zinc-500 border border-zinc-800 hover:text-zinc-300'}`}>
               {label}
             </button>
           ))}
@@ -185,13 +185,13 @@ export const EventsView: React.FC = () => {
             {/* Arte completa, sem cortes; tocar amplia em tela cheia */}
             <button type="button" onClick={() => setArtFullscreen(true)} className="relative block w-full bg-black cursor-zoom-in" aria-label="Ampliar arte">
               <img src={detail.coverUrl} alt={`Arte do evento ${detail.title}`} className="w-full max-h-[75vh] object-contain mx-auto" />
-              <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/70 text-white text-[11px] font-semibold flex items-center gap-1">
+              <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/70 text-white text-[12px] font-semibold flex items-center gap-1">
                 <Maximize2 className="w-3 h-3" /> Tela cheia
               </span>
             </button>
 
             <div className="p-5 space-y-3">
-              <span className="text-[11px] font-semibold text-fuchsia-300">{EVENT_CATEGORY_LABELS[detail.category]}</span>
+              <span className="text-[12px] font-semibold text-fuchsia-300">{EVENT_CATEGORY_LABELS[detail.category]}</span>
               <h2 className="text-xl font-bold text-white">{detail.title}</h2>
               <div className="space-y-1.5 text-sm text-zinc-300">
                 <p className="flex items-center gap-2"><CalendarDays className="w-4 h-4 text-fuchsia-400 shrink-0" />
@@ -208,7 +208,7 @@ export const EventsView: React.FC = () => {
                   Abrir link do organizador <ExternalLink className="w-3 h-3" />
                 </a>
               )}
-              <p className="text-[11px] text-zinc-400 text-center">
+              <p className="text-[12px] text-zinc-400 text-center">
                 {detail.goingCount} {detail.goingCount === 1 ? 'pessoa vai' : 'pessoas vão'}
                 {detail.myStatus ? ` · ${RSVP_LABEL[detail.myStatus]}` : ''}
               </p>

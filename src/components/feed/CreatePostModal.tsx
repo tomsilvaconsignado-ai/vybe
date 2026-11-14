@@ -181,9 +181,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
             {mediaType === 'video' && mediaUrls.length ? 'Trocar o vídeo' : 'Enviar vídeo (até 20 MB)'}
             <input type="file" accept="video/mp4,video/quicktime" className="hidden" onChange={handleUploadVideo} />
           </label>
-          {mediaType === 'video' && <p className="text-[11px] text-amber-300/80">Vídeos podem guardar dados de localização do celular. Se preferir, desligue a localização da câmera antes de gravar.</p>}
+          {mediaType === 'video' && <p className="text-[12px] text-amber-300/80">Vídeos podem guardar dados de localização do celular. Se preferir, desligue a localização da câmera antes de gravar.</p>}
 
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[12px] text-zinc-500">
             As fotos ficam no formato de tela cheia do celular (1080 × 1920). Removemos automaticamente a localização GPS e outros dados escondidos antes do envio.
           </p>
 
@@ -209,7 +209,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               {tags.map(t => (
                 <span
                   key={t}
-                  className="px-2 py-0.5 rounded-md bg-purple-950/60 border border-purple-800/40 text-[11px] text-purple-300 flex items-center gap-1"
+                  className="px-2 py-0.5 rounded-md bg-purple-950/60 border border-purple-800/40 text-[12px] text-purple-300 flex items-center gap-1"
                 >
                   #{t}
                   <button type="button" onClick={() => setTags(prev => prev.filter(x => x !== t))}>
@@ -260,7 +260,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
 
           {/* Actions */}
           <div className="pt-4 border-t border-purple-950/40 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-400">Todo conteúdo deve ser respeitoso.</span>
+            <span className="text-[12px] text-zinc-400">Todo conteúdo deve ser respeitoso.</span>
             <button
               type="submit"
               disabled={isUploading || isPublishing}

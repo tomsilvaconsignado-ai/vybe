@@ -10,7 +10,7 @@ import {
   Sparkles,
   Users,
   EyeOff,
-  ArrowRight,
+  ArrowRight,
   Shield,
   MessageSquareHeart
 } from 'lucide-react';
@@ -87,15 +87,15 @@ export const LandingPage: React.FC = () => {
             <div className="pt-2 grid grid-cols-3 gap-2 sm:gap-4 max-w-lg mx-auto lg:mx-0 text-left">
               <div className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-rose-400 shrink-0" />
-                <span className="text-[11px] text-zinc-400">Cofres com chave privativa</span>
+                <span className="text-[12px] text-zinc-400">Cofres com chave privativa</span>
               </div>
               <div className="flex items-center gap-2">
                 <EyeOff className="w-4 h-4 text-rose-400 shrink-0" />
-                <span className="text-[11px] text-zinc-400">Localização aproximada opcional</span>
+                <span className="text-[12px] text-zinc-400">Localização aproximada opcional</span>
               </div>
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="text-[11px] text-zinc-400">Conformidade LGPD estrita</span>
+                <span className="text-[12px] text-zinc-400">Conformidade LGPD estrita</span>
               </div>
             </div>
           </div>
@@ -148,7 +148,7 @@ export const LandingPage: React.FC = () => {
                 </button>
               </p>
 
-              <p className="mt-6 pt-4 border-t border-white/10 text-[11px] text-zinc-400 text-center flex items-center justify-center gap-1.5">
+              <p className="mt-6 pt-4 border-t border-white/10 text-[12px] text-zinc-400 text-center flex items-center justify-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
                 Exclusivo para maiores de 18 anos
               </p>
@@ -215,7 +215,7 @@ export const LandingPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <img src={logoUrl} alt="" className="w-9 h-9 object-contain" />
             <img src={logoTextoUrl} alt="Vybelog" className="h-5 w-auto" />
-            <span className="text-[11px] text-zinc-400">— Sua conexão. Suas regras.</span>
+            <span className="text-[12px] text-zinc-400">— Sua conexão. Suas regras.</span>
           </div>
 
           <div className="flex items-center gap-6">

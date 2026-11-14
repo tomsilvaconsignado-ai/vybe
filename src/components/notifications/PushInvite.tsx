@@ -103,7 +103,7 @@ export const PushInvite: React.FC = () => {
             Agora não
           </button>
         </div>
-        <button type="button" onClick={() => fechar({ nunca: true })} className="mt-2 w-full text-[11px] text-zinc-500 hover:text-zinc-300 cursor-pointer">
+        <button type="button" onClick={() => fechar({ nunca: true })} className="mt-2 w-full text-[12px] text-zinc-500 hover:text-zinc-300 cursor-pointer">
           Não perguntar mais (dá para ativar em Preferências de notificações)
         </button>
       </div>

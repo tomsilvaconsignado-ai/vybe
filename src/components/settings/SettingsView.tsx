@@ -124,7 +124,7 @@ export const SettingsView: React.FC = () => {
           <div className="pt-4 border-t border-purple-900/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h4 className="text-xs font-bold text-zinc-200">Busca por distância</h4>
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[12px] text-zinc-400">
                 {hasLocation
                   ? 'Ativada. Guardamos só uma área aproximada (~2 km), atualizada quando você abre o app.'
                   : 'Desativada. Ative para ver a distância até as pessoas e usar o filtro "Só perto de mim".'}
@@ -173,7 +173,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h4 className="text-xs font-bold text-zinc-200">Mostrar quando estou online</h4>
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[12px] text-zinc-400">
                 Outros membros veem a bolinha verde e "Online agora" no seu perfil e nas conversas.
                 Se você desligar, ninguém verá seu status nem há quanto tempo você esteve ativo, e você
                 também deixará de ver se os outros estão online.
@@ -206,7 +206,7 @@ export const SettingsView: React.FC = () => {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h4 className="text-xs font-bold text-zinc-200">Notificações sem Prévias Íntimas</h4>
-              <p className="text-[11px] text-zinc-400">
+              <p className="text-[12px] text-zinc-400">
                 Evita textos ou detalhes sensíveis em telas bloqueadas ou no ambiente corporativo e esconde de outras pessoas o horário em que você esteve on-line (aparece só o dia).
               </p>
             </div>
@@ -233,7 +233,7 @@ export const SettingsView: React.FC = () => {
             Quem você bloqueia não vê seu perfil, posts e stories e não pode seguir, pedir conexão, enviar mensagens ou pedir acesso aos seus cofres. A pessoa não é avisada.
           </p>
           {blockedUsers.length === 0 ? (
-            <p className="text-[11px] text-zinc-500">Você não bloqueou ninguém.</p>
+            <p className="text-[12px] text-zinc-500">Você não bloqueou ninguém.</p>
           ) : (
             <ul className="space-y-2">
               {blockedUsers.map(b => (
@@ -242,14 +242,14 @@ export const SettingsView: React.FC = () => {
                     <img src={b.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
                     <div className="min-w-0">
                       <span className="block text-xs font-bold text-zinc-100 truncate">{b.displayName}</span>
-                      {b.username && <span className="block text-[11px] text-zinc-500 truncate">@{b.username}</span>}
+                      {b.username && <span className="block text-[12px] text-zinc-500 truncate">@{b.username}</span>}
                     </div>
                   </div>
                   <button
                     onClick={async () => {
                       if (await askConfirm({ title: `Desbloquear ${b.displayName}?`, message: "A pessoa volta a ver seu perfil e poderá interagir com você. Seguir e conexões desfeitos no bloqueio não voltam sozinhos.", confirmLabel: "Desbloquear" })) unblockUser(b.id);
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-bold cursor-pointer transition-colors shrink-0"
+                    className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[12px] font-bold cursor-pointer transition-colors shrink-0"
                   >
                     Desbloquear
                   </button>
@@ -294,16 +294,16 @@ export const SettingsView: React.FC = () => {
 
       {/* Exclusão de conta: discreta e recolhida, mas sempre disponível (LGPD art. 18, VI) */}
       <details className="mt-10 text-center group">
-        <summary className="list-none inline-block text-[11px] text-zinc-600 hover:text-zinc-400 cursor-pointer select-none">
+        <summary className="list-none inline-block text-[12px] text-zinc-600 hover:text-zinc-400 cursor-pointer select-none">
           Outras opções da conta
         </summary>
         <div className="mt-3 space-y-2">
-          <p className="text-[11px] text-zinc-500 max-w-md mx-auto">
+          <p className="text-[12px] text-zinc-500 max-w-md mx-auto">
             A exclusão remove definitivamente seu perfil, fotos, cofres e mensagens.
           </p>
           <button
             onClick={handleDeleteAccount}
-            className="text-[11px] text-zinc-500 hover:text-rose-400 underline underline-offset-2 cursor-pointer transition-colors"
+            className="text-[12px] text-zinc-500 hover:text-rose-400 underline underline-offset-2 cursor-pointer transition-colors"
           >
             Excluir conta
           </button>

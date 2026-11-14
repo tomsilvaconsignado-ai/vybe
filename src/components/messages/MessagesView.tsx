@@ -353,7 +353,7 @@ export const MessagesView: React.FC = () => {
                   <h3 className="text-sm font-bold text-white truncate group-hover:text-purple-300 transition-colors">
                     {otherParticipant.displayName}{otherParticipant.isVerified && <span className="text-purple-400 text-xs ml-1">✓</span>}
                   </h3>
-                  <p className="text-[11px] text-zinc-400 truncate">
+                  <p className="text-[12px] text-zinc-400 truncate">
                     {outroDigitando ? (
                       <span className="text-fuchsia-300 font-semibold">digitando…</span>
                     ) : isOnline(otherParticipant.id) ? (

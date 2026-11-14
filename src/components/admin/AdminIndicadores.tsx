@@ -9,7 +9,7 @@ const Tile: React.FC<{ titulo: string; valor: number; detalhe?: string }> = ({ t
   <div className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
     <span className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">{titulo}</span>
     <span className="block text-2xl font-black text-white tabular-nums">{fmt(valor)}</span>
-    {detalhe && <span className="block text-[11px] text-zinc-500 mt-0.5">{detalhe}</span>}
+    {detalhe && <span className="block text-[12px] text-zinc-500 mt-0.5">{detalhe}</span>}
   </div>
 );
 
@@ -24,7 +24,7 @@ const Cadastros: React.FC<{ serie: { day: string; n: number }[] }> = ({ serie })
     <div className="p-4 rounded-2xl bg-[#120d20] border border-purple-900/30">
       <div className="flex items-baseline justify-between mb-3">
         <h3 className="text-xs font-bold text-zinc-200">Novos cadastros por dia (14 dias)</h3>
-        <span className="text-[11px] text-zinc-400 tabular-nums" aria-live="polite">
+        <span className="text-[12px] text-zinc-400 tabular-nums" aria-live="polite">
           {atual ? `${dia(atual.day)}: ${fmt(atual.n)} ${atual.n === 1 ? 'cadastro' : 'cadastros'}` : `${fmt(total)} no período`}
         </span>
       </div>
@@ -65,7 +65,7 @@ export const AdminIndicadores: React.FC = () => {
     <section className="space-y-4" aria-label="Indicadores da plataforma">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-bold text-white">Indicadores da plataforma</h2>
-        <button type="button" onClick={carregar} disabled={carregando} className="text-[11px] font-semibold text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer disabled:opacity-50">
+        <button type="button" onClick={carregar} disabled={carregando} className="text-[12px] font-semibold text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer disabled:opacity-50">
           <RefreshCw className={`w-3.5 h-3.5 ${carregando ? 'animate-spin' : ''}`} /> Atualizar
         </button>
       </div>

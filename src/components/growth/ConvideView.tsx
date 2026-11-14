@@ -57,7 +57,7 @@ export const ConvideView: React.FC = () => {
         <h2 className="text-sm font-bold text-white flex items-center gap-2"><UserPlus className="w-4 h-4 text-fuchsia-400" /> Seu link de convite</h2>
         {info && info.campaigns.length > 0 && (
           <label className="block">
-            <span className="block text-[11px] font-bold text-zinc-400 mb-1">Divulgar com uma campanha (opcional)</span>
+            <span className="block text-[12px] font-bold text-zinc-400 mb-1">Divulgar com uma campanha (opcional)</span>
             <Seletor value={campanha} onChange={e => setCampanha(e.target.value)} aria-label="Campanha" className="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-purple-900/40 text-xs text-zinc-200">
               <option value="">Sem campanha</option>
               {info.campaigns.map(c => <option key={c.slug} value={c.slug}>{c.title}</option>)}
@@ -87,7 +87,7 @@ export const ConvideView: React.FC = () => {
             <div className="h-2.5 rounded-full bg-zinc-800 overflow-hidden" role="progressbar" aria-valuenow={painel.valid} aria-valuemax={proxima.threshold}>
               <div className="h-full rounded-full bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 transition-all" style={{ width: `${progresso}%` }} />
             </div>
-            <p className="text-[11px] text-zinc-500 mt-1.5">Faltam {proxima.threshold - painel.valid} {proxima.threshold - painel.valid === 1 ? 'indicação confirmada' : 'indicações confirmadas'}.</p>
+            <p className="text-[12px] text-zinc-500 mt-1.5">Faltam {proxima.threshold - painel.valid} {proxima.threshold - painel.valid === 1 ? 'indicação confirmada' : 'indicações confirmadas'}.</p>
           </div>
         ) : painel.rewards.length > 0 && <p className="text-xs text-emerald-300">Você conquistou todas as recompensas disponíveis. Obrigado!</p>}
         <ol className="space-y-2">
@@ -95,7 +95,7 @@ export const ConvideView: React.FC = () => {
             <li key={r.id} className={`flex items-center gap-3 p-3 rounded-2xl border ${r.achieved ? 'border-emerald-700/40 bg-emerald-950/20' : 'border-zinc-800 bg-zinc-950/40'}`}>
               <span className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-sm font-black ${r.achieved ? 'bg-emerald-500 text-black' : 'bg-zinc-800 text-zinc-300'}`}>{r.threshold}</span>
               <span className="flex-1 text-sm text-zinc-200">{r.label}</span>
-              {r.achieved ? <CheckCircle2 className="w-5 h-5 text-emerald-400" aria-label="Conquistada" /> : <span className="text-[11px] text-zinc-500">{r.threshold} indicações</span>}
+              {r.achieved ? <CheckCircle2 className="w-5 h-5 text-emerald-400" aria-label="Conquistada" /> : <span className="text-[12px] text-zinc-500">{r.threshold} indicações</span>}
             </li>
           ))}
         </ol>
@@ -144,7 +144,7 @@ export const ConvideView: React.FC = () => {
                 <img src={r.avatar_url || '/icons/icon-192.png?v=3'} alt="" className="w-9 h-9 rounded-full object-cover bg-zinc-800" />
                 <span className="flex-1 min-w-0">
                   <span className="block text-xs font-bold text-zinc-100 truncate">{r.display_name}</span>
-                  <span className="block text-[11px] text-zinc-500">desde {fmtData(r.created_at)}</span>
+                  <span className="block text-[12px] text-zinc-500">desde {fmtData(r.created_at)}</span>
                 </span>
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS[r.status].cor}`}>{STATUS[r.status].icone}{STATUS[r.status].rotulo}</span>
               </li>
@@ -157,7 +157,7 @@ export const ConvideView: React.FC = () => {
       <section className="p-5 rounded-3xl bg-[#120d20] border border-purple-900/30">
         <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
           <h2 className="text-sm font-bold text-white flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-300" /> Ranking de indicações</h2>
-          <div className="flex bg-zinc-900 rounded-full p-0.5 text-[11px] font-bold">
+          <div className="flex bg-zinc-900 rounded-full p-0.5 text-[12px] font-bold">
             {([['30d', '30 dias'], ['all', 'Geral'], ['embaixadores', 'Embaixadores']] as const).map(([id, r]) => (
               <button key={id} type="button" onClick={() => setAba(id)} aria-pressed={aba === id}
                 className={`px-3 py-1 rounded-full cursor-pointer ${aba === id ? 'bg-purple-600 text-white' : 'text-zinc-400'}`}>{r}</button>
@@ -176,12 +176,12 @@ export const ConvideView: React.FC = () => {
             ))}
           </ol>
         )}
-        <label className="mt-3 flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer">
+        <label className="mt-3 flex items-center gap-2 text-[12px] text-zinc-400 cursor-pointer">
           <input type="checkbox" checked={painel.show_in_ranking} className="accent-fuchsia-500"
             onChange={async e => { const v = e.target.checked; const err = await definirVisibilidadeRanking(v); if (err) notify('Não foi possível salvar.'); else setPainel({ ...painel, show_in_ranking: v }); }} />
           Aparecer no ranking (só nome e foto; você pode sair quando quiser)
         </label>
-        {painel.rank_30d && <p className="text-[11px] text-zinc-500 mt-1">Sua posição nos últimos 30 dias: {painel.rank_30d}º</p>}
+        {painel.rank_30d && <p className="text-[12px] text-zinc-500 mt-1">Sua posição nos últimos 30 dias: {painel.rank_30d}º</p>}
       </section>
 
       {/* Histórico */}

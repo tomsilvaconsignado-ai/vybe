@@ -128,16 +128,16 @@ export const AdminConversationsTab: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-white truncate">{names(c)}</p>
-              <p className="text-[11px] text-zinc-500 truncate">
+              <p className="text-[12px] text-zinc-500 truncate">
                 {c.participants.map(p => `@${p.username}`).join(' · ')}
               </p>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-[11px] text-zinc-300 flex items-center gap-1 justify-end">
+              <p className="text-[12px] text-zinc-300 flex items-center gap-1 justify-end">
                 <MessageSquare className="w-3 h-3" /> {c.messageCount}
               </p>
               <p className="text-[10px] text-zinc-500">{c.lastMessageAt}</p>
-              {c.isPending && <span className="text-[9px] px-1.5 rounded bg-amber-950 text-amber-400">pedido</span>}
+              {c.isPending && <span className="text-[10px] px-1.5 rounded bg-amber-950 text-amber-400">pedido</span>}
             </div>
           </button>
         ))}
@@ -149,7 +149,7 @@ export const AdminConversationsTab: React.FC = () => {
             <div className="flex items-center gap-3 p-4 border-b border-purple-900/30">
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-white truncate">{names(open)}</h3>
-                <p className="text-[11px] text-amber-300/80">Acesso registrado na auditoria</p>
+                <p className="text-[12px] text-amber-300/80">Acesso registrado na auditoria</p>
               </div>
               <button type="button" onClick={() => setOpen(null)} className="p-1 text-zinc-400 hover:text-white cursor-pointer" aria-label="Fechar">
                 <X className="w-5 h-5" />
@@ -168,7 +168,7 @@ export const AdminConversationsTab: React.FC = () => {
                         <AdminThumb src={m.mediaUrl} label={`Mídia enviada por ${m.senderName}`} className="max-h-48 rounded-xl object-cover" />
                       )}
                       {m.content && <p className="text-xs whitespace-pre-wrap break-words">{m.content}</p>}
-                      <p className="text-[9px] opacity-60 text-right">{m.createdAt}</p>
+                      <p className="text-[10px] opacity-60 text-right">{m.createdAt}</p>
                     </div>
                   </div>
                 );

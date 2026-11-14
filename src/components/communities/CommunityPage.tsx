@@ -164,14 +164,14 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
           <span className="flex items-center gap-1 text-xs font-bold text-zinc-100 truncate">
             {p.displayName}{p.isVerified && <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />}
           </span>
-          <span className="block text-[11px] text-zinc-500 truncate">@{p.username}{p.role && p.role !== 'member' ? ` · ${PAPEL[p.role]}` : ''}</span>
-          {p.note && <span className="block text-[11px] text-zinc-400 italic truncate">“{p.note}”</span>}
+          <span className="block text-[12px] text-zinc-500 truncate">@{p.username}{p.role && p.role !== 'member' ? ` · ${PAPEL[p.role]}` : ''}</span>
+          {p.note && <span className="block text-[12px] text-zinc-400 italic truncate">“{p.note}”</span>}
         </span>
       </button>
       {children}
     </li>
   );
-  const botao = 'px-2.5 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer';
+  const botao = 'px-2.5 py-1.5 rounded-lg text-[12px] font-bold cursor-pointer';
 
   return (
     <div className="max-w-3xl mx-auto md:py-6 md:px-4 pb-10">
@@ -191,7 +191,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
           <div className="w-16 h-16 rounded-2xl bg-[#120d20] border border-purple-700/50 flex items-center justify-center text-3xl shadow-xl">{c.iconUrl}</div>
           <div className="flex-1 min-w-0 pb-1">
             <h1 className="text-xl font-extrabold text-white leading-tight">{c.name}</h1>
-            <p className="text-[11px] text-zinc-400 flex items-center gap-1.5 flex-wrap">
+            <p className="text-[12px] text-zinc-400 flex items-center gap-1.5 flex-wrap">
               {c.access !== 'public' && <Lock className="w-3 h-3" />} {ACCESS_INFO[c.access].label}
               <span>·</span><Users className="w-3 h-3" /> {c.membersCount} {c.membersCount === 1 ? 'membro' : 'membros'}
               <span>·</span>{c.postsCount} publicações
@@ -288,7 +288,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
                         if (!(await askConfirm({ title: 'Remover publicação?', message: 'Ela sai da comunidade para todos.', confirmLabel: 'Remover', danger: true }))) return;
                         await deletePost(p.id);
                         setPostIds(prev => prev.filter(id => id !== p.id));
-                      }} className="mx-4 sm:mx-0 -mt-2 mb-2 text-[11px] font-semibold text-rose-400 flex items-center gap-1 cursor-pointer">
+                      }} className="mx-4 sm:mx-0 -mt-2 mb-2 text-[12px] font-semibold text-rose-400 flex items-center gap-1 cursor-pointer">
                         <Trash2 className="w-3 h-3" /> Remover (moderação)
                       </button>
                     )}
@@ -307,10 +307,10 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
         {aba === 'sobre' && (
           <div className="mx-4 sm:mx-0 space-y-4">
             <p className="text-sm text-zinc-300 whitespace-pre-line leading-relaxed">{c.description}</p>
-            <p className="text-[11px] text-zinc-500">{ACCESS_INFO[c.access].help}</p>
+            <p className="text-[12px] text-zinc-500">{ACCESS_INFO[c.access].help}</p>
             {c.rules.length > 0 && (
               <div className="p-4 rounded-2xl bg-zinc-950/60 border border-purple-900/20">
-                <h2 className="text-[11px] font-bold text-purple-300 uppercase tracking-wider mb-2">Regras da comunidade</h2>
+                <h2 className="text-[12px] font-bold text-purple-300 uppercase tracking-wider mb-2">Regras da comunidade</h2>
                 <ol className="space-y-1.5 text-xs text-zinc-300 list-decimal list-inside">
                   {c.rules.map((r, i) => <li key={i}>{r}</li>)}
                 </ol>
@@ -332,7 +332,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
                 {m.role === 'moderator' && <Shield className="w-4 h-4 text-sky-300" aria-label="Moderador" />}
                 {m.userId !== currentUser.id && c.myRole === 'admin' && (
                   <Seletor aria-label={`Ações para ${m.displayName}`} value="" onChange={e => acaoMembro(m, e.target.value as 'mod')}
-                    className="bg-zinc-900 border border-zinc-800 rounded-lg text-[11px] text-zinc-300 px-1.5 py-1 cursor-pointer">
+                    className="bg-zinc-900 border border-zinc-800 rounded-lg text-[12px] text-zinc-300 px-1.5 py-1 cursor-pointer">
                     <option value="">Gerenciar</option>
                     {m.role !== 'admin' && <option value="admin">Tornar administrador</option>}
                     {m.role !== 'moderator' && <option value="mod">Tornar moderador</option>}
@@ -366,7 +366,7 @@ export const CommunityPage: React.FC<{ community: Community; aoVoltar: () => voi
             )}
             {banidos.length > 0 && (
               <div>
-                <h2 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Banidos</h2>
+                <h2 className="text-[12px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Banidos</h2>
                 <ul className="rounded-2xl bg-[#120d20] border border-purple-900/30 divide-y divide-purple-950/40">
                   {banidos.map(b => (
                     <Pessoa key={b.userId} p={b}>

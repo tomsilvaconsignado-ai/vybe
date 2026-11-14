@@ -61,7 +61,7 @@ export const CampanhaConvitePopup: React.FC = () => {
             <X className="w-4 h-4" />
           </button>
           <img src={logoUrl} alt="" className="relative w-20 h-20 mx-auto object-contain drop-shadow-[0_0_24px_rgba(208,23,189,0.45)]" />
-          <p className="relative mt-3 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-200">Campanha</p>
+          <p className="relative mt-3 text-[12px] font-bold uppercase tracking-[0.2em] text-amber-200">Campanha</p>
           <h2 id="titulo-campanha" className="relative text-2xl font-black text-white">Convide e Ganhe</h2>
           <p className="relative mt-1.5 text-sm text-zinc-200">Traga amigos e casais que combinam com o Vybelog e ganhe recompensas a cada indicação confirmada.</p>
         </div>
@@ -78,7 +78,7 @@ export const CampanhaConvitePopup: React.FC = () => {
             </ul>
           )}
           {vagas && (
-            <p className="flex items-start gap-2 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-100">
+            <p className="flex items-start gap-2 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-[12px] text-amber-100">
               <Crown className="w-4 h-4 text-amber-300 shrink-0" />
               <span>Restam <strong>{f!.remaining.toLocaleString('pt-BR')} vagas</strong> de Membro Fundador. O selo exige foto no perfil.</span>
             </p>

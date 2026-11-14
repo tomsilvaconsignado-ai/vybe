@@ -32,9 +32,9 @@ export const EventCard: React.FC<EventCardProps> = ({ event, compact, onOpen }) 
       <button type="button" onClick={() => onOpen?.(event)} className="w-full flex gap-3 text-left group cursor-pointer">
         <img src={event.coverUrl} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-fuchsia-300">{formatEventDate(event.startsAt)}</p>
+          <p className="text-[12px] font-semibold text-fuchsia-300">{formatEventDate(event.startsAt)}</p>
           <p className="text-sm font-bold text-white truncate group-hover:text-purple-300">{event.title}</p>
-          <p className="text-[11px] text-zinc-400 truncate">{event.venueName} · {event.city}</p>
+          <p className="text-[12px] text-zinc-400 truncate">{event.venueName} · {event.city}</p>
         </div>
       </button>
     );
@@ -51,22 +51,22 @@ export const EventCard: React.FC<EventCardProps> = ({ event, compact, onOpen }) 
     >
       <div className="relative w-full aspect-[16/9] bg-zinc-950">
         <img src={event.coverUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
-        <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/70 text-white text-[11px] font-semibold">
+        <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/70 text-white text-[12px] font-semibold">
           {EVENT_CATEGORY_LABELS[event.category]}
         </span>
         {event.isFeatured && (
-          <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-amber-500 text-black text-[11px] font-bold flex items-center gap-1">
+          <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-amber-500 text-black text-[12px] font-bold flex items-center gap-1">
             <Star className="w-3 h-3" /> Destaque
           </span>
         )}
-        <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/70 text-white text-[11px] font-semibold flex items-center gap-1">
+        <span className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-black/70 text-white text-[12px] font-semibold flex items-center gap-1">
           <Maximize2 className="w-3 h-3" /> Ver arte completa
         </span>
       </div>
 
       <div className="p-4 space-y-3">
         {isMine && event.status !== 'approved' && (
-          <p className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg inline-block ${event.status === 'pending' ? 'bg-amber-950/60 text-amber-300' : 'bg-rose-950/60 text-rose-300'}`}>
+          <p className={`text-[12px] font-semibold px-2.5 py-1 rounded-lg inline-block ${event.status === 'pending' ? 'bg-amber-950/60 text-amber-300' : 'bg-rose-950/60 text-rose-300'}`}>
             {STATUS_LABEL[event.status]}{event.status === 'rejected' && event.reviewNote ? `: ${event.reviewNote}` : ''}
           </p>
         )}
@@ -87,7 +87,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, compact, onOpen }) 
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] text-zinc-400 flex items-center gap-3">
+          <p className="text-[12px] text-zinc-400 flex items-center gap-3">
             <span className="flex items-center gap-1">
               <Users className="w-3 h-3" /> {event.goingCount} {event.goingCount === 1 ? 'vai' : 'vão'}
             </span>
@@ -96,7 +96,7 @@ export const EventCard: React.FC<EventCardProps> = ({ event, compact, onOpen }) 
             </span>
           </p>
           {event.myStatus && (
-            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+            <span className={`text-[12px] font-bold px-2.5 py-1 rounded-full ${
               event.myStatus === 'going' ? 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white' : 'bg-zinc-800 text-zinc-300'
             }`}>
               {RSVP_LABEL[event.myStatus]}

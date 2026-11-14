@@ -33,7 +33,7 @@ export const RightRail: React.FC = () => {
           <h2 className="text-sm font-bold text-white flex items-center gap-1.5">
             <CalendarHeart className="w-4 h-4 text-fuchsia-400" /> Próximos eventos
           </h2>
-          <button type="button" onClick={() => setActiveTab('events')} className="text-[11px] font-semibold text-fuchsia-300 flex items-center cursor-pointer">
+          <button type="button" onClick={() => setActiveTab('events')} className="text-[12px] font-semibold text-fuchsia-300 flex items-center cursor-pointer">
             Agenda <ChevronRight className="w-3 h-3" />
           </button>
         </div>
@@ -59,7 +59,7 @@ export const RightRail: React.FC = () => {
                 <img src={p.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
                 <span className="min-w-0">
                   <span className="block text-xs font-bold text-white truncate">{p.username}</span>
-                  <span className="block text-[11px] text-zinc-400 truncate">{score}% de sintonia · {p.city}</span>
+                  <span className="block text-[12px] text-zinc-400 truncate">{score}% de sintonia · {p.city}</span>
                 </span>
               </button>
               <button type="button" onClick={() => toggleFollow(p.id)} className="text-xs font-bold text-fuchsia-300 hover:text-fuchsia-200 cursor-pointer">

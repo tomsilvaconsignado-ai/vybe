@@ -53,21 +53,21 @@ export const AdminComunicadosTab: React.FC = () => {
     <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6">
       <section className="p-5 rounded-3xl bg-[#120d20] border border-amber-900/30 h-fit">
         <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-1"><Megaphone className="w-4 h-4 text-amber-300" /> Novo comunicado</h2>
-        <p className="text-[11px] text-zinc-400 mb-4">Chega como push (para quem ativou) e fica na central de notificações. Fica registrado na auditoria.</p>
+        <p className="text-[12px] text-zinc-400 mb-4">Chega como push (para quem ativou) e fica na central de notificações. Fica registrado na auditoria.</p>
         {!podeEnviar ? (
           <p className="text-xs text-zinc-400 p-3 rounded-xl bg-zinc-950 border border-zinc-800">Somente o superadministrador envia comunicados. Você pode acompanhar o histórico ao lado.</p>
         ) : (
           <form onSubmit={enviar} className="space-y-3">
             <label className="block">
-              <span className="block text-[11px] font-bold text-zinc-400 mb-1">Título ({d.title.length}/80)</span>
+              <span className="block text-[12px] font-bold text-zinc-400 mb-1">Título ({d.title.length}/80)</span>
               <input required minLength={3} maxLength={80} value={d.title} onChange={e => muda({ title: e.target.value })} className={campo} placeholder="Ex.: Novidade no Vybelog" />
             </label>
             <label className="block">
-              <span className="block text-[11px] font-bold text-zinc-400 mb-1">Mensagem ({d.body.length}/300)</span>
+              <span className="block text-[12px] font-bold text-zinc-400 mb-1">Mensagem ({d.body.length}/300)</span>
               <textarea required minLength={3} maxLength={300} rows={3} value={d.body} onChange={e => muda({ body: e.target.value })} className={campo} />
             </label>
             <label className="block">
-              <span className="block text-[11px] font-bold text-zinc-400 mb-1">Público</span>
+              <span className="block text-[12px] font-bold text-zinc-400 mb-1">Público</span>
               <Seletor value={d.audience} onChange={e => muda({ audience: e.target.value as BroadcastAudience, ref: null })} className={campo}>
                 {(Object.keys(AUDIENCE_LABEL) as BroadcastAudience[]).map(a => <option key={a} value={a}>{AUDIENCE_LABEL[a]}</option>)}
               </Seletor>
@@ -85,10 +85,10 @@ export const AdminComunicadosTab: React.FC = () => {
               </Seletor>
             )}
             <label className="block">
-              <span className="block text-[11px] font-bold text-zinc-400 mb-1">Ao tocar, abrir (opcional)</span>
+              <span className="block text-[12px] font-bold text-zinc-400 mb-1">Ao tocar, abrir (opcional)</span>
               <input value={d.link ?? ''} onChange={e => muda({ link: e.target.value })} pattern="/[a-z0-9/_\-]*" className={campo} placeholder={destinoSugerido || '/eventos'} />
               {destinoSugerido && !d.link && (
-                <button type="button" onClick={() => muda({ link: destinoSugerido })} className="mt-1 text-[11px] text-amber-300 cursor-pointer">Usar {destinoSugerido}</button>
+                <button type="button" onClick={() => muda({ link: destinoSugerido })} className="mt-1 text-[12px] text-amber-300 cursor-pointer">Usar {destinoSugerido}</button>
               )}
             </label>
             <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
@@ -99,7 +99,7 @@ export const AdminComunicadosTab: React.FC = () => {
                 onChange={e => muda({ when: e.target.value })} className={campo} aria-label="Data e hora do envio" />
             )}
             <label className="block">
-              <span className="block text-[11px] font-bold text-zinc-400 mb-1">Justificativa (auditoria)</span>
+              <span className="block text-[12px] font-bold text-zinc-400 mb-1">Justificativa (auditoria)</span>
               <input required minLength={5} value={d.justification} onChange={e => muda({ justification: e.target.value })} className={campo} placeholder="Motivo do comunicado" />
             </label>
             <button type="submit" disabled={enviando} className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer">
@@ -120,22 +120,22 @@ export const AdminComunicadosTab: React.FC = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-zinc-100">{b.title}</p>
-                      <p className="text-[11px] text-zinc-400 line-clamp-2">{b.body}</p>
+                      <p className="text-[12px] text-zinc-400 line-clamp-2">{b.body}</p>
                     </div>
                     <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${b.cancelled_at ? 'bg-zinc-800 text-zinc-400' : b.sent_at ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-300'}`}>{situacao}</span>
                   </div>
-                  <p className="mt-2 text-[11px] text-zinc-500 tabular-nums">
+                  <p className="mt-2 text-[12px] text-zinc-500 tabular-nums">
                     {AUDIENCE_LABEL[b.audience] ?? b.audience} · {b.sent_at ? `enviado ${quando(b.sent_at)}` : `para ${quando(b.scheduled_at)}`}
                   </p>
                   {b.sent_at && (
-                    <p className="mt-1 text-[11px] text-zinc-300 tabular-nums">
+                    <p className="mt-1 text-[12px] text-zinc-300 tabular-nums">
                       {b.recipients ?? 0} destinatários · {b.read_count} leram · {b.push_sent} push entregues
                       {b.push_failed > 0 && <span className="text-rose-300"> · {b.push_failed} falhas</span>}
                       {b.push_pending > 0 && <span className="text-amber-300"> · {b.push_pending} na fila</span>}
                     </p>
                   )}
                   {!b.sent_at && !b.cancelled_at && podeEnviar && (
-                    <button type="button" onClick={() => cancelar(b)} className="mt-2 text-[11px] font-semibold text-rose-300 flex items-center gap-1 cursor-pointer"><XCircle className="w-3.5 h-3.5" /> Cancelar envio</button>
+                    <button type="button" onClick={() => cancelar(b)} className="mt-2 text-[12px] font-semibold text-rose-300 flex items-center gap-1 cursor-pointer"><XCircle className="w-3.5 h-3.5" /> Cancelar envio</button>
                   )}
                 </li>
               );
