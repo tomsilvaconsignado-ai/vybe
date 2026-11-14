@@ -5,6 +5,7 @@ import { PostCard } from './PostCard';
 import { ConviteCard } from '../growth/ConviteCard';
 import { CreatePostModal } from './CreatePostModal';
 import { AdSlot } from '../ads/AdSlot';
+import { AvisoSeloFoto } from '../growth/AvisoSeloFoto';
 import { Plus, HeartHandshake } from 'lucide-react';
 
 export const FeedView: React.FC = () => {
@@ -71,6 +72,9 @@ export const FeedView: React.FC = () => {
       <div className="mb-6 pb-2 border-b border-purple-950/40">
         <StoriesBar />
       </div>
+
+      {/* sem foto de perfil: avisa que os selos só aparecem com foto */}
+      <AvisoSeloFoto className="mb-6" />
 
       {/* Quick Create Post Bar */}
       <div className="bg-painel border border-purple-900/30 rounded-3xl p-4 mb-6 shadow-xl flex items-center gap-3">

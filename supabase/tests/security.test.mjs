@@ -859,6 +859,8 @@ const dias9 = r.rows[0]?.vip_until ? (new Date(r.rows[0].vip_until) - Date.now()
 dias9 > 29 && dias9 <= 30.1 ? ok('o VIP vale 30 dias') : bad('vip_until: ' + JSON.stringify(r.rows));
 r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND type = 'growth_reward'`, [novoId(9)]);
 r.rows[0].n >= 1 ? ok('o convidado é avisado do VIP') : bad('sem aviso');
+r = await db.query(`SELECT title FROM notifications WHERE user_id = $1 AND type = 'growth_reward' ORDER BY created_at DESC LIMIT 1`, [novoId(9)]);
+r.rows[0]?.title === 'Coloque foto no perfil e receba o selo VIP' ? ok('convidado sem foto é avisado para colocar a foto e receber o selo') : bad('aviso do VIP sem foto: ' + JSON.stringify(r.rows));
 r = await expectOk('marcar de novo não concede em dobro', ids.admin, `SELECT public.admin_growth_set_vip_padrinho($1, 30, 'Convidados VIP')`, [ids.b], 'aal2');
 r?.rows[0]?.admin_growth_set_vip_padrinho === 0 ? ok('ninguém recebe duas vezes') : bad('repetiu: ' + JSON.stringify(r?.rows));
 await db.query(`INSERT INTO auth.users VALUES ($1,'n10@x.com',$2,now())`, [novoId(10), meta('convidado10', { invite_code: 'bruno-vybe' })]);
@@ -887,7 +889,10 @@ r.rows[0].s.referrals_total >= 6 && r.rows[0].s.campaigns.length === 1 ? ok('o G
 await expectFail('pessoa comum não abre o Growth Center', ids.b, `SELECT public.growth_admin_stats()`);
 r = await as(ids.a, `SELECT public.growth_highlights() AS h`);
 Array.isArray(r.rows[0].h.new_members) && Array.isArray(r.rows[0].h.featured) ? ok('o Descobrir recebe as seções de destaque') : bad('destaques: ' + JSON.stringify(r.rows[0].h));
-r.rows[0].h.featured.includes(ids.b) ? ok('o perfil VIP aparece nos destaques') : bad('VIP fora dos destaques');
+!r.rows[0].h.featured.includes(ids.b) ? ok('VIP sem foto de perfil não aparece em "Em destaque"') : bad('VIP sem foto listado nos destaques');
+await db.query(`UPDATE profiles SET avatar_url = 'https://x/bruno.jpg' WHERE id = $1`, [ids.b]);
+r = await as(ids.a, `SELECT public.growth_highlights() AS h`);
+r.rows[0].h.featured.includes(ids.b) ? ok('com foto, o perfil VIP aparece nos destaques') : bad('VIP com foto fora dos destaques');
 await db.query(`DELETE FROM auth.users WHERE id::text LIKE '00000000-0000-0000-0000-0000000009%'`);
 await db.query(`DELETE FROM profiles WHERE id::text LIKE '00000000-0000-0000-0000-0000000009%'`);
 

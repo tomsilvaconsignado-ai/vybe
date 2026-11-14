@@ -5183,3 +5183,61 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.admin_delete_event(UUID, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_delete_event(UUID, TEXT) TO authenticated;
+
+-- ==============================================================================
+-- 23. SELOS SÓ COM FOTO DE PERFIL
+-- Qualquer selo (VIP, Fundador, Embaixador, Destaque, Indicador) só aparece em perfil com foto; o app
+-- esconde os selos de quem está sem foto e avisa "coloque foto e receba o selo". Aqui: a faixa
+-- "Em destaque" do Descobrir só lista perfis com foto, e o aviso do VIP de padrinho pede a foto.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.growth_highlights()
+RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE me UUID := auth.uid();
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
+  RETURN jsonb_build_object(
+    'featured', coalesce((SELECT jsonb_agg(x.user_id) FROM (
+        SELECT pg.user_id FROM public.profile_growth pg JOIN public.profiles p ON p.id = pg.user_id
+         WHERE (pg.featured_until > now() OR pg.vip_until > now()) AND p.status::text IN ('active', 'warned') AND pg.user_id <> me
+           AND coalesce(p.avatar_url, '') <> ''
+           AND NOT public.is_blocked_between(pg.user_id, me)
+         ORDER BY pg.featured_until DESC NULLS LAST, pg.vip_until DESC NULLS LAST LIMIT 12) x), '[]'),
+    'couple_of_week', (SELECT s.alvo FROM public.growth_week_scores(me) s JOIN public.profiles p ON p.id = s.alvo
+                        WHERE p.profile_type::text IN ('couple', 'joint_profile', 'polyamorous') ORDER BY s.pontos DESC LIMIT 1),
+    'member_of_week', (SELECT s.alvo FROM public.growth_week_scores(me) s JOIN public.profiles p ON p.id = s.alvo
+                        WHERE p.profile_type::text IN ('single_female', 'single_male', 'single_other') ORDER BY s.pontos DESC LIMIT 1),
+    'new_members', coalesce((SELECT jsonb_agg(x.id) FROM (
+        SELECT p.id FROM public.profiles p WHERE p.created_at > now() - interval '21 days' AND coalesce(p.avatar_url, '') <> ''
+           AND p.status::text IN ('active', 'warned') AND p.id <> me AND NOT public.is_blocked_between(p.id, me)
+         ORDER BY p.created_at DESC LIMIT 12) x), '[]'),
+    'popular', coalesce((SELECT jsonb_agg(x.id) FROM (
+        SELECT p.id FROM public.profiles p WHERE p.status::text IN ('active', 'warned') AND p.id <> me AND coalesce(p.avatar_url, '') <> ''
+           AND NOT public.is_blocked_between(p.id, me)
+         ORDER BY p.followers_count DESC, p.last_active_at DESC LIMIT 12) x), '[]'));
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.growth_highlights() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.growth_highlights() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.growth_vip_padrinho_conceder(p_referred UUID, p_referrer UUID)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_dias INTEGER; v_user TEXT; v_fim TIMESTAMPTZ; v_motivo TEXT; v_foto BOOLEAN;
+BEGIN
+  SELECT vip_days INTO v_dias FROM public.growth_vip_padrinhos WHERE referrer_id = p_referrer;
+  IF v_dias IS NULL THEN RETURN false; END IF;
+  v_motivo := 'vip_padrinho:' || p_referrer;
+  IF EXISTS (SELECT 1 FROM public.growth_grants WHERE user_id = p_referred AND reason = v_motivo) THEN RETURN false; END IF;
+  SELECT username INTO v_user FROM public.profiles WHERE id = p_referrer;
+  SELECT coalesce(avatar_url, '') <> '' INTO v_foto FROM public.profiles WHERE id = p_referred;
+  v_fim := public.growth_apply_effect(p_referred, 'vip_days', v_dias, NULL);
+  INSERT INTO public.growth_grants (user_id, kind, amount, label, source, granted_by, reason, expires_at)
+  VALUES (p_referred, 'vip_days', v_dias, left(v_dias || ' dias de VIP (convite de @' || coalesce(v_user, 'membro') || ')', 120), 'referral', NULL, v_motivo, v_fim);
+  PERFORM public.growth_notify(p_referred, 'growth_reward',
+    CASE WHEN v_foto THEN 'Você ganhou o selo VIP!' ELSE 'Coloque foto no perfil e receba o selo VIP' END,
+    'Por ter entrado pelo convite de @' || coalesce(v_user, 'um membro') || ', você é VIP por ' || v_dias || ' dias.'
+      || CASE WHEN v_foto THEN '' ELSE ' O selo só aparece em perfis com foto: coloque a sua em Meu Perfil → Editar.' END,
+    'vip_padrinho:' || p_referred);
+  RETURN true;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.growth_vip_padrinho_conceder(UUID, UUID) FROM PUBLIC, anon, authenticated;

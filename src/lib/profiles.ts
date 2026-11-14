@@ -53,6 +53,9 @@ export const DEFAULT_COVER = `data:image/svg+xml;charset=utf-8,${encodeURICompon
 
 export const avatarOrDefault = (url: string | null | undefined, name: string) => url || defaultAvatar(name);
 
+/** A pessoa tem foto própria? (a imagem padrão com a inicial não conta) — selos só aparecem com foto */
+export const temFotoPropria = (url: string | null | undefined) => !!url && !url.startsWith('data:image/svg+xml');
+
 // PostgREST devolve relações 1:1 como objeto, mas pode devolver array dependendo da detecção
 const one = <T,>(value: T | T[] | null | undefined): T | null =>
   Array.isArray(value) ? value[0] ?? null : value ?? null;

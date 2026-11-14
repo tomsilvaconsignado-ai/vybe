@@ -1,4 +1,4 @@
-export type ProfileType = 
+export type ProfileType =
   | 'couple'             // Casal
   | 'single_female'      // Mulher solteira
   | 'single_male'        // Homem solteiro
@@ -65,7 +65,7 @@ export interface MediaAlbum {
 
 export interface ProfileGrowth {
   founderNumber: number | null;
-  /** o selo de Fundador só aparece com foto de perfil (sem foto, o número fica reservado) */
+  /** selos (VIP, Fundador, Embaixador, Destaque, Indicador) só aparecem com foto de perfil; sem foto ficam reservados */
   hasPhoto: boolean;
   ambassador: boolean;
   vip: boolean;
@@ -234,14 +234,14 @@ export interface NotificationItem {
     username: string;
     avatarUrl: string;
   };
-  type: 
-    | 'like' 
-    | 'comment' 
-    | 'connection_request' 
-    | 'connection_accepted' 
-    | 'vault_access_request' 
-    | 'vault_access_granted' 
-    | 'system_safety' 
+  type:
+    | 'like'
+    | 'comment'
+    | 'connection_request'
+    | 'connection_accepted'
+    | 'vault_access_request'
+    | 'vault_access_granted'
+    | 'system_safety'
     | 'community_invite'
     | 'follow'
     | 'event_comment'

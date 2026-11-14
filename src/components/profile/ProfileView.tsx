@@ -1,20 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { 
-  Heart, 
-  MessageSquare, 
-  Lock, 
-  Key, 
-  MapPin, 
-  Sparkles, 
-  ShieldCheck, 
-  Users, 
-  UserPlus, 
-  Edit3, 
-  Share2, 
-  ShieldAlert, 
-  Plus, 
-  Image, 
+import {
+  Heart,
+  MessageSquare,
+  Lock,
+  Key,
+  MapPin,
+  Sparkles,
+  ShieldCheck,
+  Users,
+  UserPlus,
+  Edit3,
+  Share2,
+  ShieldAlert,
+  Plus,
+  Image,
   CheckCircle2,
   Calendar,
   Eye,
@@ -41,6 +41,8 @@ import { MediaAlbum, Post, UserProfile } from '../../types';
 import { notify, askConfirm } from '../common/Feedback';
 import { linkDoPerfil } from '../../lib/rotas';
 import { GrowthBadges } from '../growth/GrowthBadges';
+import { AvisoSeloFoto, PEDIDO_EDITAR_PERFIL } from '../growth/AvisoSeloFoto';
+import { temFotoPropria } from '../../lib/profiles';
 import { comConvite } from '../../lib/convite';
 import { meuCodigo } from '../../lib/crescimento';
 import { supabase } from '../../lib/supabase';
@@ -56,19 +58,19 @@ const compartilharPerfil = async (id: string, usuario: string) => {
 };
 
 export const ProfileView: React.FC = () => {
-  const { 
-    currentUser, 
-    selectedProfileId, 
-    setSelectedProfileId, 
-    profiles, 
-    posts, 
+  const {
+    currentUser,
+    selectedProfileId,
+    setSelectedProfileId,
+    profiles,
+    posts,
     connections,
     incomingConnectionRequests,
     outgoingConnectionRequests,
     requestConnection,
-    following, 
-    toggleFollow, 
-    startOrOpenConversation, 
+    following,
+    toggleFollow,
+    startOrOpenConversation,
     requestAlbumAccess,
     postCache,
     cachePosts,
@@ -104,6 +106,13 @@ export const ProfileView: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'vault' | 'public' | 'posts'>('posts');
   const [editTab, setEditTab] = useState<EditProfileTab | null>(null);
+  // "Colocar foto agora" (aviso dos selos) abre a edição do perfil
+  useEffect(() => {
+    if (!isSelf) return;
+    try {
+      if (sessionStorage.getItem(PEDIDO_EDITAR_PERFIL)) { sessionStorage.removeItem(PEDIDO_EDITAR_PERFIL); setEditTab('data'); }
+    } catch { /* sem armazenamento */ }
+  }, [isSelf]);
   const [managingAlbum, setManagingAlbum] = useState<MediaAlbum | null>(null);
   const [viewingAlbumId, setViewingAlbumId] = useState<string | null>(null);
   const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
@@ -162,7 +171,7 @@ export const ProfileView: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4">
-      
+
       {/* Back button if viewing another user */}
       {!isSelf && (
         <button
@@ -176,7 +185,7 @@ export const ProfileView: React.FC = () => {
 
       {/* Main Profile Header Card */}
       <div className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-2xl mb-6">
-        
+
         {/* Cover Photo */}
         <div className="h-48 sm:h-64 relative bg-zinc-950 overflow-hidden">
           <img
@@ -194,7 +203,7 @@ export const ProfileView: React.FC = () => {
                 <span>Perfil Verificado +18</span>
               </span>
             )}
-            
+
             {!isSelf && (
               <button
                 onClick={() => setReportModalTarget({
@@ -229,10 +238,10 @@ export const ProfileView: React.FC = () => {
 
         {/* Profile Details Container */}
         <div className="px-6 pb-6 pt-0 relative">
-          
+
           {/* Avatar and Primary Actions */}
           <div className="flex flex-col sm:flex-row items-center sm:items-end justify-between gap-4 -mt-16 sm:-mt-20 mb-4">
-            
+
             {/* Avatar */}
             <div className="relative">
               <img
@@ -287,8 +296,8 @@ export const ProfileView: React.FC = () => {
                   <button
                     onClick={() => toggleFollow(profile.id)}
                     className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      isFollowing 
-                        ? 'bg-zinc-800 text-zinc-300 border-zinc-700' 
+                      isFollowing
+                        ? 'bg-zinc-800 text-zinc-300 border-zinc-700'
                         : 'bg-purple-950/60 text-purple-300 border-purple-800 hover:bg-purple-900/60'
                     }`}
                   >
@@ -341,7 +350,8 @@ export const ProfileView: React.FC = () => {
             </div>
 
             <IdentityBadges profile={profile} />
-            <GrowthBadges growth={profile.growth} className="justify-center sm:justify-start" />
+            <GrowthBadges growth={isSelf && profile.growth ? { ...profile.growth, hasPhoto: temFotoPropria(profile.avatarUrl) } : profile.growth} className="justify-center sm:justify-start" />
+            {isSelf && <AvisoSeloFoto className="mt-3 text-left" onColocarFoto={() => setEditTab('data')} />}
             {isSelf && identityEntries(profile).some(e => !e.orientation || !e.gender) && (
               <button
                 type="button"
@@ -445,7 +455,7 @@ export const ProfileView: React.FC = () => {
           {!isSelf && compat && (
             <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-purple-950/50 via-zinc-900/80 to-purple-950/50 border border-purple-800/40 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div 
+                <div
                   className="w-12 h-12 rounded-2xl border-2 flex items-center justify-center font-black text-white text-base shadow-lg"
                   style={{ borderColor: compat.color, backgroundColor: `${compat.color}20` }}
                 >
@@ -558,7 +568,7 @@ export const ProfileView: React.FC = () => {
 
               return (
                 <div key={alb.id} className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl flex flex-col justify-between">
-                  
+
                   {/* Album Cover preview */}
                   <div className="relative aspect-[16/10] bg-zinc-950 overflow-hidden">
                     <img
@@ -568,7 +578,7 @@ export const ProfileView: React.FC = () => {
                         isVault && !hasAccess ? 'blur-xl scale-110' : ''
                       }`}
                     />
-                    
+
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
                     {/* Lock overlay if vault and no access */}
