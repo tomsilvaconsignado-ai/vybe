@@ -5005,3 +5005,90 @@ REVOKE EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT) FR
 GRANT EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT) TO authenticated;
 REVOKE EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT, INTEGER, BOOLEAN) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_set_ads_popup(INTEGER, INTEGER, TEXT, INTEGER, BOOLEAN) TO authenticated;
+
+-- ==============================================================================
+-- 21. PADRINHO VIP: quem se cadastra pelo convite de um "padrinho" ganha dias de VIP.
+-- A administração marca o padrinho (superadmin com MFA, justificativa na auditoria); quem ele já
+-- convidou recebe na hora e os próximos convidados recebem no cadastro. Convites rejeitados ficam de fora.
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.growth_vip_padrinhos (
+  referrer_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  vip_days INTEGER NOT NULL CHECK (vip_days BETWEEN 1 AND 3650),
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.growth_vip_padrinhos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS growth_vip_padrinhos_staff ON public.growth_vip_padrinhos;
+CREATE POLICY growth_vip_padrinhos_staff ON public.growth_vip_padrinhos FOR SELECT TO authenticated USING (public.is_staff());
+REVOKE ALL ON public.growth_vip_padrinhos FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.growth_vip_padrinhos FROM authenticated;
+GRANT SELECT ON public.growth_vip_padrinhos TO authenticated;
+
+-- concede o VIP de padrinho a um convidado (uma única vez por convidado e padrinho)
+CREATE OR REPLACE FUNCTION public.growth_vip_padrinho_conceder(p_referred UUID, p_referrer UUID)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_dias INTEGER; v_user TEXT; v_fim TIMESTAMPTZ; v_motivo TEXT;
+BEGIN
+  SELECT vip_days INTO v_dias FROM public.growth_vip_padrinhos WHERE referrer_id = p_referrer;
+  IF v_dias IS NULL THEN RETURN false; END IF;
+  v_motivo := 'vip_padrinho:' || p_referrer;
+  IF EXISTS (SELECT 1 FROM public.growth_grants WHERE user_id = p_referred AND reason = v_motivo) THEN RETURN false; END IF;
+  SELECT username INTO v_user FROM public.profiles WHERE id = p_referrer;
+  v_fim := public.growth_apply_effect(p_referred, 'vip_days', v_dias, NULL);
+  INSERT INTO public.growth_grants (user_id, kind, amount, label, source, granted_by, reason, expires_at)
+  VALUES (p_referred, 'vip_days', v_dias, left(v_dias || ' dias de VIP (convite de @' || coalesce(v_user, 'membro') || ')', 120), 'referral', NULL, v_motivo, v_fim);
+  PERFORM public.growth_notify(p_referred, 'growth_reward', 'Você ganhou o selo VIP!',
+    'Por ter entrado pelo convite de @' || coalesce(v_user, 'um membro') || ', você é VIP por ' || v_dias || ' dias.', 'vip_padrinho:' || p_referred);
+  RETURN true;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.growth_vip_padrinho_conceder(UUID, UUID) FROM PUBLIC, anon, authenticated;
+
+-- no cadastro pelo convite de um padrinho (nunca impede o cadastro)
+CREATE OR REPLACE FUNCTION public.growth_vip_padrinho_no_convite()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.referrer_id IS NOT NULL AND NEW.status <> 'rejected' THEN
+    PERFORM public.growth_vip_padrinho_conceder(NEW.referred_id, NEW.referrer_id);
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.growth_vip_padrinho_no_convite() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS on_growth_referral_vip_padrinho ON public.growth_referrals;
+CREATE TRIGGER on_growth_referral_vip_padrinho AFTER INSERT ON public.growth_referrals
+  FOR EACH ROW EXECUTE FUNCTION public.growth_vip_padrinho_no_convite();
+
+-- aplica a quem o padrinho já convidou; devolve quantos receberam
+CREATE OR REPLACE FUNCTION public.growth_vip_padrinho_retroativo(p_referrer UUID)
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r RECORD; n INTEGER := 0;
+BEGIN
+  FOR r IN SELECT referred_id FROM public.growth_referrals WHERE referrer_id = p_referrer AND status <> 'rejected' LOOP
+    IF public.growth_vip_padrinho_conceder(r.referred_id, p_referrer) THEN n := n + 1; END IF;
+  END LOOP;
+  RETURN n;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.growth_vip_padrinho_retroativo(UUID) FROM PUBLIC, anon, authenticated;
+
+-- painel: marcar/desmarcar padrinho (p_days NULL ou 0 desmarca; quem já ganhou mantém até vencer)
+CREATE OR REPLACE FUNCTION public.admin_growth_set_vip_padrinho(p_user UUID, p_days INTEGER, justification TEXT)
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.growth_admin_audit('growth_vip_padrinho', 'profile', p_user::text, justification);
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user) THEN RAISE EXCEPTION 'Perfil não encontrado.'; END IF;
+  IF coalesce(p_days, 0) = 0 THEN
+    DELETE FROM public.growth_vip_padrinhos WHERE referrer_id = p_user;
+    RETURN 0;
+  END IF;
+  IF p_days NOT BETWEEN 1 AND 3650 THEN RAISE EXCEPTION 'Informe de 1 a 3650 dias de VIP.'; END IF;
+  INSERT INTO public.growth_vip_padrinhos (referrer_id, vip_days, created_by) VALUES (p_user, p_days, auth.uid())
+  ON CONFLICT (referrer_id) DO UPDATE SET vip_days = EXCLUDED.vip_days;
+  RETURN public.growth_vip_padrinho_retroativo(p_user);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_growth_set_vip_padrinho(UUID, INTEGER, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_growth_set_vip_padrinho(UUID, INTEGER, TEXT) TO authenticated;
