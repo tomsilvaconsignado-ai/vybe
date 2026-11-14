@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarHeart, Check, X, Star, Eye, MousePointerClick } from 'lucide-react';
+import { CalendarHeart, Check, X, Star, Eye, MousePointerClick, Pencil, Trash2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { VybeEvent } from '../../types';
-import { EVENT_CATEGORY_LABELS, EventStats, fetchEventStats, fetchEventsForReview, formatEventDate, reviewEvent } from '../../lib/events';
+import { EVENT_CATEGORY_LABELS, EventStats, adminDeleteEvent, fetchEventStats, fetchEventsForReview, formatEventDate, reviewEvent } from '../../lib/events';
+import { SubmitEventModal } from '../events/SubmitEventModal';
 import { notify, askText } from '../common/Feedback';
 import { AdminThumb } from './AdminImageViewer';
 
@@ -48,7 +49,18 @@ const STATUS_STYLES: Record<VybeEvent['status'], string> = {
 const STATUS_LABEL: Record<VybeEvent['status'], string> = { pending: 'Pendente', approved: 'Publicado', rejected: 'Recusado' };
 
 export const AdminEventsTab: React.FC = () => {
-  const { refreshAdminData, refreshEvents } = useApp();
+  const { refreshAdminData, refreshEvents, adminRole } = useApp();
+  const podeEditar = adminRole === 'superadmin' || adminRole === 'moderator';
+  const [editando, setEditando] = useState<VybeEvent | null>(null);
+  const excluir = async (ev: VybeEvent) => {
+    const j = (await askText({ title: `Excluir "${ev.title}"?`, message: 'Justificativa (fica na auditoria e o organizador é avisado):', confirmLabel: 'Excluir', danger: true, multiline: true }))?.trim();
+    if (j === undefined) return;
+    if (j.length < 5) { notify('Informe a justificativa (mínimo 5 caracteres).'); return; }
+    const error = await adminDeleteEvent(ev.id, j);
+    if (error) { notify(`Não foi possível excluir: ${error}`); return; }
+    notify('Evento excluído.');
+    await Promise.all([load(), refreshAdminData(), refreshEvents()]);
+  };
   const [list, setList] = useState<VybeEvent[]>([]);
   const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [loading, setLoading] = useState(true);
@@ -105,6 +117,8 @@ export const AdminEventsTab: React.FC = () => {
         </div>
       )}
 
+      {editando && <SubmitEventModal evento={editando} modo="equipe" onClose={() => setEditando(null)} onSaved={() => { load(); }} />}
+
       <div className="space-y-4">
         {visible.map(ev => (
           <article key={ev.id} className="bg-painel border border-purple-900/30 rounded-3xl p-4 flex flex-col md:flex-row gap-4">
@@ -113,6 +127,13 @@ export const AdminEventsTab: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`px-2 py-0.5 rounded border font-bold ${STATUS_STYLES[ev.status]}`}>{STATUS_LABEL[ev.status]}</span>
                 {ev.isFeatured && <span className="px-2 py-0.5 rounded bg-amber-500 text-black font-bold">Destaque</span>}
+                {ev.editedAt && (
+                  <span className="px-2 py-0.5 rounded border border-sky-800 bg-sky-950 text-sky-300 font-bold" title={new Date(ev.editedAt).toLocaleString('pt-BR')}>
+                    {ev.editedBy && ev.editedBy === ev.createdBy
+                      ? (ev.status === 'approved' ? 'Editado pelo organizador após aprovação' : 'Editado pelo organizador')
+                      : 'Editado pela equipe'} · {new Date(ev.editedAt).toLocaleDateString('pt-BR')}
+                  </span>
+                )}
                 <span className="text-zinc-400">{EVENT_CATEGORY_LABELS[ev.category]}</span>
               </div>
               <h3 className="text-base font-bold text-white">{ev.title}</h3>
@@ -139,9 +160,19 @@ export const AdminEventsTab: React.FC = () => {
                   <Star className="w-3.5 h-3.5" /> {ev.isFeatured ? 'Tirar destaque' : 'Destacar'}
                 </button>
               )}
+              {podeEditar && (
+                <button type="button" onClick={() => setEditando(ev)} className="flex-1 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-xs font-bold flex items-center justify-center gap-1 cursor-pointer">
+                  <Pencil className="w-3.5 h-3.5" /> Editar
+                </button>
+              )}
               {ev.status !== 'rejected' && (
                 <button type="button" onClick={() => act(ev, 'rejected')} className="flex-1 px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900/60 text-rose-300 text-xs font-bold flex items-center justify-center gap-1 cursor-pointer">
                   <X className="w-3.5 h-3.5" /> {ev.status === 'approved' ? 'Despublicar' : 'Recusar'}
+                </button>
+              )}
+              {podeEditar && (
+                <button type="button" onClick={() => excluir(ev)} className="flex-1 px-3 py-2 rounded-xl text-rose-300 hover:bg-rose-950/50 border border-rose-900/50 text-xs font-bold flex items-center justify-center gap-1 cursor-pointer">
+                  <Trash2 className="w-3.5 h-3.5" /> Excluir
                 </button>
               )}
             </div>

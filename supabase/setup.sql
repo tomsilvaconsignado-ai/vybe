@@ -5092,3 +5092,94 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.admin_growth_set_vip_padrinho(UUID, INTEGER, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_growth_set_vip_padrinho(UUID, INTEGER, TEXT) TO authenticated;
+
+-- ==============================================================================
+-- 22. EVENTOS: edição e exclusão depois de publicados
+-- Quem publicou edita texto e arte sem tirar o evento da agenda (recusado volta para análise); a
+-- moderação vê "editado após aprovação". A equipe (moderador/superadmin com MFA) edita ou exclui qualquer
+-- evento com justificativa na auditoria, e quem publicou é avisado.
+-- ==============================================================================
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS edited_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+CREATE OR REPLACE FUNCTION public.protect_event_fields()
+RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF current_user = 'authenticated' THEN
+    IF TG_OP = 'INSERT' THEN
+      NEW.status := 'pending';
+      NEW.is_featured := false;
+      NEW.review_note := NULL;
+      NEW.going_count := 0;
+      NEW.interested_count := 0;
+      NEW.comments_count := 0;
+      NEW.edited_at := NULL;
+      NEW.edited_by := NULL;
+    ELSE
+      NEW.created_by := OLD.created_by;
+      -- publicado continua publicado (correção de texto ou troca de arte); recusado volta para análise
+      NEW.status := CASE WHEN OLD.status = 'rejected' THEN 'pending' ELSE OLD.status END;
+      NEW.is_featured := OLD.is_featured;
+      NEW.review_note := OLD.review_note;
+      NEW.going_count := OLD.going_count;
+      NEW.interested_count := OLD.interested_count;
+      NEW.comments_count := OLD.comments_count;
+      NEW.edited_at := now();
+      NEW.edited_by := auth.uid();
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- equipe: editar qualquer evento (campos ausentes em p_dados ficam como estão)
+CREATE OR REPLACE FUNCTION public.admin_edit_event(p_event UUID, p_dados JSONB, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE ev public.events;
+BEGIN
+  PERFORM public.require_moderator(justification);
+  IF p_dados ? 'ticket_url' AND nullif(trim(p_dados ->> 'ticket_url'), '') IS NOT NULL AND (p_dados ->> 'ticket_url') !~* '^https://' THEN
+    RAISE EXCEPTION 'O link de ingressos deve começar com https://';
+  END IF;
+  UPDATE public.events SET
+    title       = CASE WHEN p_dados ? 'title' THEN left(trim(p_dados ->> 'title'), 150) ELSE title END,
+    description = CASE WHEN p_dados ? 'description' THEN coalesce(p_dados ->> 'description', '') ELSE description END,
+    category    = CASE WHEN p_dados ? 'category' THEN p_dados ->> 'category' ELSE category END,
+    starts_at   = CASE WHEN p_dados ? 'starts_at' THEN (p_dados ->> 'starts_at')::timestamptz ELSE starts_at END,
+    ends_at     = CASE WHEN p_dados ? 'ends_at' THEN nullif(p_dados ->> 'ends_at', '')::timestamptz ELSE ends_at END,
+    venue_name  = CASE WHEN p_dados ? 'venue_name' THEN left(trim(p_dados ->> 'venue_name'), 150) ELSE venue_name END,
+    city        = CASE WHEN p_dados ? 'city' THEN left(trim(p_dados ->> 'city'), 100) ELSE city END,
+    state       = CASE WHEN p_dados ? 'state' THEN left(trim(coalesce(p_dados ->> 'state', '')), 50) ELSE state END,
+    cover_url   = CASE WHEN p_dados ? 'cover_url' THEN coalesce(p_dados ->> 'cover_url', '') ELSE cover_url END,
+    price_info  = CASE WHEN p_dados ? 'price_info' THEN nullif(trim(p_dados ->> 'price_info'), '') ELSE price_info END,
+    ticket_url  = CASE WHEN p_dados ? 'ticket_url' THEN nullif(trim(p_dados ->> 'ticket_url'), '') ELSE ticket_url END,
+    dress_code  = CASE WHEN p_dados ? 'dress_code' THEN nullif(trim(p_dados ->> 'dress_code'), '') ELSE dress_code END,
+    audience    = CASE WHEN p_dados ? 'audience' THEN nullif(trim(p_dados ->> 'audience'), '') ELSE audience END,
+    edited_at = now(), edited_by = auth.uid()
+  WHERE id = p_event
+  RETURNING * INTO ev;
+  IF ev.id IS NULL THEN RAISE EXCEPTION 'Evento não encontrado.'; END IF;
+  PERFORM public.admin_log('EVENT_EDIT', p_event::text, 'event', trim(justification));
+  PERFORM public.notify(ev.created_by, NULL, 'system_safety', 'Seu evento foi ajustado',
+    'A equipe do Vybelog editou o evento "' || ev.title || '": ' || trim(justification), p_event::text);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_edit_event(UUID, JSONB, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_edit_event(UUID, JSONB, TEXT) TO authenticated;
+
+-- equipe: excluir qualquer evento
+CREATE OR REPLACE FUNCTION public.admin_delete_event(p_event UUID, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE ev public.events;
+BEGIN
+  PERFORM public.require_moderator(justification);
+  SELECT * INTO ev FROM public.events WHERE id = p_event;
+  IF ev.id IS NULL THEN RAISE EXCEPTION 'Evento não encontrado.'; END IF;
+  PERFORM public.admin_log('EVENT_DELETE', p_event::text, 'event', left('"' || ev.title || '": ' || trim(justification), 1000));
+  PERFORM public.notify(ev.created_by, NULL, 'system_safety', 'Seu evento foi removido',
+    'A equipe do Vybelog removeu o evento "' || ev.title || '": ' || trim(justification), NULL);
+  DELETE FROM public.events WHERE id = p_event;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_delete_event(UUID, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_delete_event(UUID, TEXT) TO authenticated;

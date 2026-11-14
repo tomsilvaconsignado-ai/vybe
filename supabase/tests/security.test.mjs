@@ -946,5 +946,40 @@ await expectOk('anúncio no espaço "destaques" é aceito', ids.admin, `INSERT I
 await expectFail('espaço desconhecido é recusado', ids.admin, `INSERT INTO ads (advertiser, title, placement) VALUES ('Clube', 'Errado', 'popup')`, [], 'aal2');
 await db.query(`DELETE FROM ads WHERE advertiser = 'Clube'`);
 
+console.log('\nEventos: edição e exclusão depois de publicados');
+const evPub = (await db.query(`INSERT INTO events (created_by, title, starts_at, venue_name, city, status, is_featured, cover_url) VALUES ($1, 'Festa antiga', now() + interval '3 days', 'Clube', 'Campinas', 'approved', true, 'https://x/arte1.jpg') RETURNING id`, [ids.a])).rows[0].id;
+await expectOk('organizador corrige o texto e troca a arte do evento publicado', ids.a,
+  `UPDATE events SET title = 'Festa corrigida', cover_url = 'https://x/arte2.jpg', status = 'approved', is_featured = false WHERE id = $1`, [evPub]);
+r = await db.query(`SELECT title, cover_url, status, is_featured, edited_at IS NOT NULL AS editado, edited_by FROM events WHERE id = $1`, [evPub]);
+r.rows[0].title === 'Festa corrigida' && r.rows[0].cover_url === 'https://x/arte2.jpg' ? ok('texto e arte novos ficam gravados') : bad('edição: ' + JSON.stringify(r.rows));
+r.rows[0].status === 'approved' ? ok('o evento continua publicado depois da correção') : bad('status: ' + r.rows[0].status);
+r.rows[0].is_featured === true ? ok('o organizador não mexe no destaque') : bad('destaque alterado');
+r.rows[0].editado && r.rows[0].edited_by === ids.a ? ok('a moderação vê que foi editado e por quem') : bad('sem marca de edição');
+const evRec = (await db.query(`INSERT INTO events (created_by, title, starts_at, venue_name, city, status) VALUES ($1, 'Recusado', now() + interval '3 days', 'Clube', 'Campinas', 'rejected') RETURNING id`, [ids.a])).rows[0].id;
+await as(ids.a, `UPDATE events SET status = 'approved', title = 'Reenviado' WHERE id = $1`, [evRec]);
+r = await db.query(`SELECT status FROM events WHERE id = $1`, [evRec]);
+r.rows[0].status === 'pending' ? ok('evento recusado editado volta para análise (não se autoaprova)') : bad('recusado virou: ' + r.rows[0].status);
+await expectFail('outra pessoa não edita o evento', ids.b, `UPDATE events SET title = 'invadido' WHERE id = $1`, [evPub]);
+await expectFail('outra pessoa não exclui o evento', ids.b, `DELETE FROM events WHERE id = $1`, [evPub]);
+await expectFail('membro comum não usa a edição da equipe', ids.b, `SELECT public.admin_edit_event($1, '{"title":"x"}', 'tentativa indevida')`, [evPub]);
+await expectFail('equipe sem MFA não edita', ids.mod, `SELECT public.admin_edit_event($1, '{"title":"x"}', 'Correção de texto')`, [evPub], 'aal1');
+await expectFail('edição da equipe exige justificativa', ids.mod, `SELECT public.admin_edit_event($1, '{"title":"x"}', 'x')`, [evPub], 'aal2');
+await expectFail('link de ingresso inseguro é recusado', ids.mod, `SELECT public.admin_edit_event($1, '{"ticket_url":"javascript:alert(1)"}', 'Correção do link')`, [evPub], 'aal2');
+await expectOk('moderador (MFA) corrige o local', ids.mod, `SELECT public.admin_edit_event($1, '{"venue_name":"Clube Novo","price_info":""}', 'Endereço informado errado')`, [evPub], 'aal2');
+r = await db.query(`SELECT venue_name, title, price_info, status, edited_by FROM events WHERE id = $1`, [evPub]);
+r.rows[0].venue_name === 'Clube Novo' && r.rows[0].title === 'Festa corrigida' && r.rows[0].status === 'approved' && r.rows[0].edited_by === ids.mod
+  ? ok('só o campo enviado muda e o evento segue publicado') : bad('edição da equipe: ' + JSON.stringify(r.rows));
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND title = 'Seu evento foi ajustado'`, [ids.a]);
+r.rows[0].n === 1 ? ok('o organizador é avisado da edição da equipe') : bad('aviso de edição: ' + r.rows[0].n);
+await expectFail('membro comum não usa a exclusão da equipe', ids.b, `SELECT public.admin_delete_event($1, 'tentativa indevida')`, [evPub]);
+await expectOk('moderador (MFA) exclui o evento com justificativa', ids.mod, `SELECT public.admin_delete_event($1, 'Evento cancelado pelo local')`, [evPub], 'aal2');
+r = await db.query(`SELECT count(*)::int AS n FROM events WHERE id = $1`, [evPub]);
+r.rows[0].n === 0 ? ok('o evento sai da agenda') : bad('evento ainda existe');
+r = await db.query(`SELECT count(*)::int AS n FROM admin_audit_logs WHERE action IN ('EVENT_EDIT', 'EVENT_DELETE') AND target_id = $1`, [evPub]);
+r.rows[0].n === 2 ? ok('edição e exclusão ficam na auditoria') : bad('auditoria: ' + r.rows[0].n);
+r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND title = 'Seu evento foi removido'`, [ids.a]);
+r.rows[0].n === 1 ? ok('o organizador é avisado da exclusão') : bad('aviso de exclusão: ' + r.rows[0].n);
+await expectOk('organizador exclui o próprio evento', ids.a, `DELETE FROM events WHERE id = $1`, [evRec]);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

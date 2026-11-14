@@ -1,16 +1,45 @@
 import React, { useState } from 'react';
-import { X, Image } from 'lucide-react';
+import { X, Image, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { uploadPublicMedia } from '../../lib/supabase';
-import { EVENT_CATEGORY_LABELS, EventDraft, submitEvent } from '../../lib/events';
-import { EventCategory } from '../../types';
+import { EVENT_CATEGORY_LABELS, EventDraft, adminEditEvent, submitEvent, updateEvent } from '../../lib/events';
+import { EventCategory, VybeEvent } from '../../types';
 import { Seletor } from '../common/Seletor';
+import { askText } from '../common/Feedback';
 
 const inputClass = 'w-full px-3.5 py-2.5 bg-zinc-900/80 border border-purple-900/30 rounded-xl text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500';
 
-export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+// ISO -> valor do <input type="datetime-local"> no fuso de quem está editando
+const paraCampoData = (iso?: string) => (iso ? new Date(new Date(iso).getTime() - new Date(iso).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '');
+
+interface Props {
+  onClose: () => void;
+  /** evento existente: abre em modo de edição */
+  evento?: VybeEvent;
+  /** 'equipe' edita evento de outra pessoa pela moderação (pede justificativa) */
+  modo?: 'organizador' | 'equipe';
+  /** depois de salvar a edição */
+  onSaved?: () => void;
+}
+
+export const SubmitEventModal: React.FC<Props> = ({ onClose, evento, modo = 'organizador', onSaved }) => {
   const { currentUser, refreshEvents } = useApp();
-  const [draft, setDraft] = useState<EventDraft>({
+  const editando = !!evento;
+  const [draft, setDraft] = useState<EventDraft>(() => evento ? {
+    title: evento.title,
+    description: evento.description ?? '',
+    category: evento.category,
+    startsAt: paraCampoData(evento.startsAt),
+    endsAt: paraCampoData(evento.endsAt),
+    venueName: evento.venueName,
+    city: evento.city,
+    state: evento.state ?? '',
+    coverUrl: evento.coverUrl ?? '',
+    priceInfo: evento.priceInfo ?? '',
+    ticketUrl: evento.ticketUrl ?? '',
+    dressCode: evento.dressCode ?? '',
+    audience: evento.audience ?? ''
+  } : {
     title: '',
     description: '',
     category: 'festa',
@@ -25,6 +54,7 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
     dressCode: '',
     audience: ''
   });
+  const inicioOriginal = evento ? paraCampoData(evento.startsAt) : '';
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -51,7 +81,8 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (new Date(draft.startsAt).getTime() < Date.now()) {
+    // na edição, a data só precisa ser futura se tiver sido alterada
+    if ((!editando || draft.startsAt !== inicioOriginal) && new Date(draft.startsAt).getTime() < Date.now()) {
       setError('A data de início precisa ser no futuro.');
       return;
     }
@@ -63,16 +94,39 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
       setError('O link de ingressos deve começar com https://');
       return;
     }
+    let justificativa = '';
+    if (editando && modo === 'equipe') {
+      const j = await askText({ title: 'Editar evento pela equipe', message: 'Justificativa (fica na auditoria e o organizador é avisado):', confirmLabel: 'Salvar', multiline: true });
+      if (j === null) return;
+      justificativa = j.trim();
+      if (justificativa.length < 5) { setError('Informe a justificativa (mínimo 5 caracteres).'); return; }
+    }
     setSaving(true);
-    const submitError = await submitEvent(currentUser.id, draft);
+    const submitError = !evento
+      ? await submitEvent(currentUser.id, draft)
+      : modo === 'equipe'
+        ? await adminEditEvent(evento.id, draft, justificativa)
+        : await updateEvent(evento.id, draft);
     setSaving(false);
     if (submitError) {
       setError(submitError);
       return;
     }
     await refreshEvents();
+    onSaved?.();
     setSent(true);
   };
+
+  const tituloSucesso = !editando ? 'Evento enviado para análise' : 'Alterações salvas';
+  const textoSucesso = !editando
+    ? 'A moderação revisa todos os eventos antes de publicar. Você recebe uma notificação quando ele for aprovado.'
+    : modo === 'equipe'
+      ? 'O evento foi atualizado e o organizador foi avisado.'
+      : evento?.status === 'approved'
+        ? 'O evento continua publicado com as correções. A moderação pode revisar a alteração.'
+        : evento?.status === 'rejected'
+          ? 'O evento voltou para análise da moderação.'
+          : 'O evento segue em análise com as correções.';
 
   return (
     <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
@@ -83,22 +137,31 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
 
         {sent ? (
           <div className="text-center space-y-3 py-6">
-            <h3 className="text-lg font-bold text-white">Evento enviado para análise</h3>
-            <p className="text-xs text-zinc-400">
-              A moderação revisa todos os eventos antes de publicar. Você recebe uma notificação quando ele for aprovado.
-            </p>
+            <h3 className="text-lg font-bold text-white">{tituloSucesso}</h3>
+            <p className="text-xs text-zinc-400">{textoSucesso}</p>
             <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl bg-purple-600 text-white text-xs font-bold cursor-pointer">Fechar</button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3.5">
             <div className="pr-8">
-              <h3 className="text-lg font-bold text-white">Divulgar evento</h3>
-              <p className="text-xs text-zinc-400">Eventos para maiores de 18 anos, com consentimento e respeito. Publicação após revisão.</p>
+              <h3 className="text-lg font-bold text-white">{!editando ? 'Divulgar evento' : modo === 'equipe' ? 'Editar evento (equipe)' : 'Editar evento'}</h3>
+              <p className="text-xs text-zinc-400">
+                {!editando
+                  ? 'Eventos para maiores de 18 anos, com consentimento e respeito. Publicação após revisão.'
+                  : evento?.status === 'approved'
+                    ? 'Corrija o texto ou troque a arte. O evento continua publicado.'
+                    : 'Corrija o que precisar e salve.'}
+              </p>
             </div>
 
             <label className="relative flex items-center justify-center aspect-[16/9] rounded-2xl border-2 border-dashed border-purple-700/50 overflow-hidden cursor-pointer hover:bg-purple-950/30">
               {draft.coverUrl ? (
-                <img src={draft.coverUrl} alt="Capa do evento" className="w-full h-full object-cover" />
+                <>
+                  <img src={draft.coverUrl} alt="Capa do evento" className="w-full h-full object-cover" />
+                  <span className="absolute bottom-2 right-2 px-2.5 py-1 rounded-full bg-black/75 text-white text-[12px] font-semibold flex items-center gap-1">
+                    <RefreshCw className={`w-3 h-3 ${uploading ? 'animate-spin' : ''}`} /> {uploading ? 'Enviando...' : 'Trocar arte'}
+                  </span>
+                </>
               ) : (
                 <span className="flex flex-col items-center gap-1.5 text-purple-200 text-xs font-semibold">
                   <Image className="w-6 h-6" /> {uploading ? 'Enviando...' : 'Imagem de capa (opcional)'}
@@ -133,7 +196,7 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
               <input maxLength={50} className={inputClass} placeholder="UF" value={draft.state} onChange={e => set('state', e.target.value)} aria-label="Estado" />
             </div>
 
-            <textarea rows={3} className={inputClass} placeholder="Descrição: proposta, regras da casa, o que está incluso..." value={draft.description} onChange={e => set('description', e.target.value)} aria-label="Descrição" />
+            <textarea rows={editando ? 5 : 3} className={inputClass} placeholder="Descrição: proposta, regras da casa, o que está incluso..." value={draft.description} onChange={e => set('description', e.target.value)} aria-label="Descrição" />
 
             <div className="grid grid-cols-2 gap-2">
               <input maxLength={60} className={inputClass} placeholder="Público (ex: casais e mulheres)" value={draft.audience} onChange={e => set('audience', e.target.value)} aria-label="Público" />
@@ -144,7 +207,7 @@ export const SubmitEventModal: React.FC<{ onClose: () => void }> = ({ onClose })
             {error && <p className="text-xs text-rose-400">{error}</p>}
 
             <button type="submit" disabled={saving || uploading} className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 disabled:opacity-50 cursor-pointer">
-              {saving ? 'Enviando...' : 'Enviar para análise'}
+              {saving ? 'Salvando...' : !editando ? 'Enviar para análise' : 'Salvar alterações'}
             </button>
           </form>
         )}

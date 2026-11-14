@@ -405,6 +405,9 @@ export interface VybeEvent {
   interestedCount: number;
   commentsCount: number;
   myStatus?: EventRsvpStatus;
+  /** última edição depois do envio (pelo organizador ou pela equipe) */
+  editedAt?: string;
+  editedBy?: string;
 }
 
 export type AdPlacement = 'feed' | 'sidebar' | 'events' | 'carousel' | 'destaques';

@@ -38,7 +38,9 @@ function mapEvent(row: any, myStatus?: EventRsvpStatus): VybeEvent {
     goingCount: row.going_count,
     interestedCount: row.interested_count,
     commentsCount: row.comments_count ?? 0,
-    myStatus
+    myStatus,
+    editedAt: row.edited_at ?? undefined,
+    editedBy: row.edited_by ?? undefined
   };
 }
 
@@ -100,6 +102,38 @@ export async function submitEvent(me: string, draft: EventDraft) {
     dress_code: draft.dressCode || null,
     audience: draft.audience || null
   });
+  return error?.message ?? null;
+}
+
+const draftParaLinha = (draft: EventDraft) => ({
+  title: draft.title,
+  description: draft.description,
+  category: draft.category,
+  starts_at: new Date(draft.startsAt).toISOString(),
+  ends_at: draft.endsAt ? new Date(draft.endsAt).toISOString() : null,
+  venue_name: draft.venueName,
+  city: draft.city,
+  state: draft.state,
+  cover_url: draft.coverUrl,
+  price_info: draft.priceInfo || null,
+  ticket_url: draft.ticketUrl || null,
+  dress_code: draft.dressCode || null,
+  audience: draft.audience || null
+});
+
+// Organizador corrige o próprio evento (publicado continua publicado; recusado volta para análise)
+export async function updateEvent(eventId: string, draft: EventDraft) {
+  const { error } = await supabase.from('events').update(draftParaLinha(draft)).eq('id', eventId);
+  return error?.message ?? null;
+}
+
+// Equipe (moderador/superadmin com MFA): edita ou exclui qualquer evento, com justificativa na auditoria
+export async function adminEditEvent(eventId: string, draft: EventDraft, justificativa: string) {
+  const { error } = await supabase.rpc('admin_edit_event', { p_event: eventId, p_dados: draftParaLinha(draft), justification: justificativa });
+  return error?.message ?? null;
+}
+export async function adminDeleteEvent(eventId: string, justificativa: string) {
+  const { error } = await supabase.rpc('admin_delete_event', { p_event: eventId, justification: justificativa });
   return error?.message ?? null;
 }
 

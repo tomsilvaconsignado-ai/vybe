@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarHeart, Plus, X, MapPin, CalendarDays, Ticket, Shirt, Users, ExternalLink, Trash2, Maximize2, Share2, UserPlus } from 'lucide-react';
+import { CalendarHeart, Plus, X, MapPin, CalendarDays, Ticket, Shirt, Users, ExternalLink, Trash2, Maximize2, Share2, UserPlus, Pencil } from 'lucide-react';
 import { ConvidarPessoas } from '../common/ConvidarPessoas';
 import { inviteToEvent } from '../../lib/comunidades';
 import { linkDoEvento } from '../../lib/rotas';
@@ -12,8 +12,8 @@ import { EventCard, EventRsvpButtons, RSVP_LABEL } from './EventCard';
 import { EventComments } from './EventComments';
 import { SubmitEventModal } from './SubmitEventModal';
 import { AdSlot } from '../ads/AdSlot';
-import { EVENT_CATEGORY_LABELS, deleteEvent, formatEventDate, recordEventView } from '../../lib/events';
-import { notify, askConfirm } from '../common/Feedback';
+import { EVENT_CATEGORY_LABELS, adminDeleteEvent, deleteEvent, formatEventDate, recordEventView } from '../../lib/events';
+import { notify, askConfirm, askText } from '../common/Feedback';
 import { useEstadoSalvo } from '../../lib/estadoSalvo';
 
 type Filter = 'upcoming' | 'city' | 'going' | 'mine';
@@ -40,7 +40,10 @@ function noPeriodo(e: VybeEvent, p: Periodo, agora = new Date()): boolean {
 }
 
 export const EventsView: React.FC = () => {
-  const { events, currentUser, refreshEvents, selectedEventId, setSelectedEventId } = useApp();
+  const { events, currentUser, refreshEvents, selectedEventId, setSelectedEventId, adminRole, adminMfaVerified, isAuthorizedAdmin } = useApp();
+  // equipe de moderação com verificação em duas etapas edita/exclui eventos de qualquer pessoa
+  const equipePodeEditar = !!isAuthorizedAdmin && adminMfaVerified && (adminRole === 'superadmin' || adminRole === 'moderator');
+  const [editando, setEditando] = useState<{ evento: VybeEvent; modo: 'organizador' | 'equipe' } | null>(null);
   const [filter, setFilter] = useEstadoSalvo<Filter>('eventos.filtro', 'upcoming');
   const [submitOpen, setSubmitOpen] = useState(false);
   // evento aberto vem do endereço (/eventos/<id>): F5, link compartilhado e notificação abrem direto
@@ -174,6 +177,7 @@ export const EventsView: React.FC = () => {
       )}
 
       {submitOpen && <SubmitEventModal onClose={() => setSubmitOpen(false)} />}
+      {editando && <SubmitEventModal evento={editando.evento} modo={editando.modo} onClose={() => setEditando(null)} />}
 
       {detail && (
         <div className="modal-overlay fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={closeDetail}>
@@ -233,21 +237,37 @@ export const EventsView: React.FC = () => {
                   Voltar
                 </button>
               )}
-              {detail.createdBy === currentUser.id && (
-                <button
-                  type="button"
-                  onClick={async () => {
+              {(detail.createdBy === currentUser.id || equipePodeEditar) && (() => {
+                const proprio = detail.createdBy === currentUser.id;
+                const modo = proprio ? 'organizador' as const : 'equipe' as const;
+                const excluir = async () => {
+                  if (proprio) {
                     if (!(await askConfirm({ title: 'Excluir evento?', message: 'O evento sai da agenda para todos.', confirmLabel: 'Excluir', danger: true }))) return;
-                    const error = await deleteEvent(detail.id);
-                    if (error) notify(`Não foi possível excluir: ${error}`);
-                    closeDetail();
-                    refreshEvents();
-                  }}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-rose-400 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Excluir evento
-                </button>
-              )}
+                  }
+                  const justificativa = proprio ? '' : (await askText({ title: 'Excluir evento (equipe)', message: 'Justificativa (fica na auditoria e o organizador é avisado):', confirmLabel: 'Excluir', danger: true, multiline: true }))?.trim();
+                  if (!proprio && (!justificativa || justificativa.length < 5)) { if (justificativa !== undefined) notify('Informe a justificativa (mínimo 5 caracteres).'); return; }
+                  const error = proprio ? await deleteEvent(detail.id) : await adminDeleteEvent(detail.id, justificativa!);
+                  if (error) { notify(`Não foi possível excluir: ${error}`); return; }
+                  notify('Evento excluído.');
+                  closeDetail();
+                  refreshEvents();
+                };
+                return (
+                  <div className="pt-1 space-y-1.5">
+                    {!proprio && <p className="text-[12px] text-amber-300 text-center">Ações da equipe de moderação</p>}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setEditando({ evento: detail, modo })}
+                        className="py-2.5 rounded-xl text-xs font-bold text-zinc-100 bg-zinc-800 hover:bg-zinc-700 flex items-center justify-center gap-1.5 cursor-pointer">
+                        <Pencil className="w-3.5 h-3.5" /> Editar evento
+                      </button>
+                      <button type="button" onClick={excluir}
+                        className="py-2.5 rounded-xl text-xs font-bold text-rose-300 bg-rose-950/40 hover:bg-rose-950/70 border border-rose-900/50 flex items-center justify-center gap-1.5 cursor-pointer">
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
               <EventComments event={detail} />
             </div>
           </div>
