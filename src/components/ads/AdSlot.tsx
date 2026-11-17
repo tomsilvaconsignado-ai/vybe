@@ -35,8 +35,8 @@ export const AdSlot: React.FC<AdSlotProps> = ({ placement, index = 0, variant = 
   if (!ad) {
     // Espaço livre: convite para divulgar (sem anúncio fictício)
     return (
-      <div className={`rounded-3xl border border-dashed border-purple-800/50 bg-purple-950/20 p-4 ${variant === 'feed' ? 'mb-6' : ''}`}>
-        <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-500">Espaço para divulgação</span>
+      <div className={`rounded-3xl border border-dashed border-white/[0.14] p-4 ${variant === 'feed' ? 'mx-3 sm:mx-0 my-4' : ''}`}>
+        <span className="text-xs font-semibold text-zinc-500">Espaço para divulgação</span>
         <div className="flex items-start gap-3 mt-2">
           <div className="w-9 h-9 rounded-xl bg-fuchsia-600/20 text-fuchsia-400 flex items-center justify-center shrink-0">
             <CalendarHeart className="w-5 h-5" />
@@ -76,8 +76,8 @@ export const AdSlot: React.FC<AdSlotProps> = ({ placement, index = 0, variant = 
   );
 
   return (
-    <div ref={ref} className={`rounded-3xl border border-purple-900/30 bg-painel overflow-hidden ${variant === 'feed' ? 'mb-6' : 'p-4'}`}>
-      <div className={`flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-zinc-500 ${variant === 'feed' ? 'px-4 pt-3 pb-2' : 'pb-2'}`}>
+    <div ref={ref} className={`rounded-3xl border border-white/[0.07] bg-white/[0.03] overflow-hidden ${variant === 'feed' ? 'mx-3 sm:mx-0 my-4' : 'p-4'}`}>
+      <div className={`flex items-center gap-1.5 text-xs font-semibold text-zinc-500 ${variant === 'feed' ? 'px-4 pt-3 pb-2' : 'pb-2'}`}>
         <Megaphone className="w-3 h-3" /> Patrocinado · {ad.advertiser}
       </div>
       {ad.linkUrl ? (

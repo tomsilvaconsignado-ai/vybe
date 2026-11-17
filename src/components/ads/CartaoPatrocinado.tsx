@@ -24,7 +24,7 @@ export const CartaoPatrocinado: React.FC<{ anuncio: Ad }> = ({ anuncio }) => {
         {anuncio.imageUrl
           ? <img src={anuncio.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
           : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-fuchsia-900/60 to-orange-900/40"><Megaphone className="w-8 h-8 text-fuchsia-200" /></div>}
-        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-black/70 text-[10px] font-bold uppercase tracking-wider text-zinc-200">Patrocinado</span>
+        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-full bg-black/70 text-[11px] font-semibold text-zinc-100">Patrocinado</span>
         {anuncio.linkUrl && (
           <span className="absolute inset-x-1.5 bottom-1.5 py-1 rounded-xl bg-fuchsia-600/90 text-[10px] font-bold text-white flex items-center justify-center gap-1 truncate">
             {anuncio.ctaLabel || 'Saiba mais'} <ExternalLink className="w-3 h-3 shrink-0" />

@@ -106,20 +106,18 @@ export const EventsView: React.FC = () => {
   const detail = openEvent ? events.find(e => e.id === openEvent.id) ?? openEvent : null;
 
   return (
-    <div className="max-w-5xl mx-auto py-6 px-4 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-white flex items-center gap-2">
-            <CalendarHeart className="w-6 h-6 text-fuchsia-400" /> Agenda Liberal
-          </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">Festas, encontros e casas parceiras. Todos os eventos passam pela moderação.</p>
+    <div className="max-w-5xl mx-auto py-5 sm:py-6 px-4 space-y-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-[22px] sm:text-2xl font-extrabold tracking-tight text-white">Agenda</h1>
+          <p className="text-[13px] text-zinc-400 mt-0.5">Festas, encontros e casas parceiras. Todos os eventos passam pela moderação.</p>
         </div>
         <button
           type="button"
           onClick={() => setSubmitOpen(true)}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+          className="shrink-0 h-10 pl-3 pr-4 rounded-full fundo-neon text-white text-[13px] font-bold flex items-center gap-1.5 shadow-[0_6px_20px_-8px_rgba(236,72,153,0.9)] cursor-pointer"
         >
-          <Plus className="w-4 h-4" /> Divulgar evento
+          <Plus className="w-4 h-4" strokeWidth={2.6} /> Divulgar
         </button>
       </div>
 
@@ -130,7 +128,7 @@ export const EventsView: React.FC = () => {
             type="button"
             onClick={() => setFilter(f.id)}
             className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap cursor-pointer ${
-              filter === f.id ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+              filter === f.id ? 'bg-white text-zinc-950' : 'bg-white/[0.07] text-zinc-300 hover:text-white hover:bg-white/[0.11]'
             }`}
           >
             {f.label}
@@ -142,7 +140,7 @@ export const EventsView: React.FC = () => {
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mt-3" role="group" aria-label="Período">
           {([['todos', 'Qualquer data'], ['hoje', 'Hoje'], ['fim', 'Fim de semana'], ['semana', 'Próximos 7 dias'], ['mes', 'Este mês']] as [Periodo, string][]).map(([id, label]) => (
             <button key={id} type="button" onClick={() => setPeriodo(id)} aria-pressed={periodo === id}
-              className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer ${periodo === id ? 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/50' : 'text-zinc-500 border border-zinc-800 hover:text-zinc-300'}`}>
+              className={`px-3 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer ${periodo === id ? 'text-white bg-white/[0.1]' : 'text-zinc-500 hover:text-zinc-300'}`}>
               {label}
             </button>
           ))}
@@ -159,7 +157,7 @@ export const EventsView: React.FC = () => {
           {filtered.map(ev => <EventCard key={ev.id} event={ev} onOpen={openDetail} />)}
         </div>
       ) : (
-        <div className="p-10 text-center bg-painel border border-purple-900/30 rounded-3xl">
+        <div className="p-10 text-center bg-white/[0.03] border border-white/[0.07] rounded-3xl">
           <CalendarHeart className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
           <h3 className="text-base font-bold text-white mb-1">
             {filter === 'mine' ? 'Você ainda não divulgou eventos' : filter === 'going' ? 'Nada na sua agenda' : periodo !== 'todos' ? 'Nenhum evento nesse período' : 'Nenhum evento por aqui ainda'}
@@ -181,7 +179,7 @@ export const EventsView: React.FC = () => {
 
       {detail && (
         <div className="modal-overlay fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={closeDetail}>
-          <div className="max-w-lg w-full bg-painel border border-purple-800/40 rounded-3xl overflow-hidden shadow-2xl relative my-auto" onClick={e => e.stopPropagation()}>
+          <div className="max-w-lg w-full bg-white/[0.03] border border-white/[0.08] rounded-3xl overflow-hidden shadow-2xl relative my-auto" onClick={e => e.stopPropagation()}>
             <button type="button" onClick={closeDetail} className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-black/60 text-white cursor-pointer" aria-label="Fechar">
               <X className="w-5 h-5" />
             </button>

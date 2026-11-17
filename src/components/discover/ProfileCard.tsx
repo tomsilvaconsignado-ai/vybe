@@ -45,7 +45,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
 
   if (viewMode === 'list') {
     return (
-      <div className="bg-painel border border-purple-900/30 rounded-3xl p-4 sm:p-5 shadow-xl hover:border-purple-700/50 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-white/[0.03] border border-white/[0.07] rounded-3xl p-4 sm:p-5 shadow-xl hover:border-purple-700/50 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         
         <div 
           onClick={() => setSelectedProfileId(profile.id)}
@@ -153,7 +153,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({ profile, viewMode = 'g
 
   // Grid Card representation
   return (
-    <div className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl hover:border-purple-600/50 transition-all flex flex-col group">
+    <div className="bg-white/[0.03] border border-white/[0.07] rounded-3xl overflow-hidden shadow-xl hover:border-purple-600/50 transition-all flex flex-col group">
       
       {/* Cover / Avatar Banner */}
       <div 

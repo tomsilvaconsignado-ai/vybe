@@ -195,32 +195,32 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
     <div className="max-w-6xl mx-auto pt-3 pb-6 px-4">
       
       {/* Filtros logo abaixo do cabeçalho (sem título); a contagem de perfis é só para a administração */}
-      <h1 className="sr-only">Descobrir</h1>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h1 className="text-[22px] sm:text-2xl font-extrabold tracking-tight text-white">Descobrir</h1>
         {isAuthorizedAdmin ? (
           <span className="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/40" title="Visível só para a administração">
             {sortedProfiles.length} perfis disponíveis (admin)
           </span>
-        ) : <span />}
+        ) : null}
 
         {/* View mode toggle & Filter button */}
         <div className="flex items-center gap-2">
-          <div className="bg-zinc-900 border border-purple-900/30 p-1 rounded-xl flex items-center gap-1">
+          <div className="bg-white/[0.06] p-1 rounded-xl flex items-center gap-1">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === 'grid' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                viewMode === 'grid' ? 'bg-white text-zinc-950' : 'text-zinc-400 hover:text-zinc-200'
               }`}
-              title="Visualização em Grade"
+              title="Ver em grade" aria-label="Ver em grade"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode('list')}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === 'list' ? 'bg-purple-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                viewMode === 'list' ? 'bg-white text-zinc-950' : 'text-zinc-400 hover:text-zinc-200'
               }`}
-              title="Visualização em Lista"
+              title="Ver em lista" aria-label="Ver em lista"
             >
               <List className="w-4 h-4" />
             </button>
@@ -228,33 +228,34 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
 
           <button
             onClick={() => setShowFiltersModal(!showFiltersModal)}
-            className={`px-3.5 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`h-9 px-3.5 rounded-xl text-[13px] font-semibold border flex items-center gap-1.5 transition-all cursor-pointer ${
               showFiltersModal
-                ? 'bg-purple-600 text-white border-purple-500'
-                : 'bg-zinc-900 border-purple-900/40 text-zinc-300 hover:text-white'
+                ? 'bg-white text-zinc-950 border-white'
+                : 'bg-white/[0.06] border-transparent text-zinc-200 hover:text-white hover:bg-white/[0.1]'
             }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
-            <span>Filtros Avançados</span>
+            <span>Filtros</span>
           </button>
         </div>
       </div>
 
       {/* Quick Search & Pill Filters */}
-      <div className="bg-painel border border-purple-900/30 rounded-2xl p-3 mb-6 shadow-lg flex flex-col md:flex-row items-center gap-3">
-        <div className="relative flex-1 w-full">
+      <div className="mb-4 space-y-3">
+        <div className="relative w-full">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
           <input
             type="text"
-            placeholder="Filtrar por nome, cidade (São Paulo, Rio...), ou interesse (Vinho, Praia)..."
+            placeholder="Buscar por nome, cidade ou interesse (vinho, praia...)"
+            aria-label="Buscar perfis"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-zinc-950/80 border border-purple-900/20 rounded-xl text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
+            className="w-full pl-10 pr-4 h-10 bg-white/[0.06] border border-transparent rounded-xl text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500/60"
           />
         </div>
 
         {/* Profile Type Badges */}
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full no-scrollbar">
           {[
             { id: 'all', label: 'Todos' },
             { id: 'couple', label: 'Casais' },
@@ -267,10 +268,10 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
             <button
               key={type.id}
               onClick={() => setSelectedType(type.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${
+              className={`h-8 px-3.5 rounded-full text-[13px] font-semibold shrink-0 transition-all cursor-pointer ${
                 selectedType === type.id
-                  ? 'bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white shadow-md'
-                  : 'bg-zinc-900/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+                  ? 'bg-white text-zinc-950'
+                  : 'bg-white/[0.07] text-zinc-300 hover:text-white hover:bg-white/[0.11]'
               }`}
             >
               {type.label}
@@ -280,7 +281,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
       </div>
 
       {/* Perto de mim: busca por distância real */}
-      <div className="bg-painel border border-purple-900/30 rounded-2xl p-3.5 mb-6 shadow-lg">
+      <div className="border border-white/[0.07] rounded-2xl p-3.5 mb-5">
         {currentUser.locationPrivacy === 'hidden' ? (
           <p className="text-xs text-zinc-400 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-zinc-500 shrink-0" />
@@ -323,7 +324,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                     type="button"
                     onClick={() => chooseRadius(km)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer ${
-                      effectiveMode === 'radius' && radiusKm === km ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white'
+                      effectiveMode === 'radius' && radiusKm === km ? 'bg-white text-zinc-950' : 'bg-white/[0.07] text-zinc-300 hover:text-white hover:bg-white/[0.11]'
                     }`}
                   >
                     {km} km
@@ -334,7 +335,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                     type="button"
                     onClick={() => chooseMode('city')}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer ${
-                      effectiveMode === 'city' ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white'
+                      effectiveMode === 'city' ? 'bg-white text-zinc-950' : 'bg-white/[0.07] text-zinc-300 hover:text-white hover:bg-white/[0.11]'
                     }`}
                   >
                     Minha cidade · {currentUser.city}
@@ -345,7 +346,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
                     type="button"
                     onClick={() => chooseMode('state')}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 cursor-pointer ${
-                      effectiveMode === 'state' ? 'bg-purple-600 text-white' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white'
+                      effectiveMode === 'state' ? 'bg-white text-zinc-950' : 'bg-white/[0.07] text-zinc-300 hover:text-white hover:bg-white/[0.11]'
                     }`}
                   >
                     Meu estado · {currentUser.state}
@@ -366,7 +367,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
 
       {/* Advanced Filters Expandable Drawer */}
       {showFiltersModal && (
-        <div className="bg-painel-alto border border-purple-800/40 rounded-3xl p-5 mb-6 shadow-2xl animate-in fade-in space-y-4">
+        <div className="bg-white/[0.04] border border-white/[0.08] rounded-3xl p-5 mb-6 shadow-2xl animate-in fade-in space-y-4">
           <div className="flex items-center justify-between border-b border-purple-900/30 pb-3">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-fuchsia-400" />
@@ -429,7 +430,7 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ initialFilter = 'all
           ))}
         </div>
       ) : (
-        <div className="p-12 text-center bg-painel border border-purple-900/30 rounded-3xl">
+        <div className="p-12 text-center bg-white/[0.03] border border-white/[0.07] rounded-3xl">
           <Users className="w-12 h-12 text-purple-400 mx-auto mb-3 opacity-60" />
           {nearbyActive && nearbyLoading ? (
             <p className="text-xs text-zinc-400">Procurando pessoas perto de você...</p>

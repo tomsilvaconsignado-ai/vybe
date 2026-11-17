@@ -16,7 +16,7 @@ export const ConviteCard: React.FC<{ variante?: 'amigos' | 'casal' }> = ({ varia
     setOculto(true);
   };
   return (
-    <div className="relative p-4 rounded-3xl bg-gradient-to-r from-purple-900/50 via-fuchsia-900/30 to-rose-900/40 border border-purple-600/40 flex items-center gap-3">
+    <div className="relative mx-3 sm:mx-0 my-4 p-4 rounded-3xl bg-[radial-gradient(120%_140%_at_0%_0%,rgba(192,38,211,0.22),transparent_60%)] border border-white/[0.08] flex items-center gap-3">
       <span className="w-11 h-11 shrink-0 rounded-2xl bg-black/30 flex items-center justify-center">
         {casal ? <Heart className="w-6 h-6 text-rose-300" /> : <Gift className="w-6 h-6 text-fuchsia-300" />}
       </span>

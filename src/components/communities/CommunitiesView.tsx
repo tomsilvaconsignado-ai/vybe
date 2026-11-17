@@ -33,24 +33,17 @@ export const CommunitiesView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-6 px-4">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-fuchsia-600 via-pink-600 to-orange-600 p-[1.5px] flex items-center justify-center">
-              <div className="w-full h-full bg-painel-baixo rounded-[7px] flex items-center justify-center">
-                <Hash className="w-4 h-4 text-purple-400" />
-              </div>
-            </div>
-            <h1 className="text-2xl font-extrabold text-white">Comunidades</h1>
-          </div>
-          <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl">
-            Espaços de diálogo seguro, amizade e troca de vivências. Crie a sua, abra para todos ou mantenha só para convidados.
+    <div className="max-w-5xl mx-auto py-5 sm:py-6 px-4">
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-[22px] sm:text-2xl font-extrabold tracking-tight text-white">Comunidades</h1>
+          <p className="text-[13px] text-zinc-400 leading-relaxed max-w-2xl mt-0.5">
+            Conversas seguras, amizades e troca de vivências. Crie a sua, aberta a todos ou só para convidados.
           </p>
         </div>
         <button type="button" onClick={() => setCriando(true)}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer">
-          <Plus className="w-4 h-4" /> Criar comunidade
+          className="shrink-0 h-10 pl-3 pr-4 rounded-full fundo-neon text-white text-[13px] font-bold flex items-center gap-1.5 shadow-[0_6px_20px_-8px_rgba(236,72,153,0.9)] cursor-pointer">
+          <Plus className="w-4 h-4" strokeWidth={2.6} /> Criar
         </button>
       </div>
 
@@ -67,10 +60,10 @@ export const CommunitiesView: React.FC = () => {
         </div>
       )}
 
-      <label className="flex items-center gap-2 px-3.5 py-2.5 mb-4 rounded-xl bg-zinc-900/80 border border-purple-900/30">
+      <label className="flex items-center gap-2 px-3.5 h-10 mb-4 rounded-xl bg-white/[0.06] border border-transparent focus-within:border-purple-500/50">
         <Search className="w-4 h-4 text-zinc-500" />
         <input type="search" value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar comunidades" aria-label="Buscar comunidades"
-          className="flex-1 bg-transparent text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none" />
+          className="flex-1 bg-transparent text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none" />
       </label>
 
       <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6 scrollbar-none">
@@ -80,7 +73,7 @@ export const CommunitiesView: React.FC = () => {
             type="button"
             onClick={() => setActiveCategory(cat.id)}
             className={`px-3.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer ${
-              activeCategory === cat.id ? 'bg-purple-600 text-white shadow-md' : 'bg-zinc-900/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+              activeCategory === cat.id ? 'bg-white text-zinc-950' : 'bg-white/[0.07] text-zinc-300 hover:text-white hover:bg-white/[0.11]'
             }`}
           >
             {cat.label}
@@ -89,7 +82,7 @@ export const CommunitiesView: React.FC = () => {
       </div>
 
       {filtered.length === 0 && (
-        <div className="p-10 text-center bg-painel border border-purple-900/30 rounded-3xl">
+        <div className="p-10 text-center bg-white/[0.03] border border-white/[0.07] rounded-3xl">
           <Hash className="w-10 h-10 text-purple-400 mx-auto mb-2 opacity-60" />
           <p className="text-sm font-bold text-white">{activeCategory === 'mine' ? 'Você ainda não participa de comunidades' : 'Nenhuma comunidade encontrada'}</p>
           <p className="text-xs text-zinc-400 mt-1">Que tal criar uma?</p>
@@ -102,7 +95,7 @@ export const CommunitiesView: React.FC = () => {
           return (
             <div
               key={comm.id}
-              className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl hover:border-purple-600/50 transition-all flex flex-col justify-between"
+              className="bg-white/[0.03] border border-white/[0.07] rounded-3xl overflow-hidden shadow-xl hover:border-purple-600/50 transition-all flex flex-col justify-between"
             >
               <button type="button" onClick={() => setSelectedCommunityId(comm.id)} className="text-left cursor-pointer" aria-label={`Abrir ${comm.name}`}>
                 <div className="h-28 relative bg-gradient-to-br from-purple-900 via-fuchsia-900 to-rose-900 overflow-hidden">

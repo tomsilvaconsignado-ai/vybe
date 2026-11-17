@@ -23,7 +23,8 @@ import {
   Grid3x3,
   Copy,
   MessageCircle,
-  Ban
+  Ban,
+  BadgeCheck
 } from 'lucide-react';
 import { EditProfileModal, EditProfileTab } from './EditProfileModal';
 import { AlbumPermissionsModal } from './AlbumPermissionsModal';
@@ -170,222 +171,71 @@ export const ProfileView: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-6 px-4">
+    <div className="max-w-[935px] mx-auto pb-6 sm:px-4">
 
-      {/* Back button if viewing another user */}
-      {!isSelf && (
-        <button
-          onClick={() => setSelectedProfileId(null)}
-          className="mb-4 text-xs font-semibold text-zinc-400 hover:text-white flex items-center gap-1.5 cursor-pointer"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          <span>Voltar ao meu perfil</span>
-        </button>
-      )}
+      {/* Cabeçalho do perfil, no estilo Instagram: foto e números lado a lado, depois nome, bio e ações.
+          A capa vira uma luz ambiente desfocada atrás do cabeçalho. */}
+      <section className="relative isolate px-4 pt-4 sm:pt-10 pb-2">
+        {profile.coverUrl && (
+          <div aria-hidden className="absolute inset-x-0 top-0 h-56 -z-10 overflow-hidden [mask-image:linear-gradient(to_bottom,black,transparent)]">
+            <img src={profile.coverUrl} alt="" className="w-full h-full object-cover opacity-35 blur-2xl scale-110" />
+          </div>
+        )}
 
-      {/* Main Profile Header Card */}
-      <div className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-2xl mb-6">
-
-        {/* Cover Photo */}
-        <div className="h-48 sm:h-64 relative bg-zinc-950 overflow-hidden">
-          <img
-            src={profile.coverUrl}
-            alt="Capa do Perfil"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-painel via-transparent to-black/30" />
-
-          {/* Badges on top of cover */}
-          <div className="absolute top-4 right-4 flex items-center gap-2">
-            {profile.isVerified && (
-              <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-purple-500/40 text-purple-300 text-xs font-bold flex items-center gap-1.5 shadow">
-                <ShieldCheck className="w-4 h-4 text-purple-400" />
-                <span>Perfil Verificado +18</span>
-              </span>
-            )}
-
-            {!isSelf && (
+        {/* barra de cima: voltar (perfil de outra pessoa) e, à direita, denunciar e bloquear */}
+        {(!isSelf) && (
+          <div className="flex items-center justify-between mb-3 sm:mb-6 -mx-1">
+            <button
+              onClick={() => setSelectedProfileId(null)}
+              className="h-9 pl-1 pr-3 rounded-full text-[13px] font-semibold text-zinc-300 hover:text-white hover:bg-white/5 flex items-center gap-1 cursor-pointer"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              Meu perfil
+            </button>
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => setReportModalTarget({
-                  targetType: 'profile',
-                  targetId: profile.id,
-                  reportedUserId: profile.id,
-                  reportedUserName: profile.username
-                })}
-                className="p-2 rounded-full bg-black/60 text-zinc-400 hover:text-rose-400 transition-colors cursor-pointer"
+                onClick={() => setReportModalTarget({ targetType: 'profile', targetId: profile.id, reportedUserId: profile.id, reportedUserName: profile.username })}
+                className="w-9 h-9 rounded-full text-zinc-400 hover:text-rose-400 hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
                 title="Denunciar perfil à moderação"
                 aria-label="Denunciar perfil à moderação"
               >
-                <ShieldAlert className="w-4 h-4" />
+                <ShieldAlert className="w-[18px] h-[18px]" />
               </button>
-            )}
-            {!isSelf && (
               <button
                 onClick={async () => {
                   if (await askConfirm({ title: `Bloquear ${profile.displayName}?`, message: "Vocês deixam de se seguir e de ser conexões. A pessoa não verá mais seu perfil, posts e stories, nem poderá enviar mensagens ou pedir acesso aos seus cofres. Ela não é avisada. Você pode desbloquear em Configurações.", confirmLabel: "Bloquear", danger: true })) {
                     await blockUser(profile.id);
                   }
                 }}
-                className="p-2 rounded-full bg-black/60 text-zinc-400 hover:text-rose-400 transition-colors cursor-pointer"
+                className="w-9 h-9 rounded-full text-zinc-400 hover:text-rose-400 hover:bg-white/5 flex items-center justify-center transition-colors cursor-pointer"
                 title="Bloquear perfil"
                 aria-label="Bloquear perfil"
               >
-                <Ban className="w-4 h-4" />
+                <Ban className="w-[18px] h-[18px]" />
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Profile Details Container */}
-        <div className="px-6 pb-6 pt-0 relative">
-
-          {/* Avatar and Primary Actions */}
-          <div className="flex flex-col sm:flex-row items-center sm:items-end justify-between gap-4 -mt-16 sm:-mt-20 mb-4">
-
-            {/* Avatar */}
-            <div className="relative">
-              <img
-                src={profile.avatarUrl}
-                alt={profile.displayName}
-                className="w-28 h-28 sm:w-36 sm:h-36 rounded-full object-cover border-4 border-painel shadow-2xl"
-              />
-              {!isSelf && <OnlineDot userId={profile.id} size="lg" className="top-2 right-2 sm:top-3 sm:right-3" />}
-              {profile.isVerified && (
-                <span className="absolute bottom-1 right-1 w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-painel shadow">
-                  ✓
-                </span>
-              )}
-            </div>
-
-            {/* Actions for Self or Visitor */}
-            <div className="flex items-center gap-2.5 flex-wrap justify-center sm:justify-end">
-              {isSelf ? (
-                <>
-                  <button
-                    onClick={() => setEditTab('data')}
-                    className="px-4 py-2 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white flex items-center gap-2 cursor-pointer transition-colors"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                    <span>Editar Perfil</span>
-                  </button>
-                  <button
-                    onClick={() => setEditTab('preferences')}
-                    className="px-4 py-2 rounded-xl text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-white flex items-center gap-2 cursor-pointer transition-colors"
-                  >
-                    <Sliders className="w-3.5 h-3.5" />
-                    <span>Preferências</span>
-                  </button>
-                  <button
-                    onClick={() => compartilharPerfil(profile.id, profile.username)}
-                    className="p-2 rounded-xl bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                    title="Compartilhar"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    onClick={() => startOrOpenConversation(profile.id)}
-                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 shadow-md shadow-purple-950/50 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    <span>Mensagem</span>
-                  </button>
-
-                  <button
-                    onClick={() => toggleFollow(profile.id)}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                      isFollowing
-                        ? 'bg-zinc-800 text-zinc-300 border-zinc-700'
-                        : 'bg-purple-950/60 text-purple-300 border-purple-800 hover:bg-purple-900/60'
-                    }`}
-                  >
-                    {isFollowing ? 'Seguindo' : '+ Seguir'}
-                  </button>
-
-                  <button
-                    onClick={() => compartilharPerfil(profile.id, profile.username)}
-                    className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                    title="Compartilhar perfil"
-                    aria-label="Compartilhar perfil"
-                  >
-                    <Share2 className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    onClick={() => requestConnection(profile.id)}
-                    disabled={isConnected || outgoingConnectionRequests.includes(profile.id)}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-semibold border transition-colors ${
-                      incomingConnectionRequests.includes(profile.id)
-                        ? "bg-gradient-to-r from-fuchsia-600 via-pink-600 to-orange-600 text-white border-transparent cursor-pointer"
-                        : isConnected || outgoingConnectionRequests.includes(profile.id)
-                          ? "bg-zinc-900/60 text-zinc-500 border-zinc-800 cursor-default"
-                          : "bg-zinc-900 text-zinc-200 border-zinc-700 hover:text-white active:scale-95 cursor-pointer"
-                    }`}
-                  >
-                    {isConnected
-                      ? 'Conectado(a)'
-                      : incomingConnectionRequests.includes(profile.id)
-                        ? 'Aceitar conexão'
-                        : outgoingConnectionRequests.includes(profile.id)
-                          ? 'Solicitado'
-                          : 'Conectar'}
-                  </button>
-                </>
-              )}
             </div>
           </div>
+        )}
 
-          {/* Name, Handle, Type, Location */}
-          <div className="space-y-2 text-center sm:text-left">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <h2 className="text-2xl font-extrabold text-white flex items-center justify-center sm:justify-start gap-2">
-                <span>{profile.displayName}</span>
-                <span className="text-sm font-normal text-zinc-400">({profile.age} anos)</span>
-              </h2>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-950 text-purple-300 border border-purple-800/40 w-max mx-auto sm:mx-0 capitalize">
-                {PROFILE_TYPE_OPTIONS.find(o => o.id === profile.profileType)?.label ?? 'Perfil'}
+        <div className="flex items-center gap-5 sm:gap-12">
+          {/* foto com anel de luz */}
+          <div className="relative shrink-0 sm:ml-10">
+            <span className="block w-[88px] h-[88px] sm:w-[150px] sm:h-[150px] rounded-full p-[3px] fundo-neon shadow-[0_10px_40px_-12px_rgba(236,72,153,0.7)]">
+              <span className="block w-full h-full rounded-full bg-fundo p-[3px]">
+                <img src={profile.avatarUrl} alt={profile.displayName} className="w-full h-full rounded-full object-cover" />
               </span>
+            </span>
+            {!isSelf && <OnlineDot userId={profile.id} size="lg" className="bottom-1.5 right-1.5 sm:bottom-3 sm:right-3" />}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            {/* no computador, o @ fica em cima dos números */}
+            <div className="hidden sm:flex items-center gap-2 mb-5">
+              <h1 className="text-xl font-semibold text-white truncate">{profile.username}</h1>
+              {profile.isVerified && <BadgeCheck className="w-5 h-5 shrink-0 text-white fill-fuchsia-500" aria-label="Perfil verificado" />}
             </div>
-
-            <IdentityBadges profile={profile} />
-            <GrowthBadges growth={isSelf && profile.growth ? { ...profile.growth, hasPhoto: temFotoPropria(profile.avatarUrl) } : profile.growth} className="justify-center sm:justify-start" />
-            {isSelf && <AvisoSeloFoto className="mt-3 text-left" onColocarFoto={() => setEditTab('data')} />}
-            {isSelf && identityEntries(profile).some(e => !e.orientation || !e.gender) && (
-              <button
-                type="button"
-                onClick={() => setEditTab('data')}
-                className="text-[12px] text-amber-300 underline underline-offset-2 cursor-pointer"
-              >
-                Complete seu gênero e orientação: eles aparecem no seu perfil para todos
-              </button>
-            )}
-
-            <div className="flex items-center justify-center sm:justify-start gap-3 text-xs text-zinc-400">
-              <span className="text-purple-400 font-medium">@{profile.username}</span>
-              <span>•</span>
-              <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                {profile.locationPrivacy === 'hidden' ? 'Localização Oculta' : [profile.city, profile.state].filter(Boolean).join(', ')}
-              </span>
-              {!isSelf && isOnline(profile.id) ? (
-                <>
-                  <span>•</span>
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Online agora
-                  </span>
-                </>
-              ) : !isSelf && profile.lastActive && canSeeActivity(profile) ? (
-                <>
-                  <span>•</span>
-                  <span className="text-zinc-400">{activityLabel(profile.lastActive)}</span>
-                </>
-              ) : null}
-            </div>
-
-            {/* Contadores (como no Instagram): seguidores e seguindo abrem as listas */}
-            <div className="grid grid-cols-4 sm:flex sm:gap-8 py-3 my-1 border-y border-purple-900/20 text-center sm:text-left">
+            {/* números: seguidores e seguindo abrem as listas */}
+            <div className="grid grid-cols-3 sm:flex sm:gap-9 text-center sm:text-left">
               {([
                 { label: 'publicações', value: profilePosts.length },
                 { label: 'seguidores', value: profile.followersCount, list: 'followers' },
@@ -397,114 +247,164 @@ export const ProfileView: React.FC = () => {
                   type="button"
                   disabled={!stat.list}
                   onClick={() => stat.list && setFollowList(stat.list)}
-                  className={`flex flex-col sm:flex-row sm:items-baseline sm:gap-1 items-center ${stat.list ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                  className={`${stat.label === 'conexões' ? 'hidden sm:flex' : 'flex'} flex-col sm:flex-row sm:items-baseline sm:gap-1.5 items-center ${stat.list ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
                 >
-                  <span className="text-base font-extrabold text-white">{stat.value}</span>
-                  <span className="text-[12px] sm:text-xs text-zinc-400">{stat.label}</span>
+                  <span className="text-[17px] sm:text-base font-bold text-white tabular-nums">{stat.value.toLocaleString('pt-BR')}</span>
+                  <span className="text-[13px] sm:text-[15px] text-zinc-400">{stat.label}</span>
                 </button>
               ))}
             </div>
-
-            {profile.statusText && (
-              <div className="p-3 bg-zinc-950/60 border border-purple-900/30 rounded-2xl text-xs text-purple-300 italic">
-                "{profile.statusText}"
-              </div>
-            )}
-
-            <p className="text-sm text-zinc-300 leading-relaxed max-w-2xl pt-1">
-              {profile.bio}
-            </p>
           </div>
-
-          {/* Joint Couple Breakdown (If Couple) */}
-          {profile.profileType === 'couple' && profile.partners && profile.partners.length > 0 && (
-            <div className="mt-5 p-4 rounded-2xl bg-zinc-950/70 border border-purple-900/30">
-              <h4 className="text-xs font-bold text-zinc-300 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <Users className="w-4 h-4 text-purple-400" />
-                Integrantes do Perfil Conjunto
-              </h4>
-
-              <div className="grid sm:grid-cols-2 gap-3">
-                {profile.partners.map(p => (
-                  <div key={p.id} className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 flex items-center gap-3">
-                    <img
-                      src={p.avatarUrl || profile.avatarUrl}
-                      alt={p.name}
-                      className="w-10 h-10 rounded-full object-cover border border-purple-500/40"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <span>{p.name}, {p.age}</span>
-                        {p.consentConfirmed && (
-                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
-                            Autorizado
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[12px] text-zinc-400">
-                        {[p.gender, p.orientation || 'Orientação não informada'].filter(Boolean).join(' • ')}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Compatibility Banner (If visiting another profile) */}
-          {!isSelf && compat && (
-            <div className="mt-5 p-4 rounded-2xl bg-gradient-to-r from-purple-950/50 via-zinc-900/80 to-purple-950/50 border border-purple-800/40 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-12 h-12 rounded-2xl border-2 flex items-center justify-center font-black text-white text-base shadow-lg"
-                  style={{ borderColor: compat.color, backgroundColor: `${compat.color}20` }}
-                >
-                  {compat.score}%
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-white" style={{ color: compat.color }}>
-                    {compat.tier} com você
-                  </div>
-                  <div className="text-[12px] text-zinc-300">
-                    {compat.reasons[0] || 'Objetivos e limites alinhados'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-right hidden sm:block">
-                <span className="text-[12px] text-zinc-400 block">
-                  {compat.sharedObjectives.length} objetivos mútuos
-                </span>
-                {compat.distanceKm !== null && (
-                  <span className="text-[12px] text-zinc-400 block">
-                    ~{compat.distanceKm} km de distância
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Stated Limits & Respect */}
-          {profile.compatibilityPrefs.personalLimits && profile.compatibilityPrefs.personalLimits.length > 0 && (
-            <div className="mt-4 p-3.5 rounded-2xl bg-purple-950/20 border border-purple-900/20">
-              <span className="text-xs font-bold text-zinc-300 block mb-1.5">
-                Limites Pessoais & Condições Declaradas:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {profile.compatibilityPrefs.personalLimits.map((l, i) => (
-                  <span key={i} className="text-[12px] px-2.5 py-1 rounded-lg bg-zinc-900/80 border border-zinc-800 text-zinc-300">
-                    ✓ {l}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
         </div>
-      </div>
+
+        {/* nome, tipo, local e bio */}
+        <div className="mt-4 sm:mt-5 sm:ml-[calc(150px+5.5rem)] space-y-1.5 max-w-xl">
+          <h2 className="flex flex-wrap items-center gap-x-1.5 text-[15px] font-bold text-white">
+            <span>{profile.displayName}</span>
+            {profile.isVerified && <BadgeCheck className="sm:hidden w-4 h-4 text-white fill-fuchsia-500" aria-label="Perfil verificado" />}
+            <span className="font-normal text-zinc-400">· {profile.age} anos</span>
+            <span className="sm:hidden w-full font-normal text-[13px] text-zinc-500">@{profile.username}</span>
+          </h2>
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-zinc-400">
+            <span className="text-zinc-200">{PROFILE_TYPE_OPTIONS.find(o => o.id === profile.profileType)?.label ?? 'Perfil'}</span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5" />
+              {profile.locationPrivacy === 'hidden' ? 'Localização oculta' : [profile.city, profile.state].filter(Boolean).join(', ')}
+            </span>
+            {!isSelf && isOnline(profile.id) ? (
+              <><span aria-hidden>·</span><span className="text-emerald-400 font-semibold inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />Online agora</span></>
+            ) : !isSelf && profile.lastActive && canSeeActivity(profile) ? (
+              <><span aria-hidden>·</span><span>{activityLabel(profile.lastActive)}</span></>
+            ) : null}
+            <span className="sm:hidden text-zinc-500">· {profile.connectionsCount} {profile.connectionsCount === 1 ? 'conexão' : 'conexões'}</span>
+          </p>
+
+          <IdentityBadges profile={profile} />
+          <GrowthBadges growth={isSelf && profile.growth ? { ...profile.growth, hasPhoto: temFotoPropria(profile.avatarUrl) } : profile.growth} />
+
+          {profile.statusText && (
+            <p className="text-sm text-fuchsia-200/90 italic">“{profile.statusText}”</p>
+          )}
+          {profile.bio && <p className="text-[14px] text-zinc-100 leading-relaxed whitespace-pre-line">{profile.bio}</p>}
+
+          {isSelf && identityEntries(profile).some(e => !e.orientation || !e.gender) && (
+            <button
+              type="button"
+              onClick={() => setEditTab('data')}
+              className="text-[13px] text-amber-300/90 hover:text-amber-200 cursor-pointer"
+            >
+              Complete seu gênero e orientação no perfil
+            </button>
+          )}
+        </div>
+
+        {/* ações */}
+        <div className="mt-4 sm:ml-[calc(150px+5.5rem)] flex items-center gap-2 max-w-xl">
+          {isSelf ? (
+            <>
+              <button onClick={() => setEditTab('data')} className="flex-1 h-9 rounded-lg text-[14px] font-semibold bg-white/[0.09] hover:bg-white/[0.14] text-white flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                <Edit3 className="w-4 h-4" />Editar perfil
+              </button>
+              <button onClick={() => setEditTab('preferences')} className="flex-1 h-9 rounded-lg text-[14px] font-semibold bg-white/[0.09] hover:bg-white/[0.14] text-white flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                <Sliders className="w-4 h-4" />Preferências
+              </button>
+              <button onClick={() => compartilharPerfil(profile.id, profile.username)} className="w-9 h-9 shrink-0 rounded-lg bg-white/[0.09] hover:bg-white/[0.14] text-white flex items-center justify-center cursor-pointer" title="Compartilhar perfil" aria-label="Compartilhar perfil">
+                <Share2 className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => toggleFollow(profile.id)}
+                className={`flex-1 h-9 rounded-lg text-[14px] font-semibold transition-colors cursor-pointer ${isFollowing ? 'bg-white/[0.09] hover:bg-white/[0.14] text-white' : 'fundo-neon text-white shadow-[0_6px_20px_-8px_rgba(236,72,153,0.9)]'}`}
+              >
+                {isFollowing ? 'Seguindo' : 'Seguir'}
+              </button>
+              <button
+                onClick={() => startOrOpenConversation(profile.id)}
+                className="flex-1 h-9 rounded-lg text-[14px] font-semibold bg-white/[0.09] hover:bg-white/[0.14] text-white flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <MessageSquare className="w-4 h-4" />Mensagem
+              </button>
+              <button
+                onClick={() => requestConnection(profile.id)}
+                disabled={isConnected || outgoingConnectionRequests.includes(profile.id)}
+                title={isConnected ? 'Vocês estão conectados' : 'Pedir conexão'}
+                className={`h-9 px-3 rounded-lg text-[14px] font-semibold flex items-center gap-1.5 transition-colors ${
+                  incomingConnectionRequests.includes(profile.id)
+                    ? 'fundo-neon text-white cursor-pointer'
+                    : isConnected || outgoingConnectionRequests.includes(profile.id)
+                      ? 'bg-white/[0.05] text-zinc-400 cursor-default'
+                      : 'bg-white/[0.09] hover:bg-white/[0.14] text-white cursor-pointer'
+                }`}
+              >
+                <UserPlus className="w-4 h-4" />
+                <span className="hidden min-[400px]:inline">
+                  {isConnected ? 'Conectados' : incomingConnectionRequests.includes(profile.id) ? 'Aceitar' : outgoingConnectionRequests.includes(profile.id) ? 'Pedido enviado' : 'Conectar'}
+                </span>
+              </button>
+              <button onClick={() => compartilharPerfil(profile.id, profile.username)} className="w-9 h-9 shrink-0 rounded-lg bg-white/[0.09] hover:bg-white/[0.14] text-white flex items-center justify-center cursor-pointer" title="Compartilhar perfil" aria-label="Compartilhar perfil">
+                <Share2 className="w-4 h-4" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {isSelf && <AvisoSeloFoto className="mt-5 sm:ml-[calc(150px+5.5rem)] max-w-xl" onColocarFoto={() => setEditTab('data')} />}
+
+        {/* compatibilidade (perfil de outra pessoa) */}
+        {!isSelf && compat && (
+          <div className="mt-5 sm:ml-[calc(150px+5.5rem)] max-w-xl flex items-center gap-3.5 p-3 rounded-2xl border border-white/[0.08]">
+            <span
+              className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center font-black text-white text-sm"
+              style={{ background: `conic-gradient(${compat.color} ${compat.score * 3.6}deg, rgba(255,255,255,0.08) 0)` }}
+            >
+              <span className="w-[40px] h-[40px] rounded-full bg-fundo flex items-center justify-center">{compat.score}%</span>
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[14px] font-bold" style={{ color: compat.color }}>{compat.tier} com você</span>
+              <span className="block text-[13px] text-zinc-400 truncate">
+                {compat.reasons[0] || 'Objetivos e limites alinhados'}
+                {compat.distanceKm !== null && ` · ~${compat.distanceKm} km`}
+              </span>
+            </span>
+          </div>
+        )}
+
+        {/* integrantes do perfil conjunto */}
+        {profile.profileType === 'couple' && profile.partners && profile.partners.length > 0 && (
+          <div className="mt-5 sm:ml-[calc(150px+5.5rem)] max-w-xl">
+            <p className="text-[13px] font-semibold text-zinc-400 mb-2 flex items-center gap-1.5"><Users className="w-4 h-4" />Quem faz parte deste perfil</p>
+            <div className="flex flex-wrap gap-2">
+              {profile.partners.map(p => (
+                <div key={p.id} className="flex items-center gap-2.5 pl-1 pr-3.5 py-1 rounded-full bg-white/[0.05]">
+                  <img src={p.avatarUrl || profile.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+                  <span className="text-[13px] leading-tight">
+                    <span className="block font-semibold text-white">{p.name}, {p.age}{p.consentConfirmed && <CheckCircle2 className="inline w-3.5 h-3.5 ml-1 -mt-0.5 text-emerald-400" aria-label="Participação autorizada" />}</span>
+                    <span className="block text-zinc-400">{[p.gender, p.orientation].filter(Boolean).join(' · ') || 'Identidade não informada'}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* limites declarados */}
+        {profile.compatibilityPrefs.personalLimits && profile.compatibilityPrefs.personalLimits.length > 0 && (
+          <div className="mt-5 sm:ml-[calc(150px+5.5rem)] max-w-xl">
+            <p className="text-[13px] font-semibold text-zinc-400 mb-2">Limites que pedimos para respeitar</p>
+            <div className="flex flex-wrap gap-1.5">
+              {profile.compatibilityPrefs.personalLimits.map((l, i) => (
+                <span key={i} className="text-[13px] px-3 py-1 rounded-full border border-white/[0.1] text-zinc-200">{l}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* Abas do perfil (estilo Instagram) */}
-      <div className="flex items-center justify-around sm:justify-center sm:gap-10 mb-6 border-t border-purple-950/40" role="tablist">
+      <div className="flex items-center justify-around sm:justify-center sm:gap-14 mt-4 mb-1 sm:mb-6 border-t border-white/[0.08]" role="tablist">
         {([
           { id: 'posts', label: 'Publicações', icon: Grid3x3, count: profilePosts.length },
           { id: 'vault', label: 'Cofres e álbuns', icon: Lock, count: albums.length },
@@ -516,13 +416,13 @@ export const ProfileView: React.FC = () => {
             role="tab"
             aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`py-3 -mt-px border-t-2 text-[12px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer ${
-              activeTab === tab.id ? 'border-fuchsia-400 text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
+            className={`flex-1 sm:flex-none justify-center h-12 -mt-px border-t-2 text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+              activeTab === tab.id ? 'border-white text-white' : 'border-transparent text-zinc-500 hover:text-zinc-300'
             }`}
           >
-            <tab.icon className="w-4 h-4" />
+            <tab.icon className="w-[22px] h-[22px] sm:w-4 sm:h-4" strokeWidth={activeTab === tab.id ? 2.3 : 1.8} />
             <span className="hidden sm:inline">{tab.label}</span>
-            {tab.count !== undefined && <span className="text-zinc-500">{tab.count}</span>}
+            {tab.count !== undefined && <span className="hidden sm:inline text-zinc-500">{tab.count}</span>}
           </button>
         ))}
       </div>
@@ -694,19 +594,19 @@ export const ProfileView: React.FC = () => {
       {activeTab === 'posts' && (
         <>
           {profilePosts.length > 0 ? (
-            <div className="grid grid-cols-3 gap-1 sm:gap-2">
+            <div className="grid grid-cols-3 gap-[3px] sm:gap-1">
               {profilePosts.map(p => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => setOpenPostId(p.id)}
-                  className="relative aspect-[3/4] bg-zinc-950 overflow-hidden group cursor-pointer sm:rounded-xl"
+                  className="relative aspect-[3/4] bg-zinc-950 overflow-hidden group cursor-pointer sm:rounded-md"
                   aria-label="Abrir publicação"
                 >
                   {p.mediaUrls.length > 0 ? (
                     <img src={p.mediaUrls[0]} alt="" loading="lazy" className="w-full h-full object-cover" />
                   ) : (
-                    <span className="absolute inset-0 p-3 flex items-center justify-center text-center text-[12px] sm:text-xs text-zinc-200 bg-gradient-to-br from-purple-950 to-rose-950 line-clamp-6">
+                    <span className="absolute inset-0 p-3 flex items-center justify-center text-center text-[13px] sm:text-[15px] font-semibold leading-snug text-white bg-[radial-gradient(120%_90%_at_20%_0%,#86198f,#1a1229_70%)] line-clamp-6">
                       {p.content}
                     </span>
                   )}
@@ -719,15 +619,15 @@ export const ProfileView: React.FC = () => {
               ))}
             </div>
           ) : (
-            <p className="text-xs text-zinc-400 text-center py-10">
+            <p className="text-sm text-zinc-400 text-center py-14 px-6">
               {isSelf ? 'Você ainda não publicou nada. Sua primeira publicação aparece aqui.' : 'Este perfil ainda não publicou nada.'}
             </p>
           )}
 
           {openPost && (
             <div className="modal-overlay fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto" onClick={() => setOpenPostId(null)}>
-              <div className="w-full max-w-xl my-auto" onClick={e => e.stopPropagation()}>
-                <button type="button" onClick={() => setOpenPostId(null)} className="mb-2 ml-auto flex items-center gap-1 text-xs text-zinc-300 cursor-pointer">
+              <div className="w-full max-w-xl my-auto bg-fundo rounded-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+                <button type="button" onClick={() => setOpenPostId(null)} className="m-2 ml-auto flex items-center gap-1 text-[13px] text-zinc-300 hover:text-white cursor-pointer">
                   Fechar ✕
                 </button>
                 <PostCard post={openPost} />
