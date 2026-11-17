@@ -2442,7 +2442,7 @@ CREATE POLICY "conversations_select" ON public.conversations FOR SELECT TO authe
   USING (public.is_conversation_participant(id, auth.uid()));
 
 CREATE POLICY "conv_participants_select" ON public.conversation_participants FOR SELECT TO authenticated
-  USING (public.is_conversation_participant(conversation_id, auth.uid()));
+  USING (public.is_conversation_participant(conversation_id, (SELECT auth.uid())));
 CREATE POLICY "conv_participants_update_own" ON public.conversation_participants FOR UPDATE TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 CREATE POLICY "conv_participants_leave" ON public.conversation_participants FOR DELETE TO authenticated
@@ -2452,7 +2452,7 @@ CREATE POLICY "conv_participants_leave" ON public.conversation_participants FOR 
 -- admin_report_evidence (ligada a uma denúncia) e o superadmin pelas auditadas admin_*_conversation(s).
 -- Mensagens não podem ser editadas nem apagadas: preservam a evidência em caso de assédio.
 CREATE POLICY "messages_select" ON public.messages FOR SELECT TO authenticated
-  USING (public.is_conversation_participant(conversation_id, auth.uid()));
+  USING (public.is_conversation_participant(conversation_id, (SELECT auth.uid())));
 -- Portão protetivo: enquanto o pedido não for aceito, só quem iniciou pode
 -- escrever, uma única mensagem de texto. Bloqueio entre os participantes impede o envio.
 CREATE POLICY "messages_insert" ON public.messages FOR INSERT TO authenticated
@@ -2753,7 +2753,7 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
     WHEN p_type IN ('comment', 'event_comment') THEN 'comments'
     WHEN p_type = 'comment_reply' THEN 'replies'
     WHEN p_type = 'mention' THEN 'mentions'
-    WHEN p_type IN ('message', 'message_request') THEN 'messages'
+    WHEN p_type IN ('message', 'message_request', 'message_reaction') THEN 'messages'
     WHEN p_type IN ('connection_request', 'connection_accepted') THEN 'connections'
     WHEN p_type LIKE 'group\_%' OR p_type LIKE 'community\_%' THEN 'groups'
     WHEN p_type LIKE 'event\_%' THEN 'events'
@@ -2771,7 +2771,7 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
     WHEN p_type IN ('like', 'comment', 'comment_reply', 'mention', 'comment_like') THEN '/publicacao/' || split_part(p_ref, '#', 1)
       || CASE WHEN position('#' IN p_ref) > 0 THEN '?comentario=' || split_part(p_ref, '#', 2) ELSE '' END
     WHEN p_type IN ('follow', 'connection_request', 'connection_accepted') THEN '/perfil/' || p_ref
-    WHEN p_type IN ('message', 'message_request') THEN '/mensagens/' || p_ref
+    WHEN p_type IN ('message', 'message_request', 'message_reaction') THEN '/mensagens/' || p_ref
     WHEN p_type LIKE 'event\_%' THEN '/eventos/' || p_ref
     WHEN p_type LIKE 'group\_%' OR p_type LIKE 'community\_%' THEN '/comunidades/' || p_ref
     WHEN p_type = 'vault_access_request' THEN '/perfil'
@@ -2905,6 +2905,7 @@ BEGIN
     WHEN p_type = 'mention' THEN jsonb_build_object('t', 'Você foi mencionado!', 'b', coalesce(quem || ' mencionou você.', 'Mencionaram você em uma publicação.'))
     WHEN p_type = 'message' THEN jsonb_build_object('t', 'Nova mensagem!', 'b', coalesce('Você recebeu uma nova mensagem de ' || quem || '.', 'Você recebeu uma nova mensagem.'))
     WHEN p_type = 'message_request' THEN jsonb_build_object('t', 'Novo pedido de mensagem', 'b', 'Alguém quer conversar com você.')
+    WHEN p_type = 'message_reaction' THEN jsonb_build_object('t', 'Nova reação!', 'b', coalesce(quem || ' reagiu à sua mensagem.', 'Alguém reagiu à sua mensagem.'))
     WHEN p_type = 'connection_request' THEN jsonb_build_object('t', 'Pedido de conexão', 'b', coalesce(quem || ' quer se conectar com você.', 'Você recebeu um pedido de conexão.'))
     WHEN p_type = 'connection_accepted' THEN jsonb_build_object('t', 'Conexão aceita!', 'b', coalesce(quem || ' aceitou sua conexão.', 'Um pedido de conexão foi aceito.'))
     WHEN p_type LIKE 'vault\_%' THEN jsonb_build_object('t', 'Cofre privado', 'b', 'Há uma novidade no seu cofre privado.')
@@ -2998,7 +2999,7 @@ CREATE TRIGGER notify_messages AFTER INSERT ON public.messages
 CREATE OR REPLACE FUNCTION public.mark_conversation_notifications_read(conv UUID)
 RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   UPDATE public.notifications SET read = true
-   WHERE user_id = auth.uid() AND type IN ('message', 'message_request') AND reference_id = conv::text AND NOT read;
+   WHERE user_id = auth.uid() AND type IN ('message', 'message_request', 'message_reaction') AND reference_id = conv::text AND NOT read;
 $$;
 
 -- 10.7 Funções do app (a própria pessoa)
@@ -4206,7 +4207,7 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = public, extensions, pg_tem
     WHEN p_type IN ('like', 'comment', 'comment_reply', 'mention', 'comment_like') THEN '/publicacao/' || split_part(p_ref, '#', 1)
       || CASE WHEN position('#' IN p_ref) > 0 THEN '?comentario=' || split_part(p_ref, '#', 2) ELSE '' END
     WHEN p_type IN ('follow', 'connection_request', 'connection_accepted') THEN '/perfil/' || p_ref
-    WHEN p_type IN ('message', 'message_request') THEN '/mensagens/' || p_ref
+    WHEN p_type IN ('message', 'message_request', 'message_reaction') THEN '/mensagens/' || p_ref
     WHEN p_type LIKE 'event\_%' THEN '/eventos/' || p_ref
     WHEN p_type LIKE 'group\_%' OR p_type LIKE 'community\_%' THEN '/comunidades/' || p_ref
     WHEN p_type = 'vault_access_request' THEN '/perfil'
@@ -4230,6 +4231,7 @@ BEGIN
     WHEN p_type = 'mention' THEN jsonb_build_object('t', 'Você foi mencionado!', 'b', coalesce(quem || ' mencionou você.', 'Mencionaram você em uma publicação.'))
     WHEN p_type = 'message' THEN jsonb_build_object('t', 'Nova mensagem!', 'b', coalesce('Você recebeu uma nova mensagem de ' || quem || '.', 'Você recebeu uma nova mensagem.'))
     WHEN p_type = 'message_request' THEN jsonb_build_object('t', 'Novo pedido de mensagem', 'b', 'Alguém quer conversar com você.')
+    WHEN p_type = 'message_reaction' THEN jsonb_build_object('t', 'Nova reação!', 'b', coalesce(quem || ' reagiu à sua mensagem.', 'Alguém reagiu à sua mensagem.'))
     WHEN p_type = 'connection_request' THEN jsonb_build_object('t', 'Pedido de conexão', 'b', coalesce(quem || ' quer se conectar com você.', 'Você recebeu um pedido de conexão.'))
     WHEN p_type = 'connection_accepted' THEN jsonb_build_object('t', 'Conexão aceita!', 'b', coalesce(quem || ' aceitou sua conexão.', 'Um pedido de conexão foi aceito.'))
     WHEN p_type LIKE 'vault\_%' THEN jsonb_build_object('t', 'Cofre privado', 'b', 'Há uma novidade no seu cofre privado.')
@@ -5241,3 +5243,123 @@ BEGIN
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.growth_vip_padrinho_conceder(UUID, UUID) FROM PUBLIC, anon, authenticated;
+
+-- ==============================================================================
+-- DIRECT: RESPONDER E REAGIR ÀS MENSAGENS (como no WhatsApp)
+-- Responder: a mensagem nova aponta para a respondida (mesma conversa) e pode citar
+-- um trecho dela. O trecho precisa existir de verdade na mensagem original, para
+-- ninguém "citar" algo que a outra pessoa não escreveu.
+-- Reagir: um emoji por pessoa em cada mensagem (tocar no mesmo emoji tira a reação).
+-- Só pela função react_to_message, com as mesmas regras do envio de mensagens.
+-- ==============================================================================
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS reply_to_id UUID REFERENCES public.messages(id) ON DELETE SET NULL;
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS reply_quote TEXT;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'messages_reply_quote_check') THEN
+    ALTER TABLE public.messages ADD CONSTRAINT messages_reply_quote_check
+      CHECK (reply_quote IS NULL OR char_length(reply_quote) BETWEEN 1 AND 500);  -- a original pode sumir (conta excluída)
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.messages_check_reply()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE orig RECORD;
+BEGIN
+  IF NEW.reply_to_id IS NULL THEN
+    NEW.reply_quote := NULL;
+    RETURN NEW;
+  END IF;
+  SELECT conversation_id, content INTO orig FROM public.messages WHERE id = NEW.reply_to_id;
+  IF NOT FOUND OR orig.conversation_id IS DISTINCT FROM NEW.conversation_id THEN
+    RAISE EXCEPTION 'A mensagem respondida não é desta conversa.';
+  END IF;
+  NEW.reply_quote := nullif(btrim(coalesce(NEW.reply_quote, '')), '');
+  IF NEW.reply_quote IS NOT NULL AND position(NEW.reply_quote IN orig.content) = 0 THEN
+    RAISE EXCEPTION 'O trecho citado não está na mensagem respondida.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS messages_check_reply ON public.messages;
+CREATE TRIGGER messages_check_reply BEFORE INSERT ON public.messages
+  FOR EACH ROW EXECUTE FUNCTION public.messages_check_reply();
+REVOKE EXECUTE ON FUNCTION public.messages_check_reply() FROM PUBLIC, anon, authenticated;
+
+CREATE TABLE IF NOT EXISTS public.message_reactions (
+  message_id UUID NOT NULL REFERENCES public.messages(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  emoji TEXT NOT NULL CHECK (char_length(emoji) BETWEEN 1 AND 16 AND emoji !~ '[[:alnum:][:space:]<>&"]'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (message_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_message_reactions_conv ON public.message_reactions(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON public.messages(reply_to_id) WHERE reply_to_id IS NOT NULL;
+-- remoções chegam completas pelo Realtime (a outra tela sabe de qual conversa saiu a reação)
+ALTER TABLE public.message_reactions REPLICA IDENTITY FULL;
+ALTER TABLE public.message_reactions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.message_reactions FROM anon, authenticated;
+GRANT SELECT ON public.message_reactions TO authenticated;
+DROP POLICY IF EXISTS "message_reactions_select" ON public.message_reactions;
+CREATE POLICY "message_reactions_select" ON public.message_reactions FOR SELECT TO authenticated
+  USING (public.is_conversation_participant(conversation_id, (SELECT auth.uid())));
+
+-- Reage (ou troca/tira a reação). Retorna o emoji que ficou, ou NULL se a reação foi tirada.
+CREATE OR REPLACE FUNCTION public.react_to_message(p_message UUID, p_emoji TEXT)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  m RECORD;
+  atual TEXT;
+  novo TEXT := nullif(btrim(coalesce(p_emoji, '')), '');
+  nome TEXT;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Faça login para reagir.'; END IF;
+  SELECT id, conversation_id, sender_id INTO m FROM public.messages WHERE id = p_message;
+  IF NOT FOUND OR NOT public.is_conversation_participant(m.conversation_id, me) THEN
+    RAISE EXCEPTION 'Mensagem não encontrada.';
+  END IF;
+  IF NOT public.can_interact()
+     OR coalesce((SELECT (restrictions ->> 'cannotMessage')::boolean FROM public.profiles WHERE id = me), false) THEN
+    RAISE EXCEPTION 'Sua conta não pode interagir nas mensagens no momento.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.conversations WHERE id = m.conversation_id AND is_pending_request) THEN
+    RAISE EXCEPTION 'As reações são liberadas depois que a conversa for aceita.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.conversation_participants cp
+              WHERE cp.conversation_id = m.conversation_id AND cp.user_id <> me AND public.is_blocked_between(cp.user_id, me)) THEN
+    RAISE EXCEPTION 'Não é possível reagir nesta conversa.';
+  END IF;
+
+  SELECT emoji INTO atual FROM public.message_reactions WHERE message_id = p_message AND user_id = me;
+  IF novo IS NULL OR novo = atual THEN
+    DELETE FROM public.message_reactions WHERE message_id = p_message AND user_id = me;
+    RETURN NULL;
+  END IF;
+  INSERT INTO public.message_reactions (message_id, user_id, conversation_id, emoji)
+  VALUES (p_message, me, m.conversation_id, novo)
+  ON CONFLICT (message_id, user_id) DO UPDATE SET emoji = EXCLUDED.emoji, created_at = now();
+
+  -- avisa quem escreveu a mensagem (uma vez por pessoa e mensagem: trocar o emoji não gera outro aviso)
+  IF m.sender_id <> me THEN
+    SELECT display_name INTO nome FROM public.profiles WHERE id = me;
+    INSERT INTO public.notifications (user_id, actor_id, type, title, message, reference_id, dedupe_key)
+    VALUES (m.sender_id, me, 'message_reaction', 'Nova reação',
+            coalesce(nome, 'Alguém') || ' reagiu ' || novo || ' à sua mensagem.', m.conversation_id::text,
+            'reacao:' || p_message || ':' || me)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  RETURN novo;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.react_to_message(UUID, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.react_to_message(UUID, TEXT) TO authenticated;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables
+                  WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'message_reactions') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.message_reactions;
+  END IF;
+END $$;

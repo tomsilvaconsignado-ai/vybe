@@ -986,5 +986,63 @@ r = await db.query(`SELECT count(*)::int AS n FROM notifications WHERE user_id =
 r.rows[0].n === 1 ? ok('o organizador é avisado da exclusão') : bad('aviso de exclusão: ' + r.rows[0].n);
 await expectOk('organizador exclui o próprio evento', ids.a, `DELETE FROM events WHERE id = $1`, [evRec]);
 
+console.log('\nDirect: responder e reagir (como no WhatsApp)');
+const r3 = {
+  c: '00000000-0000-0000-0000-0000000000c1', d: '00000000-0000-0000-0000-0000000000d1', e: '00000000-0000-0000-0000-0000000000e1',
+};
+await db.query(`INSERT INTO auth.users VALUES ($1,'c@x.com',$2,now())`, [r3.c, meta('carla')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'d@x.com',$2,now())`, [r3.d, meta('davi')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'e@x.com',$2,now())`, [r3.e, meta('estranho')]);
+await as(r3.c, `INSERT INTO connections (requester_id, addressee_id) VALUES ($1, $2)`, [r3.c, r3.d]);
+await as(r3.d, `UPDATE connections SET status = 'accepted' WHERE requester_id = $1 AND addressee_id = $2`, [r3.c, r3.d]);
+const convCD = (await as(r3.c, `SELECT public.start_conversation($1) AS id`, [r3.d])).rows[0].id;
+if ((await db.query(`SELECT is_pending_request p FROM conversations WHERE id = $1`, [convCD])).rows[0].p) {
+  await as(r3.d, `SELECT public.accept_message_request($1)`, [convCD]);
+}
+const msgC = (await as(r3.c, `INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, 'Vamos no sábado? Levo o vinho tinto e a sobremesa') RETURNING id`, [convCD, r3.c])).rows[0].id;
+await as(r3.c, `INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, 'outra mensagem depois')`, [convCD, r3.c]);
+
+await expectOk('D responde a uma mensagem anterior', r3.d,
+  `INSERT INTO messages (conversation_id, sender_id, content, reply_to_id) VALUES ($1, $2, 'Bora!', $3)`, [convCD, r3.d, msgC]);
+await expectOk('D responde citando um trecho selecionado', r3.d,
+  `INSERT INTO messages (conversation_id, sender_id, content, reply_to_id, reply_quote) VALUES ($1, $2, 'Pode ser branco?', $3, 'o vinho tinto')`, [convCD, r3.d, msgC]);
+r = await db.query(`SELECT reply_to_id, reply_quote FROM messages WHERE content = 'Pode ser branco?'`);
+r.rows[0].reply_to_id === msgC && r.rows[0].reply_quote === 'o vinho tinto' ? ok('a resposta guarda a mensagem e o trecho citado') : bad('resposta: ' + JSON.stringify(r.rows));
+await expectFail('não dá para "citar" algo que não foi escrito', r3.d,
+  `INSERT INTO messages (conversation_id, sender_id, content, reply_to_id, reply_quote) VALUES ($1, $2, 'x', $3, 'eu te devo dinheiro')`, [convCD, r3.d, msgC]);
+const convAB2 = (await db.query(`SELECT conversation_id id FROM messages WHERE conversation_id <> $1 LIMIT 1`, [convCD])).rows[0].id;
+const msgOutra = (await db.query(`SELECT id FROM messages WHERE conversation_id = $1 LIMIT 1`, [convAB2])).rows[0].id;
+await expectFail('não dá para responder mensagem de outra conversa', r3.d,
+  `INSERT INTO messages (conversation_id, sender_id, content, reply_to_id) VALUES ($1, $2, 'x', $3)`, [convCD, r3.d, msgOutra]);
+
+await expectOk('D reage com ❤️', r3.d, `SELECT public.react_to_message($1, '❤️')`, [msgC]);
+r = await as(r3.c, `SELECT emoji, user_id FROM message_reactions WHERE message_id = $1`, [msgC]);
+r.rows.length === 1 && r.rows[0].emoji === '❤️' ? ok('C vê a reação na própria mensagem') : bad('reação: ' + JSON.stringify(r.rows));
+r = await db.query(`SELECT count(*)::int n, max(link) link FROM notifications WHERE user_id = $1 AND type = 'message_reaction'`, [r3.c]);
+r.rows[0].n === 1 && r.rows[0].link === '/mensagens/' + convCD ? ok('quem escreveu é avisado, com link para a conversa') : bad('aviso: ' + JSON.stringify(r.rows));
+await expectOk('D troca a reação para 😂', r3.d, `SELECT public.react_to_message($1, '😂')`, [msgC]);
+r = await db.query(`SELECT emoji FROM message_reactions WHERE message_id = $1`, [msgC]);
+r.rows.length === 1 && r.rows[0].emoji === '😂' ? ok('uma reação por pessoa: a nova substitui a anterior') : bad('troca: ' + JSON.stringify(r.rows));
+r = await db.query(`SELECT count(*)::int n FROM notifications WHERE user_id = $1 AND type = 'message_reaction'`, [r3.c]);
+r.rows[0].n === 1 ? ok('trocar o emoji não gera outro aviso') : bad('avisos repetidos: ' + r.rows[0].n);
+await expectOk('D toca no mesmo emoji (tira a reação)', r3.d, `SELECT public.react_to_message($1, '😂')`, [msgC]);
+r = await db.query(`SELECT count(*)::int n FROM message_reactions WHERE message_id = $1`, [msgC]);
+r.rows[0].n === 0 ? ok('a reação foi tirada') : bad('reação continua');
+await expectOk('C reage à própria mensagem (sem aviso para si)', r3.c, `SELECT public.react_to_message($1, '👍')`, [msgC]);
+await expectFail('reação com texto em vez de emoji é recusada', r3.d, `SELECT public.react_to_message($1, 'feio')`, [msgC]);
+await expectFail('reação com HTML é recusada', r3.d, `SELECT public.react_to_message($1, '<b>')`, [msgC]);
+await expectFail('quem não está na conversa não reage', r3.e, `SELECT public.react_to_message($1, '❤️')`, [msgC]);
+r = await as(r3.e, `SELECT * FROM message_reactions WHERE conversation_id = $1`, [convCD]);
+r.rows.length === 0 ? ok('quem não está na conversa não vê as reações') : bad('reações expostas');
+await expectFail('ninguém grava reação direto na tabela', r3.d, `INSERT INTO message_reactions (message_id, user_id, conversation_id, emoji) VALUES ($1, $2, $3, '🔥')`, [msgC, r3.d, convCD]);
+await expectFail('ninguém apaga reação alheia direto na tabela', r3.d, `DELETE FROM message_reactions WHERE message_id = $1`, [msgC]);
+r = await db.query(`SELECT count(*)::int n FROM message_reactions WHERE message_id = $1`, [msgC]);
+r.rows[0].n === 1 ? ok('a reação de C continua lá') : bad('reação de C sumiu');
+const convCE = (await as(r3.e, `SELECT public.start_conversation($1) AS id`, [r3.c])).rows[0].id;
+const msgE = (await as(r3.e, `INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, 'oi, tudo bem?') RETURNING id`, [convCE, r3.e])).rows[0].id;
+await expectFail('pedido de conversa ainda não aceito não recebe reação', r3.c, `SELECT public.react_to_message($1, '❤️')`, [msgE]);
+await as(r3.c, `SELECT public.block_user($1)`, [r3.d]);
+await expectFail('depois do bloqueio, não reage mais', r3.d, `SELECT public.react_to_message($1, '❤️')`, [msgC]);
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

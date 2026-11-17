@@ -56,6 +56,8 @@ import {
   fetchConversations,
   fetchMessages,
   insertMessage,
+  reactToMessage,
+  type RespostaA,
   startConversation,
   acceptConversation,
   declineConversation,
@@ -227,7 +229,8 @@ interface AppContextType {
   // Messaging Actions
   conversationMessages: Record<string, ChatMessage[]>;
   loadConversationMessages: (conversationId: string) => Promise<void>;
-  sendMessage: (conversationId: string, content: string, mediaUrl?: string) => Promise<void>;
+  sendMessage: (conversationId: string, content: string, mediaUrl?: string, resposta?: RespostaA | null) => Promise<boolean>;
+  reactMessage: (conversationId: string, messageId: string, emoji: string) => Promise<void>;
   startOrOpenConversation: (targetUserId: string) => Promise<void>;
   acceptMessageRequest: (conversationId: string) => Promise<void>;
   rejectMessageRequest: (conversationId: string) => Promise<void>;
@@ -706,6 +709,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!conversationMessagesRef.current[row.conversation_id]) return;
         window.clearTimeout(recargaStatus[row.conversation_id]);
         recargaStatus[row.conversation_id] = window.setTimeout(() => loadConversationMessagesRef.current(row.conversation_id), 400);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, payload => {
+        // reação nova, trocada ou tirada: atualiza a conversa aberta
+        const row = (payload.new && 'conversation_id' in payload.new ? payload.new : payload.old) as { conversation_id?: string };
+        if (!row?.conversation_id || !conversationMessagesRef.current[row.conversation_id]) return;
+        window.clearTimeout(recargaStatus[row.conversation_id]);
+        recargaStatus[row.conversation_id] = window.setTimeout(() => loadConversationMessagesRef.current(row.conversation_id!), 300);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, () => {
         refreshConversationsRef.current();
@@ -1219,16 +1229,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const sendMessage = async (conversationId: string, content: string, mediaUrl?: string) => {
-    if (!content.trim() && !mediaUrl) return;
-    const error = await insertMessage(currentUser.id, conversationId, content.trim(), mediaUrl);
+  const sendMessage = async (conversationId: string, content: string, mediaUrl?: string, resposta?: RespostaA | null) => {
+    if (!content.trim() && !mediaUrl) return false;
+    const error = await insertMessage(currentUser.id, conversationId, content.trim(), mediaUrl, resposta);
     if (error) {
       notify(error);
-      return;
+      return false;
     }
     // A mensagem chega também pelo Realtime; recarregar garante consistência se o Realtime falhar
     await loadConversationMessages(conversationId);
     await refreshConversations();
+    return true;
+  };
+
+  // Reação: aparece na hora (otimista) e confirma no banco; tocar no mesmo emoji tira a reação
+  const reactMessage = async (conversationId: string, messageId: string, emoji: string) => {
+    const me = currentUser.id;
+    setConversationMessages(prev => ({
+      ...prev,
+      [conversationId]: (prev[conversationId] ?? []).map(m => {
+        if (m.id !== messageId) return m;
+        const outras = (m.reactions ?? []).filter(r => r.userId !== me);
+        const atual = (m.reactions ?? []).find(r => r.userId === me)?.emoji;
+        return { ...m, reactions: atual === emoji ? outras : [...outras, { userId: me, emoji }] };
+      }),
+    }));
+    const error = await reactToMessage(messageId, emoji);
+    if (error) {
+      notify(error);
+      await loadConversationMessages(conversationId);
+    }
   };
 
   const startOrOpenConversation = async (targetUserId: string) => {
@@ -1450,6 +1480,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         conversationMessages,
         loadConversationMessages,
         sendMessage,
+        reactMessage,
         startOrOpenConversation,
         acceptMessageRequest,
         rejectMessageRequest,

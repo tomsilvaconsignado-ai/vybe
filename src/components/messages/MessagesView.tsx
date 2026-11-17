@@ -16,7 +16,9 @@ import {
   Search,
   Plus,
   EyeOff,
-  Eye
+  Eye,
+  CornerUpLeft,
+  SmilePlus
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 import { askConfirm, notify } from '../common/Feedback';
@@ -25,6 +27,10 @@ import { EmojiPicker, isEmojiOnly } from '../common/EmojiPicker';
 import { CHAT_MEDIA_ACCEPT, uploadChatMedia, searchMyMessages, type MessageSearchHit } from '../../lib/messaging';
 import { useEstadoSalvo } from '../../lib/estadoSalvo';
 import { GravadorDeAudio, MidiaDaMensagem, tipoDaMidia, useAlturaVisivel, useDigitando } from './ChatExtras';
+import {
+  BarraDeResposta, BotaoResponderTrecho, CitacaoNaBolha, EscolherTrecho, MenuDaMensagem, ReacoesDaBolha, useGestosDaBolha, useSelecaoNasBolhas,
+  type Resposta,
+} from './Interacoes';
 
 /** Celular (abaixo de md): a conversa aberta ocupa a tela inteira */
 function useCelular() {
@@ -48,6 +54,84 @@ const Confirmacao: React.FC<{ status: ChatMessage['status']; claro?: boolean }> 
       ? <CheckCheck className={`w-3.5 h-3.5 ${claro ? 'text-white/60' : 'text-zinc-500'}`} aria-label="Entregue" />
       : <Check className={`w-3.5 h-3.5 ${claro ? 'text-white/60' : 'text-zinc-500'}`} aria-label="Enviada" />;
 
+interface LinhaProps {
+  msg: ChatMessage; isMine: boolean; fimDoBloco: boolean; avatarDoOutro: string; desfoque: string; eUltimaMinha: boolean; eu: string;
+  nomeDoOutro: string; original?: ChatMessage; podeInteragir: boolean; destacada: boolean; celular: boolean;
+  aoMenu: (m: ChatMessage) => void; aoResponder: (m: ChatMessage) => void; aoReagir: (m: ChatMessage, emoji: string) => void;
+  aoIrPara: (id: string) => void; aoAmpliar: (url: string) => void;
+}
+
+// Uma mensagem da conversa (componente próprio: cada bolha tem o seu gesto de segurar/arrastar)
+const LinhaDaMensagem: React.FC<LinhaProps> = ({
+  msg, isMine, fimDoBloco, avatarDoOutro, desfoque, eUltimaMinha, eu, nomeDoOutro, original, podeInteragir, destacada, celular,
+  aoMenu, aoResponder, aoReagir, aoIrPara, aoAmpliar,
+}) => {
+  const { desloc, handlers } = useGestosDaBolha({ aoSegurar: () => aoMenu(msg), aoArrastar: () => aoResponder(msg), ativo: podeInteragir });
+  const bigEmoji = !msg.mediaUrl && !msg.replyToId && isEmojiOnly(msg.content);
+  const reacoes = msg.reactions ?? [];
+  const autorOriginal = original ? (original.senderId === eu ? 'Você' : nomeDoOutro) : nomeDoOutro;
+  const acoes = podeInteragir && !celular && (
+    <div className="self-center flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+      <button type="button" onClick={() => aoMenu(msg)} className="w-8 h-8 rounded-full text-zinc-400 hover:text-amber-300 hover:bg-zinc-800 flex items-center justify-center cursor-pointer" title="Reagir" aria-label="Reagir à mensagem">
+        <SmilePlus className="w-4 h-4" />
+      </button>
+      <button type="button" onClick={() => aoResponder(msg)} className="w-8 h-8 rounded-full text-zinc-400 hover:text-fuchsia-300 hover:bg-zinc-800 flex items-center justify-center cursor-pointer" title="Responder" aria-label="Responder a mensagem">
+        <CornerUpLeft className="w-4 h-4" />
+      </button>
+    </div>
+  );
+  return (
+    <div
+      id={`msg-${msg.id}`}
+      className={`group relative flex items-end gap-2 rounded-2xl ${isMine ? 'justify-end' : 'justify-start'} ${fimDoBloco || reacoes.length ? 'mb-3' : 'mb-1'} ${destacada ? 'mensagem-destacada' : ''}`}
+      onContextMenu={e => { if (podeInteragir || msg.content) { e.preventDefault(); aoMenu(msg); } }}
+      {...(celular ? handlers : {})}
+    >
+      {desloc > 0 && (
+        <span className="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-zinc-800 text-fuchsia-300 flex items-center justify-center" style={{ opacity: Math.min(1, desloc / 60) }} aria-hidden>
+          <CornerUpLeft className="w-4 h-4" />
+        </span>
+      )}
+      {!isMine && (
+        fimDoBloco
+          ? <img src={avatarDoOutro} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 bg-zinc-800" />
+          : <span className="w-7 shrink-0" />
+      )}
+      {isMine && acoes}
+      <div className={`flex flex-col max-w-[78%] sm:max-w-md ${isMine ? 'items-end' : 'items-start'}`} style={desloc ? { transform: `translateX(${desloc}px)` } : undefined}>
+        {bigEmoji ? (
+          <div className={desfoque}>
+            <p className="text-4xl leading-tight">{msg.content}</p>
+            <span className="text-[10px] text-zinc-500 flex items-center justify-end gap-1">
+              {msg.createdAt}{isMine && <Confirmacao status={msg.status} />}
+            </span>
+          </div>
+        ) : (
+          <div className={`px-3 pt-2 pb-1.5 text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+            isMine
+              ? `bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 text-white rounded-2xl ${fimDoBloco ? 'rounded-br-md' : ''}`
+              : `bg-zinc-800/90 text-zinc-100 rounded-2xl ${fimDoBloco ? 'rounded-bl-md' : ''}`
+          } ${desfoque} ${celular ? 'select-none [-webkit-touch-callout:none]' : ''}`}>
+            {msg.replyToId && (
+              <CitacaoNaBolha original={original} trecho={msg.replyQuote} autor={autorOriginal} minha={isMine} aoAbrir={() => aoIrPara(msg.replyToId!)} />
+            )}
+            {msg.mediaUrl && <MidiaDaMensagem url={msg.mediaUrl} temTexto={!!msg.content} aoAmpliar={aoAmpliar} />}
+            {msg.content && <p data-texto-msg={msg.id}>{msg.content}</p>}
+            <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${isMine ? 'text-white/70' : 'text-zinc-400'}`}>
+              {msg.createdAt}{isMine && <Confirmacao status={msg.status} claro />}
+            </span>
+          </div>
+        )}
+        <ReacoesDaBolha reacoes={reacoes} eu={eu} nomeDoOutro={nomeDoOutro} minha={isMine} aoTocar={e => { if (podeInteragir) aoReagir(msg, e); }} />
+        {isMine && eUltimaMinha && (
+          <span className="text-[10px] text-zinc-500 mt-1 mr-1">{STATUS_LABEL[msg.status] ?? ''}</span>
+        )}
+      </div>
+      {!isMine && acoes}
+    </div>
+  );
+};
+
 export const MessagesView: React.FC = () => {
   const {
     conversations,
@@ -55,6 +139,7 @@ export const MessagesView: React.FC = () => {
     setSelectedConversationId,
     currentUser,
     sendMessage,
+    reactMessage,
     acceptMessageRequest,
     rejectMessageRequest,
     setReportModalTarget,
@@ -119,6 +204,33 @@ export const MessagesView: React.FC = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const [attachment, setAttachment] = useState<{ file: File; preview: string } | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  // responder / reagir
+  const [resposta, setResposta] = useState<Resposta | null>(null);
+  const [menuDe, setMenuDe] = useState<ChatMessage | null>(null);
+  const [trechoDe, setTrechoDe] = useState<ChatMessage | null>(null);
+  const [destacada, setDestacada] = useState<string | null>(null);
+  const podeInteragir = Boolean(activeConv && !activeConv.isPendingRequest);
+  const [selecao, setSelecao] = useSelecaoNasBolhas(scrollRef, podeInteragir && !celular);
+  const responder = (m: ChatMessage, trecho?: string) => {
+    if (!podeInteragir) return;
+    setResposta({ msg: m, trecho: trecho?.trim() || undefined });
+    window.getSelection()?.removeAllRanges();
+    setSelecao(null);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+  const reagir = (m: ChatMessage, emoji: string) => { if (activeConv && podeInteragir) reactMessage(activeConv.id, m.id, emoji); };
+  // leva até a mensagem respondida (mesmo que esteja bem lá atrás) e pisca para mostrar onde está
+  const irPara = (id: string) => {
+    const el = document.getElementById(`msg-${id}`);
+    if (!el) { notify('Essa mensagem é antiga e não está carregada nesta conversa.'); return; }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setDestacada(null);
+    requestAnimationFrame(() => setDestacada(id));
+    window.setTimeout(() => setDestacada(atual => (atual === id ? null : atual)), 1700);
+  };
+  const nomeDe = (m?: ChatMessage) => (m?.senderId === currentUser.id ? 'Você' : otherParticipant?.displayName ?? '');
+  const porId = new Map(messages.map(m => [m.id, m]));
+  const respostaParaEnvio = resposta ? { id: resposta.msg.id, trecho: resposta.trecho } : null;
   // Fotos, vídeos e áudios só depois que a conversa for aceita (o pedido aceita só a apresentação em texto)
   const mediaLocked = inputLocked || Boolean(activeConv?.isPendingRequest);
 
@@ -134,6 +246,9 @@ export const MessagesView: React.FC = () => {
   useEffect(() => {
     clearAttachment();
     setShowEmoji(false);
+    setResposta(null);
+    setMenuDe(null);
+    setTrechoDe(null);
   }, [activeConv?.id]);
 
   // Campo cresce com o texto (até ~5 linhas) e volta ao tamanho de uma linha depois do envio
@@ -190,9 +305,11 @@ export const MessagesView: React.FC = () => {
       }
       mediaPath = path;
     }
-    await sendMessage(activeConv.id, inputText, mediaPath);
+    const enviou = await sendMessage(activeConv.id, inputText, mediaPath, respostaParaEnvio);
     avisarParou();
     setIsSending(false);
+    if (!enviou) return;
+    setResposta(null);
     setInputText('');
     clearAttachment();
     setShowEmoji(false);
@@ -204,12 +321,13 @@ export const MessagesView: React.FC = () => {
     setIsSending(true);
     const { path, error } = await uploadChatMedia(activeConv.id, currentUser.id, arquivo);
     if (error || !path) notify(error ?? 'Não foi possível enviar o áudio.');
-    else await sendMessage(activeConv.id, '', path);
+    else if (await sendMessage(activeConv.id, '', path, respostaParaEnvio)) setResposta(null);
     setIsSending(false);
   };
 
   // Enter envia; Shift+Enter quebra a linha (no celular, o botão Enviar do teclado também envia)
   const aoTeclar = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape' && resposta) { e.preventDefault(); setResposta(null); return; }
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !celular) {
       e.preventDefault();
       handleSendMessage();
@@ -445,44 +563,28 @@ export const MessagesView: React.FC = () => {
               )}
 
               {messages.map((msg, i) => {
-                const isMine = msg.senderId === currentUser.id;
                 const proxima = messages[i + 1];
-                const fimDoBloco = !proxima || proxima.senderId !== msg.senderId;
-                const bigEmoji = !msg.mediaUrl && isEmojiOnly(msg.content);
-                const desfoque = discreetBlur ? 'blur-sm hover:blur-none transition' : '';
                 return (
-                  <div key={msg.id} className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'} ${fimDoBloco ? 'mb-3' : 'mb-1'}`}>
-                    {!isMine && (
-                      fimDoBloco
-                        ? <img src={otherParticipant.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 bg-zinc-800" />
-                        : <span className="w-7 shrink-0" />
-                    )}
-                    <div className={`flex flex-col max-w-[78%] sm:max-w-md ${isMine ? 'items-end' : 'items-start'}`}>
-                      {bigEmoji ? (
-                        <div className={desfoque}>
-                          <p className="text-4xl leading-tight">{msg.content}</p>
-                          <span className="text-[10px] text-zinc-500 flex items-center justify-end gap-1">
-                            {msg.createdAt}{isMine && <Confirmacao status={msg.status} />}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className={`px-3 pt-2 pb-1.5 text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
-                          isMine
-                            ? `bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 text-white rounded-2xl ${fimDoBloco ? 'rounded-br-md' : ''}`
-                            : `bg-zinc-800/90 text-zinc-100 rounded-2xl ${fimDoBloco ? 'rounded-bl-md' : ''}`
-                        } ${desfoque}`}>
-                          {msg.mediaUrl && <MidiaDaMensagem url={msg.mediaUrl} temTexto={!!msg.content} aoAmpliar={setViewerUrl} />}
-                          {msg.content && <p>{msg.content}</p>}
-                          <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${isMine ? 'text-white/70' : 'text-zinc-400'}`}>
-                            {msg.createdAt}{isMine && <Confirmacao status={msg.status} claro />}
-                          </span>
-                        </div>
-                      )}
-                      {isMine && msg.id === ultimaMinha && (
-                        <span className="text-[10px] text-zinc-500 mt-1 mr-1">{STATUS_LABEL[msg.status] ?? ''}</span>
-                      )}
-                    </div>
-                  </div>
+                  <LinhaDaMensagem
+                    key={msg.id}
+                    msg={msg}
+                    isMine={msg.senderId === currentUser.id}
+                    fimDoBloco={!proxima || proxima.senderId !== msg.senderId}
+                    avatarDoOutro={otherParticipant.avatarUrl}
+                    desfoque={discreetBlur ? 'blur-sm hover:blur-none transition' : ''}
+                    eUltimaMinha={msg.id === ultimaMinha}
+                    eu={currentUser.id}
+                    nomeDoOutro={otherParticipant.displayName}
+                    original={msg.replyToId ? porId.get(msg.replyToId) : undefined}
+                    podeInteragir={podeInteragir}
+                    destacada={destacada === msg.id}
+                    celular={celular}
+                    aoMenu={setMenuDe}
+                    aoResponder={m => responder(m)}
+                    aoReagir={reagir}
+                    aoIrPara={irPara}
+                    aoAmpliar={setViewerUrl}
+                  />
                 );
               })}
 
@@ -495,6 +597,10 @@ export const MessagesView: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {resposta && (
+              <BarraDeResposta resposta={resposta} autor={nomeDe(resposta.msg)} aoCancelar={() => setResposta(null)} />
+            )}
 
             {/* Anexo pronto para enviar */}
             {attachment && (
@@ -521,7 +627,7 @@ export const MessagesView: React.FC = () => {
             {/* Barra de digitação: [anexo] [campo + emoji] [microfone | enviar] */}
             <form
               onSubmit={handleSendMessage}
-              className={`shrink-0 relative px-2 sm:px-3 pt-2 bg-painel-alto flex items-end gap-2 ${attachment ? '' : 'border-t border-purple-900/30'}`}
+              className={`shrink-0 relative px-2 sm:px-3 pt-2 bg-painel-alto flex items-end gap-2 ${attachment || resposta ? '' : 'border-t border-purple-900/30'}`}
               style={{ paddingBottom: telaCheia ? 'max(0.5rem, env(safe-area-inset-bottom))' : '0.5rem' }}
             >
               {showEmoji && <EmojiPicker onPick={insertEmoji} onClose={() => setShowEmoji(false)} />}
@@ -595,6 +701,32 @@ export const MessagesView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {menuDe && (
+        <MenuDaMensagem
+          msg={menuDe}
+          minhaReacao={menuDe.reactions?.find(r => r.userId === currentUser.id)?.emoji}
+          podeInteragir={podeInteragir}
+          aoReagir={e => reagir(menuDe, e)}
+          aoResponder={() => responder(menuDe)}
+          aoResponderTrecho={() => setTrechoDe(menuDe)}
+          aoFechar={() => setMenuDe(null)}
+        />
+      )}
+      {trechoDe && (
+        <EscolherTrecho
+          msg={trechoDe}
+          autor={nomeDe(trechoDe)}
+          aoEscolher={t => { const m = trechoDe; setTrechoDe(null); responder(m, t); }}
+          aoFechar={() => setTrechoDe(null)}
+        />
+      )}
+      {selecao && (
+        <BotaoResponderTrecho
+          selecao={selecao}
+          aoResponder={() => { const m = porId.get(selecao.msgId); if (m) responder(m, selecao.texto); }}
+        />
+      )}
 
       {viewerUrl && (
         <div

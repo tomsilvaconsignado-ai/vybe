@@ -73,7 +73,9 @@ function mapMessage(row: any, senders: Map<string, { name: string; avatar: strin
     content: row.content,
     mediaUrl: row.media_url ?? undefined,
     createdAt: formatMessageTime(row.created_at),
-    status: row.status
+    status: row.status,
+    replyToId: row.reply_to_id ?? undefined,
+    replyQuote: row.reply_quote ?? undefined,
   };
 }
 
@@ -131,27 +133,44 @@ export async function fetchConversations(me: string): Promise<Conversation[]> {
 }
 
 export async function fetchMessages(conversation: Conversation, me: { id: string; displayName: string; avatarUrl: string }): Promise<ChatMessage[]> {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('id, conversation_id, sender_id, content, media_url, status, created_at')
-    .eq('conversation_id', conversation.id)
-    .order('created_at', { ascending: true })
-    .limit(500);
-
+  // as 500 mais recentes (em ordem cronológica na tela) e as reações da conversa
+  const [msgs, reacoes] = await Promise.all([
+    supabase
+      .from('messages')
+      .select('id, conversation_id, sender_id, content, media_url, status, created_at, reply_to_id, reply_quote')
+      .eq('conversation_id', conversation.id)
+      .order('created_at', { ascending: false })
+      .limit(500),
+    supabase.from('message_reactions').select('message_id, user_id, emoji').eq('conversation_id', conversation.id).order('created_at'),
+  ]);
+  const { data, error } = msgs;
   if (error) {
     console.error('[Vybelog] Falha ao carregar mensagens:', error.message);
     return [];
   }
 
+  const porMensagem = new Map<string, Array<{ userId: string; emoji: string }>>();
+  for (const r of reacoes.data ?? []) {
+    const lista = porMensagem.get(r.message_id) ?? [];
+    lista.push({ userId: r.user_id, emoji: r.emoji });
+    porMensagem.set(r.message_id, lista);
+  }
   const senders = new Map(conversation.participants.map(p => [p.id, { name: p.displayName, avatar: p.avatarUrl }]));
   senders.set(me.id, { name: me.displayName, avatar: me.avatarUrl });
-  return resolveChatMedia(data.map(row => mapMessage(row, senders)));
+  return resolveChatMedia([...data].reverse().map(row => ({ ...mapMessage(row, senders), reactions: porMensagem.get(row.id) ?? [] })));
 }
 
-export async function insertMessage(me: string, conversationId: string, content: string, mediaUrl?: string) {
+export interface RespostaA { id: string; trecho?: string }
+
+export async function insertMessage(me: string, conversationId: string, content: string, mediaUrl?: string, resposta?: RespostaA | null) {
   const { error } = await supabase
     .from('messages')
-    .insert({ conversation_id: conversationId, sender_id: me, content, media_url: mediaUrl ?? null });
+    .insert({
+      conversation_id: conversationId, sender_id: me, content, media_url: mediaUrl ?? null,
+      reply_to_id: resposta?.id ?? null, reply_quote: resposta?.trecho?.trim() || null,
+    });
+  if (error?.message.includes('trecho citado')) return 'O trecho escolhido não foi encontrado na mensagem. Selecione de novo.';
+  if (error?.message.includes('mensagem respondida')) return 'Não foi possível responder a essa mensagem.';
   if (error?.message.includes('row-level security')) {
     return 'Mensagem não enviada. Enquanto o pedido de conversa não for aceito, só é possível enviar uma única mensagem de texto de apresentação. Se a outra pessoa bloqueou a conversa, ela não recebe novas mensagens.';
   }
@@ -179,6 +198,15 @@ export async function acceptConversation(conversationId: string) {
 export async function declineConversation(conversationId: string) {
   const { error } = await supabase.rpc('decline_message_request', { conv: conversationId });
   return error?.message ?? null;
+}
+
+/** Reage a uma mensagem (o mesmo emoji de novo tira a reação). Devolve o erro, se houver. */
+export async function reactToMessage(messageId: string, emoji: string | null): Promise<string | null> {
+  const { error } = await supabase.rpc('react_to_message', { p_message: messageId, p_emoji: emoji });
+  if (!error) return null;
+  if (error.message.includes('liberadas depois')) return 'As reações são liberadas depois que a conversa for aceita.';
+  if (error.message.includes('não pode interagir') || error.message.includes('Não é possível')) return error.message;
+  return 'Não foi possível reagir agora. Tente de novo.';
 }
 
 /** O app recebeu as mensagens: o remetente passa a ver "entregue" */

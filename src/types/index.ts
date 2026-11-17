@@ -203,6 +203,11 @@ export interface ChatMessage {
   createdAt: string;
   status: 'sent' | 'delivered' | 'read';
   isDiscreet?: boolean;
+  /** resposta a outra mensagem da conversa (e, se houver, o trecho citado dela) */
+  replyToId?: string;
+  replyQuote?: string;
+  /** reações: um emoji por pessoa */
+  reactions?: Array<{ userId: string; emoji: string }>;
 }
 
 export interface Conversation {
