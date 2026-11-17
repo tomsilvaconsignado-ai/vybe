@@ -1,24 +1,18 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { 
-  Home, 
-  Compass, 
-  Users, 
-  MessageSquare, 
-  UserCheck, 
-  Sparkles,
-  ShieldAlert,
-  CalendarHeart
-} from 'lucide-react';
+import { Home, Compass, MessageCircle, CalendarHeart } from 'lucide-react';
 
+// Barra de baixo do celular: só ícones (como no Instagram). A aba ativa ganha o ícone cheio
+// e um ponto de luz em gradiente; o perfil aparece com a sua foto.
 export const MobileNav: React.FC = () => {
-  const { 
-    activeTab, 
-    setActiveTab, 
-    conversations, 
-    isAdminMode, 
+  const {
+    activeTab,
+    setActiveTab,
+    conversations,
+    isAdminMode,
     setIsAdminMode,
-    isLoggedIn 
+    isLoggedIn,
+    currentUser
   } = useApp();
 
   if (!isLoggedIn) return null;
@@ -29,16 +23,17 @@ export const MobileNav: React.FC = () => {
     { id: 'feed', label: 'Início', icon: Home },
     { id: 'discover', label: 'Descobrir', icon: Compass },
     { id: 'events', label: 'Eventos', icon: CalendarHeart },
-    { id: 'messages', label: 'Chat', icon: MessageSquare, badge: unreadMsgs },
-    { id: 'profile', label: 'Perfil', icon: UserCheck },
+    { id: 'messages', label: 'Mensagens', icon: MessageCircle, badge: unreadMsgs },
+    { id: 'profile', label: 'Meu perfil', icon: null },
   ];
 
   return (
-    <nav aria-label="Navegação principal" className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-fundo/95 backdrop-blur-xl border-t border-purple-900/30 px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
-      <div className="flex items-center justify-around">
+    <nav aria-label="Navegação principal" className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-fundo/85 backdrop-blur-xl backdrop-saturate-150 border-t border-white/[0.06] pb-[env(safe-area-inset-bottom)]">
+      <div className="flex items-stretch justify-around h-[54px]">
         {tabs.map(tab => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id && !isAdminMode;
+          const isActive = (activeTab === tab.id || (tab.id === 'feed' && activeTab === 'following')) && !isAdminMode;
+          const rotulo = tab.badge ? `${tab.label} (${tab.badge} não lidas)` : tab.label;
           return (
             <button
               key={tab.id}
@@ -47,22 +42,25 @@ export const MobileNav: React.FC = () => {
                 setActiveTab(tab.id);
               }}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex-1 min-h-[52px] flex flex-col items-center justify-center rounded-xl relative transition-colors cursor-pointer active:bg-purple-950/40 ${
-                isActive 
-                  ? 'text-fuchsia-400 font-semibold' 
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
+              aria-label={rotulo}
+              title={tab.label}
+              className={`flex-1 flex items-center justify-center relative cursor-pointer transition-colors ${isActive ? 'text-white' : 'text-zinc-400 active:text-zinc-200'}`}
             >
-              <div className="relative">
-                <Icon className="w-6 h-6" strokeWidth={isActive ? 2.4 : 1.8} />
+              <span className="relative">
+                {Icon ? (
+                  <Icon className="w-[26px] h-[26px]" strokeWidth={isActive ? 2.6 : 1.8} />
+                ) : (
+                  <span className={`block w-[28px] h-[28px] rounded-full p-[2px] ${isActive ? 'fundo-neon' : 'bg-transparent'}`}>
+                    <img src={currentUser?.avatarUrl} alt="" className="w-full h-full rounded-full object-cover ring-1 ring-fundo" />
+                  </span>
+                )}
                 {!!tab.badge && tab.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] bg-rose-500 text-white text-[10px] font-bold px-1 rounded-full border-2 border-fundo flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] fundo-neon text-white text-[10px] font-bold px-1 rounded-full ring-2 ring-fundo flex items-center justify-center">
                     {tab.badge > 99 ? '99+' : tab.badge}
                   </span>
                 )}
-              </div>
-              <span className="text-[12px] mt-0.5">{tab.label}</span>
-              {isActive && <span className="absolute top-0 w-8 h-0.5 rounded-full bg-fuchsia-400" />}
+              </span>
+              {isActive && <span className="luz-ativa absolute bottom-1.5 w-1 h-1 rounded-full" aria-hidden />}
             </button>
           );
         })}

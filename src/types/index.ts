@@ -204,6 +204,8 @@ export interface ChatMessage {
   status: 'sent' | 'delivered' | 'read';
   isDiscreet?: boolean;
   /** resposta a outra mensagem da conversa (e, se houver, o trecho citado dela) */
+  /** data e hora de envio (ISO), para os separadores de dia */
+  sentAt?: string;
   replyToId?: string;
   replyQuote?: string;
   /** reações: um emoji por pessoa */

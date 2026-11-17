@@ -328,3 +328,68 @@ video {
 @keyframes destaqueMsg { 0%, 35% { background-color: rgb(192 38 211 / 0.28); } 100% { background-color: transparent; } }
 .mensagem-destacada { animation: destaqueMsg 1.6s ease-out; }
 @media (prefers-reduced-motion: reduce) { .mensagem-destacada { animation: none; outline: 2px solid rgb(192 38 211 / 0.6); } }
+
+/* ==========================================================================
+   Neon na penumbra: o gradiente da marca aparece só onde algo está vivo
+   (story novo, aba ativa, curtida, mensagem sua). O resto fica quieto.
+   ========================================================================== */
+@property --giro {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+/* anel de story novo: neon que gira devagar */
+.anel-neon {
+  background: conic-gradient(from var(--giro), #d946ef, #ec4899, #fb923c, #f472b6, #d946ef);
+  animation: anel-gira 7s linear infinite;
+}
+@keyframes anel-gira { to { --giro: 360deg; } }
+
+/* gradiente da marca em texto e ícones */
+.texto-neon {
+  background: linear-gradient(100deg, #e879f9, #f472b6 45%, #fb923c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.fundo-neon { background-image: linear-gradient(120deg, #c026d3, #db2777 50%, #ea580c); }
+
+/* aba ativa: um ponto de luz embaixo do ícone */
+.luz-ativa {
+  background: linear-gradient(90deg, #d946ef, #fb923c);
+  box-shadow: 0 0 12px 1px rgb(236 72 153 / 0.7);
+}
+
+/* curtida: o coração dá um pulo */
+.curtida-pulo { animation: curtida-pulo 0.42s cubic-bezier(0.2, 1.6, 0.4, 1); }
+@keyframes curtida-pulo {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.32); }
+  100% { transform: scale(1); }
+}
+/* toque duplo na foto: coração grande em gradiente que sobe e some */
+.coracao-explode { animation: coracao-explode 0.85s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes coracao-explode {
+  0% { opacity: 0; transform: scale(0.3) rotate(-12deg); }
+  25% { opacity: 1; transform: scale(1.15) rotate(4deg); }
+  45% { transform: scale(0.95) rotate(0); }
+  80% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(1.05) translateY(-40px); }
+}
+.faisca { animation: faisca 0.7s ease-out both; }
+@keyframes faisca {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
+}
+
+/* mensagem nova no direct entra subindo */
+.msg-entra { animation: msg-entra 0.26s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes msg-entra {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anel-neon, .curtida-pulo, .coracao-explode, .faisca, .msg-entra { animation: none !important; }
+  .coracao-explode, .faisca { display: none; }
+}

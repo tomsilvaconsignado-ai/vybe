@@ -74,6 +74,7 @@ function mapMessage(row: any, senders: Map<string, { name: string; avatar: strin
     mediaUrl: row.media_url ?? undefined,
     createdAt: formatMessageTime(row.created_at),
     status: row.status,
+    sentAt: row.created_at ?? undefined,
     replyToId: row.reply_to_id ?? undefined,
     replyQuote: row.reply_quote ?? undefined,
   };

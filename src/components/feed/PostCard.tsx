@@ -14,7 +14,7 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  MapPin,
+  BadgeCheck,
   CheckCircle2,
   Trash2,
   Link2
@@ -90,7 +90,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
     if (now - lastTapAt.current < 300) {
       if (!post.likedByCurrentUser) toggleLikePost(post.id);
       setHeartBurst(true);
-      setTimeout(() => setHeartBurst(false), 750);
+      setTimeout(() => setHeartBurst(false), 900);
       lastTapAt.current = 0;
     } else {
       lastTapAt.current = now;
@@ -132,39 +132,33 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
 
   return (
     <article
-      className="bg-painel border border-purple-900/30 rounded-3xl overflow-hidden shadow-xl mb-6"
+      className="border-b border-white/[0.06] sm:border sm:rounded-2xl sm:overflow-hidden sm:bg-white/[0.015]"
       aria-label={`Publicação de @${post.user.username}`}
       aria-posinset={position}
       aria-setsize={total}
     >
 
       {/* Cabeçalho */}
-      <div className="px-4 py-3 flex items-center justify-between">
+      <div className="pl-3 pr-1 py-2 flex items-center justify-between">
         <button
           type="button"
           onClick={() => setSelectedProfileId(post.userId)}
-          className="flex items-center gap-3 cursor-pointer group text-left min-w-0"
+          className="flex items-center gap-2.5 cursor-pointer group text-left min-w-0"
         >
-          <span className="relative shrink-0">
-            <img
-              src={post.user.avatarUrl}
-              alt=""
-              className="w-9 h-9 rounded-full object-cover border border-purple-500/50"
-            />
-            {post.user.isVerified && (
-              <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-purple-500 rounded-full flex items-center justify-center text-[10px] text-white">✓</span>
-            )}
-          </span>
+          <img
+            src={post.user.avatarUrl}
+            alt=""
+            className="w-9 h-9 shrink-0 rounded-full object-cover ring-1 ring-white/10"
+          />
           <span className="min-w-0">
-            <span className="flex items-center gap-1.5">
-              <span className="font-bold text-sm text-zinc-100 group-hover:text-purple-300 truncate">{post.user.username}</span>
-              <span className="text-[12px] px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800/40 shrink-0">
-                {post.user.profileType === 'couple' ? 'Casal' : post.user.profileType === 'polyamorous' ? 'Poli' : 'Solteiro(a)'}
-              </span>
+            <span className="flex items-center gap-1">
+              <span className="font-semibold text-[14px] text-zinc-50 group-hover:text-white truncate">{post.user.username}</span>
+              {post.user.isVerified && <BadgeCheck className="w-4 h-4 shrink-0 text-white fill-fuchsia-500" aria-label="Perfil verificado" />}
+              <span className="text-[13px] text-zinc-500 shrink-0">· {post.createdAt}</span>
             </span>
-            <span className="flex items-center gap-1 text-[12px] text-zinc-400 truncate">
-              {(post.location || post.user.city) && <MapPin className="w-2.5 h-2.5 shrink-0" />}
-              <span className="truncate">{post.location || post.user.city}</span>
+            <span className="flex items-center gap-1 text-xs text-zinc-400 truncate">
+              <span>{post.user.profileType === 'couple' ? 'Casal' : post.user.profileType === 'polyamorous' ? 'Poliamor' : post.user.profileType === 'joint_profile' ? 'Perfil conjunto' : 'Solteiro(a)'}</span>
+              {(post.location || post.user.city) && <><span aria-hidden>·</span><span className="truncate">{post.location || post.user.city}</span></>}
             </span>
           </span>
         </button>
@@ -218,7 +212,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
       {/* Mídia: toque duplo curte, arrastar troca de foto */}
       {hasMedia && (
         <div
-          className="relative aspect-[9/16] w-full max-w-[min(100%,calc(85svh*9/16))] mx-auto bg-black overflow-hidden group"
+          className="relative aspect-[4/5] w-full bg-black overflow-hidden group select-none"
           onClick={handleMediaTap}
           onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
           onTouchEnd={e => {
@@ -263,12 +257,32 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
           </div>
 
           {heartBurst && (
-            <Heart className="absolute inset-0 m-auto w-24 h-24 fill-white text-white drop-shadow-2xl animate-ping pointer-events-none" />
+            <span className="absolute inset-0 flex items-center justify-center pointer-events-none" aria-hidden>
+              <svg viewBox="0 0 24 24" className="coracao-explode w-28 h-28 drop-shadow-[0_10px_30px_rgba(236,72,153,0.6)]">
+                <defs>
+                  <linearGradient id={`neon-${post.id}`} x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#e879f9" /><stop offset="0.5" stopColor="#f472b6" /><stop offset="1" stopColor="#fb923c" />
+                  </linearGradient>
+                </defs>
+                <path fill={`url(#neon-${post.id})`} d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.7 4.5c2 0 3.6 1.1 5.3 3 1.7-1.9 3.3-3 5.3-3 3.7 0 5.8 3.8 4.3 7.3C19.5 16.4 12 21 12 21z" />
+              </svg>
+              {[0, 45, 90, 135, 180, 225, 270, 315].map(a => (
+                <span
+                  key={a}
+                  className="faisca absolute w-2 h-2 rounded-full"
+                  style={{
+                    background: a % 90 === 0 ? '#f472b6' : '#fb923c',
+                    ['--dx' as string]: `${Math.round(Math.cos((a * Math.PI) / 180) * 90)}px`,
+                    ['--dy' as string]: `${Math.round(Math.sin((a * Math.PI) / 180) * 90)}px`,
+                  } as React.CSSProperties}
+                />
+              ))}
+            </span>
           )}
 
           {mediaCount > 1 && (
             <>
-              <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-black/60 text-white text-[12px] font-semibold">
+              <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-black/55 backdrop-blur text-white text-xs font-semibold">
                 {activeMediaIndex + 1}/{mediaCount}
               </span>
               {activeMediaIndex > 0 && (
@@ -341,34 +355,34 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
       )}
 
       {/* Ações (alvos de toque de 44px) */}
-      <div className="px-2 pt-1 flex items-center justify-between">
+      <div className="relative px-1.5 pt-0.5 flex items-center justify-between">
         <div className="flex items-center">
           <button
             type="button"
             onClick={() => toggleLikePost(post.id)}
-            className={`w-11 h-11 flex items-center justify-center cursor-pointer transition-transform active:scale-90 ${post.likedByCurrentUser ? 'text-rose-500' : 'text-zinc-200 hover:text-zinc-400'}`}
+            className={`w-11 h-11 flex items-center justify-center cursor-pointer ${post.likedByCurrentUser ? 'text-pink-500' : 'text-zinc-100 hover:text-zinc-400'}`}
             aria-label={post.likedByCurrentUser ? 'Descurtir' : 'Curtir'}
             aria-pressed={post.likedByCurrentUser}
           >
-            <Heart className={`w-6 h-6 ${post.likedByCurrentUser ? 'fill-rose-500' : ''}`} />
+            <Heart key={String(post.likedByCurrentUser)} className={`w-[26px] h-[26px] ${post.likedByCurrentUser ? 'fill-pink-500 curtida-pulo' : ''}`} strokeWidth={1.9} />
           </button>
           <button
             type="button"
             onClick={() => commentInputRef.current?.focus()}
-            className="w-11 h-11 flex items-center justify-center text-zinc-200 hover:text-zinc-400 cursor-pointer"
+            className="w-11 h-11 flex items-center justify-center text-zinc-100 hover:text-zinc-400 cursor-pointer"
             aria-label="Comentar"
           >
-            <MessageCircle className="w-6 h-6" />
+            <MessageCircle className="w-[26px] h-[26px] -scale-x-100" strokeWidth={1.9} />
           </button>
-          <button type="button" onClick={sharePost} className="w-11 h-11 flex items-center justify-center text-zinc-200 hover:text-zinc-400 cursor-pointer" aria-label="Compartilhar">
-            <Send className="w-6 h-6" />
+          <button type="button" onClick={sharePost} className="w-11 h-11 flex items-center justify-center text-zinc-100 hover:text-zinc-400 cursor-pointer" aria-label="Compartilhar">
+            <Send className="w-[24px] h-[24px]" strokeWidth={1.9} />
           </button>
         </div>
 
         {mediaCount > 1 && (
-          <div className="flex items-center gap-1" aria-hidden="true">
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1" aria-hidden="true">
             {post.mediaUrls.map((_, i) => (
-              <span key={i} className={`w-1.5 h-1.5 rounded-full ${i === activeMediaIndex ? 'bg-fuchsia-400' : 'bg-zinc-600'}`} />
+              <span key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === activeMediaIndex ? 'w-4 fundo-neon' : 'w-1.5 bg-zinc-600'}`} />
             ))}
           </div>
         )}
@@ -376,21 +390,21 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
         <button
           type="button"
           onClick={() => toggleSavePost(post.id)}
-          className={`w-11 h-11 flex items-center justify-center cursor-pointer ${post.savedByCurrentUser ? 'text-fuchsia-400' : 'text-zinc-200 hover:text-zinc-400'}`}
+          className="w-11 h-11 flex items-center justify-center cursor-pointer text-zinc-100 hover:text-zinc-400"
           aria-label={post.savedByCurrentUser ? 'Remover dos salvos' : 'Salvar'}
           aria-pressed={post.savedByCurrentUser}
         >
-          <Bookmark className={`w-6 h-6 ${post.savedByCurrentUser ? 'fill-fuchsia-500' : ''}`} />
+          <Bookmark key={String(post.savedByCurrentUser)} className={`w-[25px] h-[25px] ${post.savedByCurrentUser ? 'fill-current curtida-pulo' : ''}`} strokeWidth={1.9} />
         </button>
       </div>
 
-      <div className="px-4 pb-4 space-y-1.5">
+      <div className="px-3.5 pb-4 space-y-1">
         {post.likesCount > 0 ? (
-          <p className="text-sm font-bold text-zinc-100">
-            {post.likesCount} {post.likesCount === 1 ? 'curtida' : 'curtidas'}
+          <p className="text-[14px] font-bold text-zinc-50">
+            {post.likesCount.toLocaleString('pt-BR')} {post.likesCount === 1 ? 'curtida' : 'curtidas'}
           </p>
         ) : (
-          <p className="text-sm text-zinc-400">Seja o primeiro a curtir</p>
+          <p className="text-[14px] text-zinc-400">Seja o primeiro a curtir</p>
         )}
 
         {/* Legenda (posts com foto) */}
@@ -443,7 +457,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
           </div>
         )}
 
-        <p className="text-[12px] uppercase tracking-wide text-zinc-500">{post.createdAt}</p>
 
         {replyTo && (
           <p className="flex items-center justify-between text-[12px] text-zinc-400 pt-1">
@@ -451,8 +464,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
             <button type="button" onClick={() => { setReplyTo(null); setCommentInput(''); }} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">Cancelar</button>
           </p>
         )}
-        <form onSubmit={handleSendComment} className="flex items-center gap-2 pt-2 border-t border-purple-950/40">
-          <img src={currentUser.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+        <form onSubmit={handleSendComment} className="flex items-center gap-2 pt-1">
+          <img src={currentUser.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
           <input
             ref={commentInputRef}
             type="text"

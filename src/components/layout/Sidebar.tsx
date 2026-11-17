@@ -56,19 +56,13 @@ export const Sidebar: React.FC = () => {
   ];
 
   return (
-    <aside className="w-64 shrink-0 hidden lg:flex flex-col justify-between py-6 px-4 bg-fundo border-r border-purple-950/40 min-h-[calc(100vh-65px)] sticky top-[65px]">
-      
-      {/* Navigation Links */}
-      <div className="space-y-1">
-        <div className="px-3 mb-2">
-          <p className="text-[12px] uppercase tracking-wider font-bold text-zinc-400">
-            Explorar Plataforma
-          </p>
-        </div>
+    <aside className="w-64 shrink-0 hidden lg:flex flex-col justify-between py-5 px-3 bg-fundo border-r border-white/[0.06] h-[calc(100dvh-57px)] sticky top-[57px] overflow-y-auto no-scrollbar">
 
+      {/* Navegação (como no Instagram: ícone grande, a aba ativa em negrito) */}
+      <nav aria-label="Navegação" className="space-y-0.5">
         {navItems.map(item => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id && !isAdminMode;
+          const isActive = (activeTab === item.id || (item.id === 'feed' && activeTab === 'following')) && !isAdminMode;
           return (
             <button
               key={item.id}
@@ -76,25 +70,19 @@ export const Sidebar: React.FC = () => {
                 setIsAdminMode(false);
                 setActiveTab(item.id);
               }}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium text-sm transition-all cursor-pointer ${
-                isActive
-                  ? 'bg-gradient-to-r from-purple-900/60 to-purple-800/20 text-white border-l-4 border-fuchsia-500 shadow-md shadow-purple-950/40 font-semibold'
-                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/60'
+              aria-current={isActive ? 'page' : undefined}
+              className={`group relative w-full flex items-center justify-between pl-3 pr-2.5 py-2.5 rounded-xl text-[15px] transition-colors cursor-pointer ${
+                isActive ? 'text-white font-bold bg-white/[0.05]' : 'text-zinc-300 font-medium hover:bg-white/[0.04] hover:text-white'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <Icon className={`w-4 h-4 ${isActive ? 'text-fuchsia-400' : 'text-zinc-400'}`} />
+              {isActive && <span className="luz-ativa absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-full" aria-hidden />}
+              <span className="flex items-center gap-3.5">
+                <Icon className="w-[22px] h-[22px] transition-transform group-hover:scale-105" strokeWidth={isActive ? 2.4 : 1.8} />
                 <span>{item.label}</span>
-              </div>
+              </span>
 
               {item.badge && (
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  item.badge === 'IA' 
-                    ? 'bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30'
-                    : item.badge === 'Popular'
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                    : 'bg-gradient-to-r from-fuchsia-500 via-pink-500 to-orange-500 text-white'
-                }`}>
+                <span className="min-w-5 h-5 px-1.5 rounded-full fundo-neon text-[11px] font-bold text-white flex items-center justify-center">
                   {item.badge}
                 </span>
               )}
@@ -121,47 +109,26 @@ export const Sidebar: React.FC = () => {
             </button>
           </div>
         )}
-      </div>
+      </nav>
 
-      {/* User Footer Profile & Privacy Pill */}
-      <div className="pt-4 mt-6 border-t border-purple-950/40">
-        <div className="p-3 rounded-2xl bg-gradient-to-b from-purple-950/30 to-zinc-900/80 border border-purple-900/30">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase font-bold text-emerald-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Conexão Segura
+      {/* Sua conta: foto, nome e sair */}
+      <div className="pt-4 mt-6 border-t border-white/[0.06]">
+        <div className="flex items-center gap-3 px-2">
+          <button type="button" onClick={() => setActiveTab('profile')} className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer group">
+            <img src={currentUser.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover ring-1 ring-white/15" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-zinc-100 truncate group-hover:text-white">{currentUser.username}</span>
+              <span className="flex items-center gap-1 text-xs text-zinc-500 whitespace-nowrap"><Lock className="w-3 h-3 shrink-0" />Conta protegida</span>
             </span>
-            <span className="text-[10px] text-zinc-400 font-medium">LGPD Ativa</span>
-          </div>
-          
-          <div className="flex items-center gap-2 mb-3">
-            <img 
-              src={currentUser.avatarUrl} 
-              alt={currentUser.displayName} 
-              className="w-9 h-9 rounded-full object-cover border border-purple-500/40"
-            />
-            <div className="truncate">
-              <p className="text-xs font-bold text-zinc-200 truncate">{currentUser.displayName}</p>
-              <p className="text-[12px] text-purple-400">@{currentUser.username}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between pt-2 border-t border-purple-900/20">
-            <button
-              onClick={() => setActiveTab('settings')}
-              className="text-[12px] text-zinc-400 hover:text-zinc-200 flex items-center gap-1 cursor-pointer"
-            >
-              <Lock className="w-3 h-3 text-purple-400" />
-              Privacidade
-            </button>
-            <button
-              onClick={logout}
-              className="text-[12px] text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer"
-            >
-              <LogOut className="w-3 h-3" />
-              Sair
-            </button>
-          </div>
+          </button>
+          <button
+            onClick={logout}
+            className="w-9 h-9 shrink-0 rounded-full text-zinc-400 hover:text-rose-300 hover:bg-white/5 flex items-center justify-center cursor-pointer"
+            title="Sair da conta"
+            aria-label="Sair da conta"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
 

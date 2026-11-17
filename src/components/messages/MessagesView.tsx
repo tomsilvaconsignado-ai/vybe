@@ -18,7 +18,10 @@ import {
   EyeOff,
   Eye,
   CornerUpLeft,
-  SmilePlus
+  SmilePlus,
+  BadgeCheck,
+  Camera,
+  ChevronDown
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
 import { askConfirm, notify } from '../common/Feedback';
@@ -54,7 +57,22 @@ const Confirmacao: React.FC<{ status: ChatMessage['status']; claro?: boolean }> 
       ? <CheckCheck className={`w-3.5 h-3.5 ${claro ? 'text-white/60' : 'text-zinc-500'}`} aria-label="Entregue" />
       : <Check className={`w-3.5 h-3.5 ${claro ? 'text-white/60' : 'text-zinc-500'}`} aria-label="Enviada" />;
 
+// Separador de dia da conversa: Hoje, Ontem, dia da semana (até 6 dias) ou a data
+const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+function rotuloDoDia(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const zero = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dias = Math.round((zero(new Date()) - zero(d)) / 864e5);
+  if (dias === 0) return 'Hoje';
+  if (dias === 1) return 'Ontem';
+  if (dias > 1 && dias < 7) return DIAS[d.getDay()]!.replace(/^./, c => c.toUpperCase());
+  return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+}
+
 interface LinhaProps {
+  entra?: boolean;
   msg: ChatMessage; isMine: boolean; fimDoBloco: boolean; avatarDoOutro: string; desfoque: string; eUltimaMinha: boolean; eu: string;
   nomeDoOutro: string; original?: ChatMessage; podeInteragir: boolean; destacada: boolean; celular: boolean;
   aoMenu: (m: ChatMessage) => void; aoResponder: (m: ChatMessage) => void; aoReagir: (m: ChatMessage, emoji: string) => void;
@@ -63,6 +81,7 @@ interface LinhaProps {
 
 // Uma mensagem da conversa (componente próprio: cada bolha tem o seu gesto de segurar/arrastar)
 const LinhaDaMensagem: React.FC<LinhaProps> = ({
+  entra,
   msg, isMine, fimDoBloco, avatarDoOutro, desfoque, eUltimaMinha, eu, nomeDoOutro, original, podeInteragir, destacada, celular,
   aoMenu, aoResponder, aoReagir, aoIrPara, aoAmpliar,
 }) => {
@@ -83,7 +102,7 @@ const LinhaDaMensagem: React.FC<LinhaProps> = ({
   return (
     <div
       id={`msg-${msg.id}`}
-      className={`group relative flex items-end gap-2 rounded-2xl ${isMine ? 'justify-end' : 'justify-start'} ${fimDoBloco || reacoes.length ? 'mb-3' : 'mb-1'} ${destacada ? 'mensagem-destacada' : ''}`}
+      className={`group relative flex items-end gap-2 rounded-2xl ${isMine ? 'justify-end' : 'justify-start'} ${fimDoBloco || reacoes.length ? 'mb-3' : 'mb-1'} ${destacada ? 'mensagem-destacada' : ''} ${entra ? 'msg-entra' : ''}`}
       onContextMenu={e => { if (podeInteragir || msg.content) { e.preventDefault(); aoMenu(msg); } }}
       {...(celular ? handlers : {})}
     >
@@ -107,10 +126,10 @@ const LinhaDaMensagem: React.FC<LinhaProps> = ({
             </span>
           </div>
         ) : (
-          <div className={`px-3 pt-2 pb-1.5 text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
+          <div className={`px-3.5 pt-2 pb-1.5 text-[15px] leading-[1.4] whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
             isMine
-              ? `bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 text-white rounded-2xl ${fimDoBloco ? 'rounded-br-md' : ''}`
-              : `bg-zinc-800/90 text-zinc-100 rounded-2xl ${fimDoBloco ? 'rounded-bl-md' : ''}`
+              ? `fundo-neon text-white rounded-[22px] shadow-[0_6px_18px_-10px_rgba(236,72,153,0.9)] ${fimDoBloco ? 'rounded-br-md' : ''}`
+              : `bg-[#241c31] text-zinc-50 rounded-[22px] ${fimDoBloco ? 'rounded-bl-md' : ''}`
           } ${desfoque} ${celular ? 'select-none [-webkit-touch-callout:none]' : ''}`}>
             {msg.replyToId && (
               <CitacaoNaBolha original={original} trecho={msg.replyQuote} autor={autorOriginal} minha={isMine} aoAbrir={() => aoIrPara(msg.replyToId!)} />
@@ -287,9 +306,47 @@ export const MessagesView: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConv?.id]);
 
+  // Rolagem inteligente: só desce sozinha se você já está no fim (ou se a mensagem é sua).
+  // Lendo mensagens antigas, as novas viram um contador no botão "descer".
+  const longeRef = useRef(false);
+  const [longeDoFim, setLongeDoFim] = useState(false);
+  const [novasAbaixo, setNovasAbaixo] = useState(0);
+  const conversaRolada = useRef<string | undefined>(undefined);
+  const totalAnterior = useRef(0);
+  const aoRolar = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const longe = el.scrollHeight - el.scrollTop - el.clientHeight > 160;
+    longeRef.current = longe;
+    setLongeDoFim(longe);
+    if (!longe) setNovasAbaixo(0);
+  };
+  const descer = (suave = true) => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: suave ? 'smooth' : 'auto' });
+    setNovasAbaixo(0);
+  };
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    const trocou = conversaRolada.current !== activeConv?.id;
+    conversaRolada.current = activeConv?.id;
+    const chegaram = trocou ? 0 : messages.length - totalAnterior.current;
+    totalAnterior.current = messages.length;
+    const ultima = messages[messages.length - 1];
+    if (trocou || !longeRef.current || (chegaram > 0 && ultima?.senderId === currentUser.id)) {
+      descer(!trocou && chegaram > 0);
+      longeRef.current = false;
+      setLongeDoFim(false);
+    } else if (chegaram > 0) {
+      setNovasAbaixo(n => n + chegaram);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, activeConv?.id, outroDigitando, alturaVisivel]);
+
+  // Mensagens que chegam com a conversa aberta entram com uma animação curta (as que já estavam, não)
+  const vistas = useRef<{ conv?: string; pronto: boolean; ids: Set<string> }>({ pronto: false, ids: new Set() });
+  if (vistas.current.conv !== activeConv?.id) vistas.current = { conv: activeConv?.id, pronto: messages.length > 0, ids: new Set(messages.map(m => m.id)) };
+  else if (!vistas.current.pronto && messages.length > 0) vistas.current = { ...vistas.current, pronto: true, ids: new Set(messages.map(m => m.id)) };
+  const entra = (id: string) => vistas.current.pronto && !vistas.current.ids.has(id);
+  useEffect(() => { messages.forEach(m => vistas.current.ids.add(m.id)); });
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -341,51 +398,53 @@ export const MessagesView: React.FC = () => {
     const part = conv.participants[0];
     const isSelected = conv.id === activeConv?.id && Boolean(selectedConversationId);
     const naoLidas = conv.unreadCount > 0;
+    const minhaUltima = conv.lastMessage?.senderId === currentUser.id;
+    const previa = conv.lastMessage?.content || resumoMidia(conv.lastMessage?.mediaUrl) || (pedido ? 'Quer conversar com você' : 'Diga oi 👋');
     return (
       <button
         type="button"
         onClick={() => setSelectedConversationId(conv.id)}
-        className={`w-full text-left px-4 py-3 flex items-center gap-3 cursor-pointer transition-colors ${isSelected ? 'bg-purple-950/50' : 'hover:bg-zinc-900/50 active:bg-zinc-900/70'}`}
+        className={`w-full text-left px-4 py-2.5 flex items-center gap-3.5 cursor-pointer transition-colors ${isSelected ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03] active:bg-white/[0.05]'}`}
       >
         <div className="relative shrink-0">
-          <img src={part.avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover bg-zinc-800" />
-          <OnlineDot userId={part.id} className="bottom-0 right-0" />
+          <img src={part.avatarUrl} alt="" className="w-14 h-14 rounded-full object-cover bg-zinc-800" />
+          <OnlineDot userId={part.id} className="bottom-0.5 right-0.5" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <h4 className={`text-sm truncate ${naoLidas ? 'font-extrabold text-white' : 'font-semibold text-zinc-100'}`}>
-              {part.displayName}{part.isVerified && <span className="text-purple-400 text-xs ml-1">✓</span>}
-            </h4>
-            {pedido
-              ? <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 shrink-0">Nova</span>
-              : <span className={`text-[10px] shrink-0 ${naoLidas ? 'text-fuchsia-300 font-bold' : 'text-zinc-500'}`}>{conv.lastMessage?.createdAt || ''}</span>}
-          </div>
-          <div className="flex items-center justify-between gap-2 mt-0.5">
-            <p className={`text-xs truncate ${naoLidas ? 'text-zinc-200 font-medium' : 'text-zinc-500'}`}>
-              {conv.lastMessage?.content || resumoMidia(conv.lastMessage?.mediaUrl) || (pedido ? 'Solicitou mensagem' : 'Iniciar conversa...')}
-            </p>
-            {naoLidas && (
-              <span className="min-w-5 h-5 px-1.5 rounded-full bg-fuchsia-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
-                {conv.unreadCount}
-              </span>
-            )}
-          </div>
+          <h4 className={`flex items-center gap-1 text-[15px] ${naoLidas ? 'font-bold text-white' : 'font-medium text-zinc-100'}`}>
+            <span className="truncate">{part.displayName}</span>
+            {part.isVerified && <BadgeCheck className="w-4 h-4 shrink-0 text-white fill-fuchsia-500" aria-label="Verificado" />}
+          </h4>
+          <p className={`flex items-center gap-1 text-[13px] ${naoLidas ? 'text-white font-semibold' : 'text-zinc-500'}`}>
+            <span className="truncate">{minhaUltima && !pedido ? `Você: ${previa}` : previa}</span>
+            {!pedido && conv.lastMessage?.createdAt && <span className="shrink-0">· {conv.lastMessage.createdAt}</span>}
+          </p>
         </div>
+        {pedido ? (
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 shrink-0">Nova</span>
+        ) : naoLidas ? (
+          <span className="min-w-[22px] h-[22px] px-1.5 rounded-full fundo-neon text-white text-[11px] font-bold flex items-center justify-center shrink-0 shadow-[0_0_14px_-2px_rgba(236,72,153,0.8)]">
+            {conv.unreadCount}
+          </span>
+        ) : null}
       </button>
     );
   };
+
+  // Quem está online agora (entre as suas conversas): toque para abrir
+  const onlineAgora = activeConversations.filter(c => isOnline(c.participants[0]?.id ?? ''));
 
   const listaVisivel = activeTab === 'chats' ? activeConversations.filter(nomeBate) : pendingRequests.filter(nomeBate);
 
   return (
     <div className="max-w-6xl mx-auto md:py-6 md:px-4">
-      <div className="bg-painel md:border border-purple-900/30 md:rounded-3xl overflow-hidden shadow-2xl h-[calc(100dvh-9.6rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:h-[78vh] flex flex-col md:flex-row">
+      <div className="bg-fundo md:border border-white/[0.07] md:rounded-3xl overflow-hidden md:shadow-[0_30px_80px_-40px_rgba(192,38,211,0.45)] h-[calc(100dvh-8.6rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:h-[80vh] flex flex-col md:flex-row">
 
         {/* Lista de conversas */}
-        <div className={`w-full md:w-80 shrink-0 md:border-r border-purple-900/30 flex flex-col bg-painel-baixo min-h-0 ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
-          <div className="px-4 pt-4 pb-3 space-y-3">
-            <h2 className="text-2xl font-extrabold text-white">Mensagens</h2>
-            <label className="flex items-center gap-2 px-3.5 h-10 rounded-full bg-zinc-900/80 border border-purple-900/30 focus-within:border-purple-500">
+        <div className={`w-full md:w-[360px] shrink-0 md:border-r border-white/[0.07] flex flex-col min-h-0 ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
+          <div className="px-4 pt-4 pb-2 space-y-3">
+            <h2 className="text-[22px] font-extrabold tracking-tight text-white">Mensagens</h2>
+            <label className="flex items-center gap-2 px-3.5 h-10 rounded-xl bg-white/[0.06] border border-transparent focus-within:border-purple-500/60">
               <Search className="w-4 h-4 text-zinc-500 shrink-0" />
               <input
                 type="search"
@@ -411,35 +470,58 @@ export const MessagesView: React.FC = () => {
                 })}
               </ul>
             )}
-            <div className="flex bg-zinc-900/80 p-1 rounded-full" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'chats'}
-                onClick={() => setActiveTab('chats')}
-                className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${activeTab === 'chats' ? 'bg-purple-600 text-white shadow' : 'text-zinc-400 hover:text-white'}`}
-              >
-                Conversas ({activeConversations.length})
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'requests'}
-                onClick={() => setActiveTab('requests')}
-                className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all relative cursor-pointer ${activeTab === 'requests' ? 'bg-purple-600 text-white shadow' : 'text-zinc-400 hover:text-white'}`}
-              >
-                Solicitações ({pendingRequests.length})
-                {pendingRequests.length > 0 && <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-1.5 right-3" />}
-              </button>
-            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          {/* Online agora: quem está com o app aberto, entre as suas conversas */}
+          {!busca && onlineAgora.length > 0 && (
+            <div className="pt-1 pb-2" aria-label="Online agora">
+              <p className="px-4 pb-2 text-[13px] font-semibold text-zinc-400">Online agora</p>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar px-4">
+                {onlineAgora.map(c => {
+                  const p = c.participants[0]!;
+                  return (
+                    <button key={c.id} type="button" onClick={() => setSelectedConversationId(c.id)} className="w-[68px] shrink-0 flex flex-col items-center gap-1 cursor-pointer group" aria-label={`Abrir conversa com ${p.displayName} (online)`}>
+                      <span className="relative">
+                        <img src={p.avatarUrl} alt="" className="w-16 h-16 rounded-full object-cover ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-fundo transition-transform group-active:scale-95" />
+                        <span className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full bg-emerald-400 ring-[3px] ring-fundo">
+                          <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-60 motion-reduce:hidden" />
+                        </span>
+                      </span>
+                      <span className="text-xs text-zinc-300 truncate max-w-full">{p.displayName.split(' ')[0]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Conversas e solicitações: abas com a luz embaixo */}
+          <div className="relative grid grid-cols-2 border-b border-white/[0.07]" role="tablist">
+            {([['chats', 'Conversas', activeConversations.length], ['requests', 'Solicitações', pendingRequests.length]] as const).map(([id, rotulo, qtd]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === id}
+                onClick={() => setActiveTab(id)}
+                className={`h-11 text-[14px] cursor-pointer transition-colors ${activeTab === id ? 'text-white font-bold' : 'text-zinc-500 font-semibold hover:text-zinc-300'}`}
+              >
+                {rotulo}
+                {qtd > 0 && <span className={`ml-1.5 text-xs ${id === 'requests' ? 'px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold' : 'text-zinc-500 font-medium'}`}>{qtd}</span>}
+              </button>
+            ))}
+            <span aria-hidden className="luz-ativa absolute bottom-0 h-[2px] w-[22%] rounded-full transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]" style={{ left: activeTab === 'chats' ? '14%' : '64%' }} />
+          </div>
+
+          <div className="flex-1 overflow-y-auto pt-1">
             {listaVisivel.length > 0 ? (
               listaVisivel.map(conv => <ItemConversa key={conv.id} conv={conv} pedido={activeTab === 'requests'} />)
             ) : (
-              <div className="p-8 text-center text-xs text-zinc-500">
-                {busca ? 'Nenhuma conversa encontrada.' : activeTab === 'chats' ? 'Nenhuma conversa ativa no momento.' : 'Nenhuma solicitação pendente. Seu inbox está protegido contra spam.'}
+              <div className="px-8 py-12 text-center">
+                <MessageSquare className="w-10 h-10 mx-auto mb-3 text-zinc-600" strokeWidth={1.5} />
+                <p className="text-sm text-zinc-400">
+                  {busca ? 'Nenhuma conversa encontrada.' : activeTab === 'chats' ? 'Suas conversas aparecem aqui. Abra um perfil e toque em Mensagem para começar.' : 'Nenhuma solicitação. Pedidos de quem você não conhece chegam aqui primeiro.'}
+                </p>
               </div>
             )}
           </div>
@@ -448,11 +530,13 @@ export const MessagesView: React.FC = () => {
         {/* Conversa aberta: no celular vira tela cheia por cima de tudo */}
         {activeConv && otherParticipant ? emTelaCheia(
           <div
-            className={`flex-1 min-w-0 min-h-0 flex flex-col bg-painel ${selectedConversationId ? 'flex' : 'hidden md:flex'} ${telaCheia ? 'fixed inset-x-0 top-0 z-[45]' : ''}`}
+            className={`flex-1 min-w-0 min-h-0 flex flex-col bg-fundo ${selectedConversationId ? 'flex' : 'hidden md:flex'} ${telaCheia ? 'fixed inset-x-0 top-0 z-[45]' : 'relative'}`}
             style={telaCheia ? { height: alturaVisivel ? `${alturaVisivel}px` : '100dvh' } : undefined}
           >
+            {/* luz ambiente atrás da conversa */}
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(192,38,211,0.16),transparent)]" />
             {/* Cabeçalho */}
-            <div className="shrink-0 px-2 sm:px-4 py-2.5 border-b border-purple-900/30 flex items-center gap-1 bg-painel-alto" style={telaCheia ? { paddingTop: 'max(0.625rem, env(safe-area-inset-top))' } : undefined}>
+            <div className="relative z-10 shrink-0 px-2 sm:px-4 py-2 border-b border-white/[0.07] flex items-center gap-1 bg-fundo/70 backdrop-blur-xl" style={telaCheia ? { paddingTop: 'max(0.5rem, env(safe-area-inset-top))' } : undefined}>
               <button
                 type="button"
                 onClick={() => setSelectedConversationId(null)}
@@ -468,8 +552,9 @@ export const MessagesView: React.FC = () => {
                   <OnlineDot userId={otherParticipant.id} className="bottom-0 right-0" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-white truncate group-hover:text-purple-300 transition-colors">
-                    {otherParticipant.displayName}{otherParticipant.isVerified && <span className="text-purple-400 text-xs ml-1">✓</span>}
+                  <h3 className="flex items-center gap-1 text-[15px] font-bold text-white">
+                    <span className="truncate">{otherParticipant.displayName}</span>
+                    {otherParticipant.isVerified && <BadgeCheck className="w-4 h-4 shrink-0 text-white fill-fuchsia-500" aria-label="Verificado" />}
                   </h3>
                   <p className="text-[12px] text-zinc-400 truncate">
                     {outroDigitando ? (
@@ -551,11 +636,16 @@ export const MessagesView: React.FC = () => {
             )}
 
             {/* Mensagens */}
-            <div ref={scrollRef} className="flex-1 min-h-0 px-3 sm:px-4 py-4 overflow-y-auto overscroll-contain">
-              <div className="text-center pb-4">
-                <span className="text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded-full bg-purple-950/60 text-purple-300 border border-purple-900/30">
-                  🔒 Conversa privada
-                </span>
+            <div ref={scrollRef} onScroll={aoRolar} className="relative flex-1 min-h-0 px-3 sm:px-5 py-4 overflow-y-auto overscroll-contain">
+              {/* começo da conversa: quem é a pessoa */}
+              <div className="flex flex-col items-center text-center pt-4 pb-8">
+                <img src={otherParticipant.avatarUrl} alt="" className="w-20 h-20 rounded-full object-cover ring-1 ring-white/10" />
+                <p className="mt-3 text-lg font-bold text-white">{otherParticipant.displayName}</p>
+                <p className="text-sm text-zinc-500">@{otherParticipant.username}</p>
+                <button type="button" onClick={() => setSelectedProfileId(otherParticipant.id)} className="mt-3 h-8 px-4 rounded-lg bg-white/[0.08] hover:bg-white/[0.12] text-[13px] font-semibold text-zinc-100 cursor-pointer">
+                  Ver perfil
+                </button>
+                <p className="mt-4 flex items-center gap-1.5 text-xs text-zinc-500"><Lock className="w-3 h-3" />Conversa privada: só vocês dois veem</p>
               </div>
 
               {messages.length === 0 && (
@@ -564,9 +654,17 @@ export const MessagesView: React.FC = () => {
 
               {messages.map((msg, i) => {
                 const proxima = messages[i + 1];
+                const dia = rotuloDoDia(msg.sentAt);
+                const novoDia = dia && dia !== rotuloDoDia(messages[i - 1]?.sentAt);
                 return (
+                  <React.Fragment key={msg.id}>
+                  {novoDia && (
+                    <div className="flex justify-center my-4" role="separator" aria-label={dia}>
+                      <span className="text-xs font-semibold text-zinc-500">{dia}</span>
+                    </div>
+                  )}
                   <LinhaDaMensagem
-                    key={msg.id}
+                    entra={entra(msg.id)}
                     msg={msg}
                     isMine={msg.senderId === currentUser.id}
                     fimDoBloco={!proxima || proxima.senderId !== msg.senderId}
@@ -585,18 +683,32 @@ export const MessagesView: React.FC = () => {
                     aoIrPara={irPara}
                     aoAmpliar={setViewerUrl}
                   />
+                  </React.Fragment>
                 );
               })}
 
               {outroDigitando && (
-                <div className="flex items-end gap-2">
+                <div className="msg-entra flex items-end gap-2">
                   <img src={otherParticipant.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 bg-zinc-800" />
-                  <div className="flex items-center gap-1 px-3.5 py-3 rounded-2xl rounded-bl-md bg-zinc-800/90" aria-label="digitando">
+                  <div className="flex items-center gap-1 px-4 py-3.5 rounded-[22px] rounded-bl-md bg-[#241c31]" aria-label="digitando">
                     {[0, 1, 2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />)}
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Descer para o fim (com as mensagens novas que chegaram enquanto você lia as antigas) */}
+            {longeDoFim && (
+              <button
+                type="button"
+                onClick={() => descer()}
+                className="msg-entra absolute right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] md:bottom-20 z-10 h-10 min-w-10 px-2.5 rounded-full bg-[#241c31]/95 backdrop-blur border border-white/10 text-zinc-100 shadow-xl flex items-center justify-center gap-1 cursor-pointer"
+                aria-label={novasAbaixo > 0 ? `${novasAbaixo} mensagens novas: descer` : 'Descer para a última mensagem'}
+              >
+                {novasAbaixo > 0 && <span className="min-w-5 h-5 px-1 rounded-full fundo-neon text-[11px] font-bold flex items-center justify-center">{novasAbaixo}</span>}
+                <ChevronDown className="w-5 h-5" />
+              </button>
+            )}
 
             {resposta && (
               <BarraDeResposta resposta={resposta} autor={nomeDe(resposta.msg)} aoCancelar={() => setResposta(null)} />
@@ -604,7 +716,7 @@ export const MessagesView: React.FC = () => {
 
             {/* Anexo pronto para enviar */}
             {attachment && (
-              <div className="shrink-0 px-3 pt-3 border-t border-purple-900/30 bg-painel-alto flex items-center gap-3">
+              <div className="shrink-0 px-3 pt-3 border-t border-white/[0.07] bg-fundo flex items-center gap-3">
                 <div className="relative shrink-0">
                   {attachment.file.type.startsWith('video/')
                     ? <video src={attachment.preview} muted playsInline className="h-16 w-16 rounded-xl object-cover border border-purple-700/50" />
@@ -627,26 +739,24 @@ export const MessagesView: React.FC = () => {
             {/* Barra de digitação: [anexo] [campo + emoji] [microfone | enviar] */}
             <form
               onSubmit={handleSendMessage}
-              className={`shrink-0 relative px-2 sm:px-3 pt-2 bg-painel-alto flex items-end gap-2 ${attachment || resposta ? '' : 'border-t border-purple-900/30'}`}
-              style={{ paddingBottom: telaCheia ? 'max(0.5rem, env(safe-area-inset-bottom))' : '0.5rem' }}
+              className="shrink-0 relative px-2 sm:px-3 pt-2 bg-fundo flex items-end gap-2"
+              style={{ paddingBottom: telaCheia ? 'max(0.5rem, env(safe-area-inset-bottom))' : '0.6rem' }}
             >
               {showEmoji && <EmojiPicker onPick={insertEmoji} onClose={() => setShowEmoji(false)} />}
               <input ref={fileRef} type="file" accept={CHAT_MEDIA_ACCEPT} onChange={handlePickFile} className="hidden" />
 
               {!gravando && (
-                <>
+                <div className="flex-1 min-w-0 flex items-end gap-1 rounded-[24px] bg-white/[0.07] border border-transparent focus-within:border-purple-500/50 transition-colors p-1">
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
                     disabled={mediaLocked || isSending}
-                    className="w-10 h-10 shrink-0 rounded-full text-zinc-300 bg-zinc-900 hover:text-fuchsia-300 flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40"
+                    className="w-9 h-9 shrink-0 rounded-full fundo-neon text-white flex items-center justify-center transition-transform active:scale-90 cursor-pointer disabled:opacity-40 disabled:grayscale"
                     title={mediaLocked ? 'Fotos, vídeos e áudios são liberados depois que a conversa for aceita' : 'Enviar foto, GIF ou vídeo'}
                     aria-label="Enviar foto, GIF ou vídeo"
                   >
-                    <Plus className="w-5 h-5" />
+                    <Camera className="w-[18px] h-[18px]" />
                   </button>
-
-                  <div className="flex-1 min-w-0 flex items-end rounded-3xl bg-zinc-900/90 border border-purple-900/40 focus-within:border-purple-500 transition-colors">
                     <textarea
                       ref={inputRef}
                       rows={1}
@@ -661,27 +771,26 @@ export const MessagesView: React.FC = () => {
                       onKeyDown={aoTeclar}
                       enterKeyHint="send"
                       aria-label="Escreva uma mensagem"
-                      className="flex-1 min-w-0 resize-none bg-transparent pl-4 pr-1 py-2.5 text-sm leading-5 text-zinc-100 placeholder-zinc-500 focus:outline-none max-h-[120px] disabled:opacity-60"
+                      className="flex-1 min-w-0 resize-none bg-transparent pl-2 pr-1 py-2 text-[15px] leading-5 text-zinc-100 placeholder-zinc-500 focus:outline-none max-h-[120px] disabled:opacity-60"
                     />
                     <button
                       type="button"
                       onClick={() => setShowEmoji(v => !v)}
                       disabled={inputLocked}
-                      className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40 ${showEmoji ? 'text-amber-300' : 'text-zinc-400 hover:text-amber-300'}`}
+                      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center transition-colors cursor-pointer disabled:opacity-40 ${showEmoji ? 'text-amber-300' : 'text-zinc-400 hover:text-amber-300'}`}
                       title="Emojis"
                       aria-label="Emojis"
                     >
-                      <Smile className="w-5 h-5" />
+                      <Smile className="w-[22px] h-[22px]" />
                     </button>
-                  </div>
-                </>
+                </div>
               )}
 
               {temConteudo || inputLocked ? (
                 <button
                   type="submit"
                   disabled={!temConteudo || isSending || inputLocked}
-                  className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-fuchsia-600 via-pink-600 to-orange-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-orange-500 text-white flex items-center justify-center disabled:opacity-40 shadow transition-all cursor-pointer"
+                  className="w-11 h-11 shrink-0 rounded-full fundo-neon text-white flex items-center justify-center disabled:opacity-40 shadow-[0_6px_20px_-6px_rgba(236,72,153,0.9)] transition-transform active:scale-90 cursor-pointer"
                   aria-label="Enviar mensagem"
                 >
                   {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-[18px] h-[18px] -ml-0.5" />}
@@ -692,11 +801,13 @@ export const MessagesView: React.FC = () => {
             </form>
           </div>
         ) : (
-          <div className="flex-1 hidden md:flex flex-col items-center justify-center p-8 text-center bg-painel">
-            <MessageSquare className="w-12 h-12 text-purple-400 opacity-50 mb-3" />
-            <h3 className="text-base font-bold text-white mb-1">Selecione uma conversa</h3>
-            <p className="text-xs text-zinc-400 max-w-sm">
-              Converse com outros membros respeitando o consentimento e os limites acordados.
+          <div className="flex-1 hidden md:flex flex-col items-center justify-center p-8 text-center bg-[radial-gradient(50%_60%_at_50%_40%,rgba(192,38,211,0.10),transparent)]">
+            <span className="w-20 h-20 rounded-full border-2 border-zinc-200/80 flex items-center justify-center mb-4">
+              <Send className="w-9 h-9 text-zinc-100 -ml-1" strokeWidth={1.6} />
+            </span>
+            <h3 className="text-xl font-bold text-white mb-1">Suas mensagens</h3>
+            <p className="text-sm text-zinc-400 max-w-xs">
+              Escolha uma conversa ao lado. Mensagens privadas, com reações e respostas.
             </p>
           </div>
         )}

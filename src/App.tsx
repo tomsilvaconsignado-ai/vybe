@@ -26,7 +26,7 @@ import { importWithReload } from './lib/chunkReload';
 import { PushInvite } from './components/notifications/PushInvite';
 import { CampanhaConvitePopup } from './components/growth/CampanhaConvitePopup';
 import { AnuncioPopup } from './components/ads/AnuncioPopup';
-
+
 const ConvideView = React.lazy(() => import('./components/growth/ConvideView').then(m => ({ default: m.ConvideView })));
 const FundadoresView = React.lazy(() => import('./components/growth/FundadoresView').then(m => ({ default: m.FundadoresView })));
 const named = <K extends string>(loader: () => Promise<Record<K, React.ComponentType<any>>>, name: K) =>
@@ -180,7 +180,7 @@ const AppContent: React.FC = () => {
       
       <div className="flex-1 max-w-[1440px] w-full mx-auto flex">
         <Sidebar />
-        <main className="flex-1 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-10 min-w-0">
+        <main className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-10 min-w-0">
           {/* troca de tela com entrada suave ("Para você" e "Seguindo" são a mesma tela) */}
           <div key={activeTab === 'following' ? 'feed' : activeTab} className="tela-entrada">
             <Suspense fallback={<ViewLoading />}>{renderMainView()}</Suspense>
