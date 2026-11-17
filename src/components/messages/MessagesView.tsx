@@ -441,7 +441,8 @@ export const MessagesView: React.FC = () => {
       <div className="bg-fundo md:border border-white/[0.07] md:rounded-3xl overflow-hidden md:shadow-[0_30px_80px_-40px_rgba(192,38,211,0.45)] h-[calc(100dvh-8.6rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] md:h-[80vh] flex flex-col md:flex-row">
 
         {/* Lista de conversas */}
-        <div className={`w-full md:w-[360px] shrink-0 md:border-r border-white/[0.07] flex flex-col min-h-0 ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
+        {/* no celular a lista ocupa a altura disponível e rola por dentro (flex-1 + min-h-0); no computador é a coluna fixa da esquerda */}
+        <div className={`w-full md:w-[360px] flex-1 md:flex-none min-h-0 md:border-r border-white/[0.07] flex-col ${selectedConversationId ? 'hidden md:flex' : 'flex'}`}>
           <div className="px-4 pt-4 pb-2 space-y-3">
             <h2 className="text-[22px] font-extrabold tracking-tight text-white">Mensagens</h2>
             <label className="flex items-center gap-2 px-3.5 h-10 rounded-xl bg-white/[0.06] border border-transparent focus-within:border-purple-500/60">
@@ -513,7 +514,7 @@ export const MessagesView: React.FC = () => {
             <span aria-hidden className="luz-ativa absolute bottom-0 h-[2px] w-[22%] rounded-full transition-[left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]" style={{ left: activeTab === 'chats' ? '14%' : '64%' }} />
           </div>
 
-          <div className="flex-1 overflow-y-auto pt-1">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pt-1" aria-label="Lista de conversas">
             {listaVisivel.length > 0 ? (
               listaVisivel.map(conv => <ItemConversa key={conv.id} conv={conv} pedido={activeTab === 'requests'} />)
             ) : (
