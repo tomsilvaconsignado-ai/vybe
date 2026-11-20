@@ -21,8 +21,8 @@ const POSES: Record<string, Pose> = {
   },
   lotus: {
     cenario: 'chao',
-    a: { cabeca: [40, 24], pescoco: [43, 32], quadril: [48, 64], bracos: [[[56, 40], [66, 38]], [[56, 46], [66, 46]]], pernas: [[[64, 70], [74, 78]], [[60, 74], [44, 78]]] },
-    b: { cabeca: [74, 20], pescoco: [71, 28], quadril: [64, 58], bracos: [[[60, 30], [48, 28]], [[60, 36], [50, 36]]], pernas: [[[50, 58], [34, 54]], [[50, 64], [34, 64]]] },
+    a: { cabeca: [42, 28], pescoco: [44, 37], quadril: [46, 70], bracos: [[[55, 46], [64, 42]], [[56, 52], [66, 50]]], pernas: [[[64, 77], [50, 81]], [[28, 77], [42, 81]]] },
+    b: { cabeca: [66, 24], pescoco: [63, 33], quadril: [58, 62], bracos: [[[55, 34], [47, 36]], [[56, 41], [48, 43]]], pernas: [[[42, 60], [33, 68]], [[44, 66], [36, 74]]] },
   },
   'no-sofa': {
     cenario: 'sofa',
@@ -93,42 +93,122 @@ const POSES: Record<string, Pose> = {
 
 export const temPictograma = (id: string) => id in POSES;
 
-const linha = (pts: P[]) => pts.map((p) => p.join(',')).join(' ');
+// ---------------------------------------------------------------- silhuetas
+// Cada corpo é montado com peças afinadas (tronco com cintura e quadril, coxas mais grossas que as
+// pernas, braços finos) e juntas arredondadas. O contorno neon é desenhado por baixo de tudo e o
+// preenchimento por cima, então só a borda de fora brilha (as peças se fundem num corpo só).
 
-function Silhueta({ c, cor }: { c: Corpo; cor: string }) {
+const sub = (a: P, b: P): P => [a[0] - b[0], a[1] - b[1]];
+const soma = (a: P, b: P): P => [a[0] + b[0], a[1] + b[1]];
+const mult = (a: P, k: number): P => [a[0] * k, a[1] * k];
+const tam = (a: P) => Math.hypot(a[0], a[1]) || 1;
+const normal = (a: P, b: P): P => { const d = sub(b, a); const n = tam(d); return [-d[1] / n, d[0] / n]; };
+const entre = (a: P, b: P, t: number): P => soma(a, mult(sub(b, a), t));
+const f1 = (n: number) => Math.round(n * 10) / 10;
+
+/** caminho suave e fechado por uma lista de pontos (Catmull-Rom → Bézier) */
+function fechado(pts: P[]) {
+  const n = pts.length;
+  let d = `M${f1(pts[0][0])},${f1(pts[0][1])}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    const c1 = soma(p1, mult(sub(p2, p0), 1 / 6)), c2 = sub(p2, mult(sub(p3, p1), 1 / 6));
+    d += ` C${f1(c1[0])},${f1(c1[1])} ${f1(c2[0])},${f1(c2[1])} ${f1(p2[0])},${f1(p2[1])}`;
+  }
+  return d + 'Z';
+}
+
+/** membro afinado de a (largura wa) até b (largura wb), levemente encorpado no meio */
+function membro(a: P, b: P, wa: number, wb: number) {
+  const n = normal(a, b);
+  const meio = ((wa + wb) / 4) * 1.06;
+  return fechado([soma(a, mult(n, wa / 2)), soma(entre(a, b, 0.5), mult(n, meio)), soma(b, mult(n, wb / 2)),
+    sub(b, mult(n, wb / 2)), sub(entre(a, b, 0.5), mult(n, meio)), sub(a, mult(n, wa / 2))]);
+}
+
+const circulo = (p: P, raio: number) => `M${f1(p[0] - raio)},${f1(p[1])} a${raio},${raio} 0 1,0 ${f1(raio * 2)},0 a${raio},${raio} 0 1,0 ${f1(-raio * 2)},0Z`;
+
+interface Medidas { ombro: number; peito: number; cintura: number; quadril: number; coxa: number; joelho: number; tornozelo: number; braco: number; pulso: number; cabeca: number }
+const CORPO_A: Medidas = { ombro: 11.2, peito: 9.8, cintura: 8, quadril: 8.6, coxa: 7.2, joelho: 4.7, tornozelo: 2.9, braco: 4.3, pulso: 2.5, cabeca: 5.8 };
+const CORPO_B: Medidas = { ombro: 8.8, peito: 10, cintura: 6, quadril: 11.8, coxa: 7.8, joelho: 4.2, tornozelo: 2.4, braco: 3.6, pulso: 2.1, cabeca: 5.4 };
+
+/** peças de um corpo (caminhos SVG) */
+function pecas(c: Corpo, m: Medidas): string[] {
+  const { pescoco: ne, quadril: hi } = c;
+  const n = normal(ne, hi);
+  const larg: Array<[number, number]> = [[0.02, m.ombro], [0.3, m.peito], [0.62, m.cintura], [0.92, m.quadril], [1.08, m.quadril * 0.8]];
+  const ladoA = larg.map(([t, w]) => soma(entre(ne, hi, t), mult(n, w / 2)));
+  const ladoB = larg.map(([t, w]) => sub(entre(ne, hi, t), mult(n, w / 2))).reverse();
+  const ombro = entre(ne, hi, 0.07);
+  const junta = entre(ne, hi, 0.94);
+  const out = [fechado([...ladoA, ...ladoB]), membro(c.cabeca, ne, 3.2, 3.6)];
+  for (const [cot, mao] of c.bracos) out.push(membro(ombro, cot, m.braco, m.braco * 0.8), membro(cot, mao, m.braco * 0.8, m.pulso));
+  for (const [joe, pe] of c.pernas) out.push(membro(junta, joe, m.coxa, m.joelho), membro(joe, pe, m.joelho, m.tornozelo));
+  for (const [cot, mao] of c.bracos) out.push(circulo(cot, m.braco * 0.42), circulo(mao, m.pulso * 0.75));
+  for (const [joe, pe] of c.pernas) out.push(circulo(joe, m.joelho * 0.55), circulo(pe, m.tornozelo * 0.8));
+  out.push(circulo(c.cabeca, m.cabeca));
+  return out;
+}
+
+function Silhueta({ c, m, id, borda, claro, escuro, cabelo }: { c: Corpo; m: Medidas; id: string; borda: string; claro: string; escuro: string; cabelo?: P }) {
+  // cabelo comprido: cai da cabeça pela nuca, para o lado oposto ao do parceiro (`cabelo` = cabeça dele)
+  let fio = '';
+  if (cabelo) {
+    const desce = sub(c.pescoco, c.cabeca);
+    const lado0 = normal(c.cabeca, c.pescoco);
+    const paraLonge = sub(c.cabeca, cabelo);
+    const lado = lado0[0] * paraLonge[0] + lado0[1] * paraLonge[1] >= 0 ? lado0 : mult(lado0, -1);
+    const topo = soma(c.cabeca, soma(mult(desce, -0.15), mult(lado, m.cabeca * 0.55)));
+    const ponta = soma(c.pescoco, soma(mult(desce, 0.9), mult(lado, m.cabeca * 1.1)));
+    fio = ' ' + membro(topo, ponta, m.cabeca * 1.7, 1.6);
+  }
+  const d = pecas(c, m).join(' ') + fio;
   return (
-    <g stroke={cor} strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" fill="none">
-      <polyline points={linha([c.pescoco, c.quadril])} strokeWidth={7.5} />
-      {c.bracos.map(([cot, mao], i) => <polyline key={'b' + i} points={linha([c.pescoco, cot, mao])} />)}
-      {c.pernas.map(([joe, pe], i) => <polyline key={'p' + i} points={linha([c.quadril, joe, pe])} />)}
-      <circle cx={c.cabeca[0]} cy={c.cabeca[1]} r={6} fill={cor} stroke="none" />
+    <g>
+      <defs>
+        <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={claro} /><stop offset="100%" stopColor={escuro} />
+        </linearGradient>
+      </defs>
+      {/* brilho neon só na borda de fora: contorno por baixo, preenchimento por cima */}
+      <path d={d} fill="none" stroke={borda} strokeWidth={3.4} strokeLinejoin="round" opacity={0.5} filter="url(#pg-brilho)" />
+      <path d={d} fill="none" stroke={borda} strokeWidth={1.5} strokeLinejoin="round" />
+      <path d={d} fill={`url(#grad-${id})`} />
     </g>
   );
 }
 
 function Cenario({ tipo }: { tipo?: Cenario }) {
-  const cor = 'rgba(255,255,255,0.28)';
-  const p = { stroke: cor, strokeWidth: 2, fill: 'none', strokeLinecap: 'round' as const };
+  const p = { stroke: 'rgba(255,255,255,0.22)', strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round' as const };
+  const lencol = 'rgba(168,85,247,0.16)';
   switch (tipo) {
-    case 'cama': return <g {...p}><path d="M6 72 H114" /><path d="M10 72 V82 M110 72 V82" /><path d="M8 72 V60" /></g>;
-    case 'cadeira': return <g {...p}><path d="M30 60 H70 M34 60 V82 M66 60 V82 M32 60 V24" /></g>;
-    case 'sofa': return <g {...p}><path d="M24 62 H76 M26 62 V80 M74 62 V80 M24 62 V36 Q24 32 30 32 H34" /></g>;
-    case 'parede': return <g {...p}><path d="M20 4 V82 M8 82 H112" /></g>;
-    case 'bancada': return <g {...p}><path d="M14 56 H52 M18 56 V82 M48 56 V82 M8 82 H112" /></g>;
-    case 'chuveiro': return <g {...p}><path d="M24 82 V6 H40 M36 6 V10" /><path d="M32 14 l-2 6 M37 14 v6 M42 14 l2 6" strokeDasharray="2 3" /><path d="M8 82 H112" /></g>;
-    case 'chao': return <g {...p}><path d="M8 82 H112" /></g>;
+    case 'cama': return <g><path d="M6 71 Q60 66 114 71 V74 H6 Z" fill={lencol} /><g {...p}><path d="M6 74 H114 M10 74 V83 M110 74 V83 M7 74 V58" /></g></g>;
+    case 'cadeira': return <g {...p}><path d="M28 61 H72 M32 61 V83 M68 61 V83 M30 61 V22" /></g>;
+    case 'sofa': return <g><path d="M22 60 H78 V66 H22 Z" fill={lencol} /><g {...p}><path d="M22 66 V82 M78 66 V82 M22 60 V34 Q22 30 28 30 H34" /></g></g>;
+    case 'parede': return <g><path d="M4 4 H20 V82 H4 Z" fill="rgba(168,85,247,0.10)" /><g {...p}><path d="M20 4 V82 M6 83 H114" /></g></g>;
+    case 'bancada': return <g><path d="M12 54 H54 V58 H12 Z" fill={lencol} /><g {...p}><path d="M16 58 V83 M50 58 V83 M6 83 H114" /></g></g>;
+    case 'chuveiro': return <g><g {...p}><path d="M22 83 V6 H38 M35 6 V10 M6 83 H114" /></g><path d="M30 14 l-3 9 M35 14 l-1 10 M40 14 l1 9 M45 14 l3 9" stroke="rgba(125,211,252,0.45)" strokeWidth={1.2} strokeDasharray="2 3" strokeLinecap="round" /></g>;
+    case 'chao': return <g {...p}><path d="M6 83 H114" /></g>;
     default: return null;
   }
 }
 
 export const PictogramaPosicao: React.FC<{ id: string; className?: string; titulo?: string }> = ({ id, className = '', titulo }) => {
   const pose = POSES[id];
+  const uid = React.useId().replace(/:/g, '');
   if (!pose) return null;
   return (
     <svg viewBox="0 0 120 88" className={className} role="img" aria-label={titulo ?? 'Ilustração da posição'}>
+      <defs>
+        <radialGradient id={`luz-${uid}`} cx="50%" cy="45%" r="60%">
+          <stop offset="0%" stopColor="#ec4899" stopOpacity={0.28} /><stop offset="100%" stopColor="#ec4899" stopOpacity={0} />
+        </radialGradient>
+        <filter id="pg-brilho" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.6" /></filter>
+      </defs>
+      <ellipse cx="60" cy="46" rx="58" ry="42" fill={`url(#luz-${uid})`} />
       <Cenario tipo={pose.cenario} />
-      <Silhueta c={pose.a} cor="#f4f4f5" />
-      <Silhueta c={pose.b} cor="#ec4899" />
+      <Silhueta c={pose.a} m={CORPO_A} id={`a-${uid}`} borda="#c4b5fd" claro="#3b2a63" escuro="#1a1033" />
+      <Silhueta c={pose.b} m={CORPO_B} id={`b-${uid}`} borda="#f472b6" claro="#9d174d" escuro="#3f0a24" cabelo={pose.a.cabeca} />
     </svg>
   );
 };
