@@ -5,7 +5,8 @@ import { createPortal } from 'react-dom';
 import { ChevronLeft, Lock, X } from 'lucide-react';
 import { askConfirm, notify } from '../common/Feedback';
 import { PictogramaPosicao, temPictograma } from './Pictogramas';
-import { BARALHOS, abrirJogo, desafiar, recusar, responder, type Baralho, type JogoDesejos, type Resposta } from '../../lib/desejos';
+import { BARALHOS, abrirJogo, desafiar, desafiarQuiz, recusar, responder, type Baralho, type JogoDesejos, type JogoQuiz, type Resposta } from '../../lib/desejos';
+import { QuizKamaSutra } from './QuizKamaSutra';
 
 const OPCOES: Array<{ valor: Resposta; rotulo: string; emoji: string; classe: string }> = [
   { valor: 0, rotulo: 'Não', emoji: '🙅', classe: 'bg-white/10 hover:bg-white/15 text-zinc-100' },
@@ -16,6 +17,8 @@ const OPCOES: Array<{ valor: Resposta; rotulo: string; emoji: string; classe: st
 export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoId: string | null; aoFechar: () => void }> = ({ outro, jogoId, aoFechar }) => {
   const [id, setId] = useState<string | null>(jogoId);
   const [jogo, setJogo] = useState<JogoDesejos | null>(null);
+  // o mesmo convite do direct pode ser do Quiz do Kama Sutra
+  const [quiz, setQuiz] = useState<JogoQuiz | null>(null);
   const [indice, setIndice] = useState(0);
   const [ocupado, setOcupado] = useState(false);
   const [escolhendo, setEscolhendo] = useState(!jogoId);
@@ -24,6 +27,8 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
   const carregar = useCallback(async (alvo: string, posicionar = false) => {
     const r = await abrirJogo(alvo);
     if ('erro' in r) { notify(r.erro, 'error'); aoFechar(); return; }
+    if (r.kind === 'quiz') { setQuiz(r); setJogo(null); return; }
+    setQuiz(null);
     setJogo(r);
     if (posicionar) {
       const pendente = r.cartas.findIndex((c) => c.minha === null);
@@ -39,11 +44,26 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
   }, [aoFechar]);
   // esperando a outra pessoa: confere de tempos em tempos
   const esperando = !!jogo && jogo.status === 'playing' && jogo.meus === jogo.total && jogo.dele < jogo.total;
+  const quizEsperando = !!quiz && quiz.status === 'playing' && quiz.meus === quiz.total && quiz.dele < quiz.total;
   useEffect(() => {
-    if (!esperando || !id) return;
+    if (!(esperando || quizEsperando) || !id) return;
     const t = setInterval(() => { if (document.visibilityState === 'visible') void carregar(id); }, 15000);
     return () => clearInterval(t);
-  }, [esperando, id, carregar]);
+  }, [esperando, quizEsperando, id, carregar]);
+
+  const comecarQuiz = async () => {
+    setOcupado(true);
+    const r = await desafiarQuiz(outro.id);
+    setOcupado(false);
+    if ('erro' in r) { notify(r.erro, 'error'); return; }
+    if (r.existente) notify('Vocês já têm um quiz em andamento. Abrindo ele para você.', 'info');
+    else notify(`Quiz enviado para ${outro.nome}! 🧠`, 'success');
+    setEscolhendo(false);
+    setQuiz(null);
+    setJogo(null);
+    setId(r.id);
+    if (r.id === id) void carregar(r.id, true);
+  };
 
   const comecar = async (b: Baralho) => {
     setOcupado(true);
@@ -92,16 +112,25 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
         className="relative w-full sm:max-w-md max-h-[100dvh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-white/10 bg-gradient-to-b from-[#2a1638] to-[#120b18] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-2xl" aria-hidden>💞</span>
+          <span className="text-2xl" aria-hidden>{quiz && !escolhendo ? '🧠' : '💞'}</span>
           <div className="min-w-0 flex-1">
-            <h2 id="titulo-match" className="text-lg font-extrabold leading-tight">Match de Desejos</h2>
-            <p className="truncate text-[12px] text-zinc-400">com {outro.nome}{baralho ? ` · ${baralho.emoji} ${baralho.nome}` : ''}</p>
+            <h2 id="titulo-match" className="text-lg font-extrabold leading-tight">{escolhendo ? 'Jogos a dois' : quiz ? 'Quiz do Kama Sutra' : 'Match de Desejos'}</h2>
+            <p className="truncate text-[12px] text-zinc-400">com {outro.nome}{baralho && !escolhendo ? ` · ${baralho.emoji} ${baralho.nome}` : ''}</p>
           </div>
           <button type="button" onClick={aoFechar} aria-label="Fechar" className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-300 hover:bg-white/10 cursor-pointer"><X className="w-5 h-5" /></button>
         </div>
 
         {escolhendo ? (
           <>
+            <button type="button" disabled={ocupado} onClick={() => void comecarQuiz()}
+              className="mb-4 w-full rounded-2xl border border-fuchsia-400/40 bg-gradient-to-r from-fuchsia-600/40 via-purple-700/30 to-amber-500/25 p-3 text-left flex items-center gap-3 transition-transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer">
+              <PictogramaPosicao id="cavalgada" className="w-20 shrink-0" />
+              <span className="min-w-0">
+                <span className="block text-[15px] font-extrabold">🧠 Quiz do Kama Sutra</span>
+                <span className="block text-[12px] text-zinc-200">8 posições desenhadas: quem acertar mais nomes vence e escolhe a próxima 😏</span>
+              </span>
+            </button>
+            <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-zinc-400">Ou o Match de Desejos</p>
             <p className="mb-1 text-sm text-zinc-200">Vocês respondem em segredo às mesmas 10 cartas: <b>🔥 Quero</b>, <b>🤔 Talvez</b> ou <b>🙅 Não</b>.</p>
             <p className="mb-4 flex items-start gap-1.5 text-[12px] text-zinc-400"><Lock className="mt-0.5 w-3.5 h-3.5 shrink-0" />No final aparece só o que os dois querem. Ninguém vê o "não" do outro.</p>
             <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-zinc-400">Escolha o baralho</p>
@@ -116,6 +145,17 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
               ))}
             </div>
           </>
+        ) : quiz ? (
+          quiz.status === 'declined' ? (
+            <div className="py-6 text-center">
+              <p className="text-4xl" aria-hidden>🌙</p>
+              <p className="mt-2 font-bold">Este quiz foi encerrado</p>
+              <button type="button" onClick={() => setEscolhendo(true)} className="mt-5 min-h-[44px] w-full rounded-2xl fundo-neon font-bold cursor-pointer">Começar outro jogo</button>
+            </div>
+          ) : (
+            <QuizKamaSutra key={quiz.id} jogo={quiz} aoAtualizar={setQuiz} aoFechar={aoFechar}
+              aoRevanche={() => void comecarQuiz()} aoOutroJogo={() => setEscolhendo(true)} />
+          )
         ) : !jogo ? (
           <p className="py-10 text-center text-sm text-zinc-400">Abrindo o jogo…</p>
         ) : jogo.status === 'declined' ? (

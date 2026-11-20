@@ -585,8 +585,8 @@ export const MessagesView: React.FC = () => {
                     type="button"
                     onClick={() => setJogoAberto({ id: null })}
                     className="h-10 px-3 mr-0.5 rounded-full text-[13px] font-bold text-white fundo-neon flex items-center gap-1.5 cursor-pointer shadow-[0_6px_18px_-8px_rgba(236,72,153,0.9)]"
-                    title="Match de Desejos: um jogo a dois, com respostas secretas"
-                    aria-label={`Jogar Match de Desejos com ${otherParticipant.displayName}`}
+                    title="Jogos a dois: Quiz do Kama Sutra e Match de Desejos"
+                    aria-label={`Jogar com ${otherParticipant.displayName}`}
                   >
                     <Dices className="w-[18px] h-[18px]" /><span className="hidden sm:inline">Jogar</span>
                   </button>

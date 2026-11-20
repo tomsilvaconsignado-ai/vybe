@@ -1190,5 +1190,55 @@ await expectFail('depois do bloqueio, o jogo some para os dois', md.b, `SELECT p
 await expectFail('depois do bloqueio, não dá para desafiar', md.b, `SELECT public.desire_start($1, 'mix')`, [md.a]);
 }
 
+
+// ---------------------------------------------------------------- 27. Quiz do Kama Sutra
+{
+console.log('\nQuiz do Kama Sutra');
+const qz = { a: '00000000-0000-0000-0000-0000000000a8', b: '00000000-0000-0000-0000-0000000000b8', x: '00000000-0000-0000-0000-0000000000c8' };
+await db.query(`INSERT INTO auth.users VALUES ($1,'qa@x.com',$2,now())`, [qz.a, meta('quizzer')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'qb@x.com',$2,now())`, [qz.b, meta('rival')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'qx@x.com',$2,now())`, [qz.x, meta('curioso')]);
+await as(qz.a, `INSERT INTO connections (requester_id, addressee_id) VALUES ($1, $2)`, [qz.a, qz.b]);
+await as(qz.b, `UPDATE connections SET status = 'accepted' WHERE requester_id = $1 AND addressee_id = $2`, [qz.a, qz.b]);
+const conv = (await as(qz.a, `SELECT public.start_conversation($1) AS id`, [qz.b])).rows[0].id;
+
+const desejo = (await as(qz.a, `SELECT public.desire_start($1, 'esquenta') AS j`, [qz.b])).rows[0].j;
+let ini = (await as(qz.a, `SELECT public.quiz_start($1) AS j`, [qz.b])).rows[0].j;
+!ini.existente && ini.id !== desejo.id ? ok('quiz e Match de Desejos podem rolar ao mesmo tempo') : bad('quiz não criado ao lado do outro jogo');
+const quiz = ini.id;
+r = await as(qz.b, `SELECT content FROM messages WHERE game_id = $1`, [quiz]);
+/Quiz do Kama Sutra/.test(r.rows[0]?.content ?? '') ? ok('o convite do quiz chega no direct') : bad('convite do quiz ausente');
+ini = (await as(qz.b, `SELECT public.quiz_start($1) AS j`, [qz.a])).rows[0].j;
+ini.existente && ini.id === quiz ? ok('um quiz por vez por dupla') : bad('quiz duplicado');
+await expectFail('quem está fora não abre o quiz', qz.x, `SELECT public.quiz_game($1)`, [quiz]);
+
+let ea = (await as(qz.a, `SELECT public.desire_game($1) AS g`, [quiz])).rows[0].g;
+ea.kind === 'quiz' && ea.total === 8 && ea.perguntas.length === 8 ? ok('abrir pelo direct reconhece o quiz (8 perguntas)') : bad('quiz: ' + JSON.stringify(ea).slice(0, 150));
+ea.perguntas.every((q) => q.opcoes.length === 4 && q.opcoes.some((o) => o.id === q.id) && new Set(q.opcoes.map((o) => o.id)).size === 4)
+  ? ok('cada pergunta tem 4 opções diferentes, uma delas certa') : bad('opções erradas');
+ea.perguntas.every((q) => q.certa === null) ? ok('a resposta certa fica escondida antes de responder') : bad('resposta certa exposta');
+await expectFail('o Match de Desejos não responde pergunta do quiz', qz.a, `SELECT public.desire_answer($1, $2, 2)`, [quiz, ea.perguntas[0].id]);
+await expectFail('o quiz não responde carta do Match de Desejos', qz.a, `SELECT public.quiz_answer($1, 'massagem', 0)`, [desejo.id]);
+await expectFail('opção fora de 0 a 3 é recusada', qz.a, `SELECT public.quiz_answer($1, $2, 4)`, [quiz, ea.perguntas[0].id]);
+
+// A acerta as 6 primeiras e erra as 2 últimas; B acerta só as 3 primeiras
+const certa = (q) => q.opcoes.findIndex((o) => o.id === q.id);
+const errada = (q) => (certa(q) + 1) % 4;
+for (const [i, q] of ea.perguntas.entries()) ea = (await as(qz.a, `SELECT public.quiz_answer($1, $2, $3) AS g`, [quiz, q.id, i < 6 ? certa(q) : errada(q)])).rows[0].g;
+ea.perguntas[0].certa === certa(ea.perguntas[0]) && ea.perguntas[0].minha === certa(ea.perguntas[0]) ? ok('depois de responder, aparece a certa') : bad('certa não apareceu');
+ea.placar === null && ea.perguntas.every((q) => q.outro_acertou === null) ? ok('placar e respostas da outra pessoa só no final') : bad('placar vazou');
+await expectFail('não dá para mudar a resposta', qz.a, `SELECT public.quiz_answer($1, $2, $3)`, [quiz, ea.perguntas[6].id, certa(ea.perguntas[6])]);
+let eb = (await as(qz.b, `SELECT public.quiz_game($1) AS g`, [quiz])).rows[0].g;
+eb.dele === 8 && eb.perguntas.every((q) => q.certa === null) ? ok('B vê que A terminou, sem ver as respostas dela') : bad('B viu respostas');
+for (const [i, q] of eb.perguntas.entries()) eb = (await as(qz.b, `SELECT public.quiz_answer($1, $2, $3) AS g`, [quiz, q.id, i < 3 ? certa(q) : errada(q)])).rows[0].g;
+eb.status === 'done' && eb.placar.eu === 3 && eb.placar.outro === 6 ? ok('placar final: B 3 × 6 A') : bad('placar: ' + JSON.stringify(eb.placar));
+eb.perguntas[5].outro_acertou === true && eb.perguntas[7].outro_acertou === false ? ok('no final, cada um vê onde o outro acertou') : bad('acertos do outro errados');
+r = await db.query(`SELECT message FROM notifications WHERE user_id = $1 AND dedupe_key = $2`, [qz.a, 'quiz-fim-' + quiz]);
+/Você venceu/.test(r.rows[0]?.message ?? '') ? ok('A recebe o aviso da vitória') : bad('aviso: ' + r.rows[0]?.message);
+r = await db.query(`SELECT count(*)::int n FROM notifications WHERE user_id = $1 AND dedupe_key = $2`, [qz.b, 'quiz-falta-' + quiz]);
+r.rows[0].n === 1 ? ok('B recebeu o "falta você"') : bad('aviso "falta você" do quiz');
+await expectFail('quiz terminado não aceita resposta', qz.b, `SELECT public.quiz_answer($1, $2, 0)`, [quiz, eb.perguntas[0].id]);
+}
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

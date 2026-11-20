@@ -1,4 +1,4 @@
-// Match de Desejos (§26 do setup.sql): jogo a dois no direct. As respostas ficam no banco e só as
+// Jogos a dois no direct: Match de Desejos (§26 do setup.sql) e Quiz do Kama Sutra (§27). As respostas ficam no banco e só as
 // funções leem; o resultado traz apenas o que os dois têm em comum.
 import { supabase } from './supabase';
 
@@ -16,6 +16,7 @@ export const BARALHOS: Array<{ id: Baralho; nome: string; emoji: string; descric
 export interface CartaDesejo { id: string; emoji: string; titulo: string; descricao: string; intensidade: 1 | 2 | 3; baralho: string; minha: Resposta | null }
 export interface Combinacao { id: string; emoji: string; titulo: string; descricao: string; nivel: 'os_dois_querem' | 'quem_sabe' }
 export interface JogoDesejos {
+  kind: 'desejos';
   id: string; conversation_id: string; deck: Baralho; status: 'playing' | 'done' | 'declined';
   eu_desafiei: boolean; total: number; meus: number; dele: number;
   outro: { id: string; nome: string; avatar: string };
@@ -36,10 +37,38 @@ export async function desafiar(outroId: string, baralho: Baralho): Promise<{ id:
   return data as { id: string; existente: boolean };
 }
 
-export async function abrirJogo(id: string): Promise<JogoDesejos | { erro: string }> {
+/** Quiz do Kama Sutra (§27): desenho da posição e 4 nomes; placar só no final */
+export interface PerguntaQuiz {
+  id: string; opcoes: Array<{ id: string; titulo: string }>;
+  minha: number | null; certa: number | null; outro_acertou: boolean | null;
+}
+export interface JogoQuiz {
+  kind: 'quiz';
+  id: string; conversation_id: string; status: 'playing' | 'done' | 'declined';
+  eu_desafiei: boolean; total: number; meus: number; dele: number;
+  outro: { id: string; nome: string; avatar: string };
+  perguntas: PerguntaQuiz[];
+  placar: { eu: number; outro: number } | null;
+}
+export type Jogo = JogoDesejos | JogoQuiz;
+
+/** abre qualquer jogo do direct (o banco diz o tipo) */
+export async function abrirJogo(id: string): Promise<Jogo | { erro: string }> {
   const { data, error } = await supabase.rpc('desire_game', { p_game: id });
   if (error) return { erro: mensagem(error) };
-  return data as JogoDesejos;
+  return data as Jogo;
+}
+
+export async function desafiarQuiz(outroId: string): Promise<{ id: string; existente: boolean } | { erro: string }> {
+  const { data, error } = await supabase.rpc('quiz_start', { p_partner: outroId });
+  if (error) return { erro: mensagem(error) };
+  return data as { id: string; existente: boolean };
+}
+
+export async function responderQuiz(id: string, pergunta: string, opcao: number): Promise<JogoQuiz | { erro: string }> {
+  const { data, error } = await supabase.rpc('quiz_answer', { p_game: id, p_card: pergunta, p_choice: opcao });
+  if (error) return { erro: /já respondeu/.test(error.message) ? 'Você já respondeu esta pergunta.' : mensagem(error) };
+  return data as JogoQuiz;
 }
 
 export async function responder(id: string, carta: string, resposta: Resposta): Promise<JogoDesejos | { erro: string }> {

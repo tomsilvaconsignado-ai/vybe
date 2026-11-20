@@ -5894,18 +5894,25 @@ CREATE TABLE IF NOT EXISTS public.desire_games (
 CREATE INDEX IF NOT EXISTS idx_desire_games_conv ON public.desire_games(conversation_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_desire_games_creator ON public.desire_games(created_by, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_desire_games_partner ON public.desire_games(partner_id, created_at DESC);
--- um jogo em andamento por dupla
-CREATE UNIQUE INDEX IF NOT EXISTS uq_desire_games_ativo ON public.desire_games(least(created_by, partner_id), greatest(created_by, partner_id)) WHERE status = 'playing';
+-- tipo de jogo (Match de Desejos ou Quiz do Kama Sutra) e, no quiz, as 4 opções de cada pergunta
+ALTER TABLE public.desire_games ADD COLUMN IF NOT EXISTS kind VARCHAR(10) NOT NULL DEFAULT 'desejos' CHECK (kind IN ('desejos', 'quiz'));
+ALTER TABLE public.desire_games ADD COLUMN IF NOT EXISTS options JSONB;
+-- um jogo em andamento por dupla e por tipo
+DROP INDEX IF EXISTS public.uq_desire_games_ativo;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_desire_games_ativo_tipo ON public.desire_games(kind, least(created_by, partner_id), greatest(created_by, partner_id)) WHERE status = 'playing';
 
 CREATE TABLE IF NOT EXISTS public.desire_answers (
   game_id UUID NOT NULL REFERENCES public.desire_games(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   card_id VARCHAR(40) NOT NULL,
-  answer SMALLINT NOT NULL CHECK (answer BETWEEN 0 AND 2),
+  answer SMALLINT NOT NULL,
   answered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (game_id, user_id, card_id)
 );
 CREATE INDEX IF NOT EXISTS idx_desire_answers_user ON public.desire_answers(user_id);
+-- desejos: 0 a 2 (não, talvez, quero); quiz: 0 a 3 (opção escolhida)
+ALTER TABLE public.desire_answers DROP CONSTRAINT IF EXISTS desire_answers_answer_check;
+ALTER TABLE public.desire_answers ADD CONSTRAINT desire_answers_answer_check CHECK (answer BETWEEN 0 AND 3);
 
 -- jogos e respostas: só pelas funções (as respostas nunca são lidas direto)
 ALTER TABLE public.desire_games ENABLE ROW LEVEL SECURITY;
@@ -5961,12 +5968,13 @@ DECLARE
   total INT;
   meus INT; dele INT;
 BEGIN
+  IF g.kind = 'quiz' THEN RETURN public.quiz_game(g.id); END IF;
   outro := CASE WHEN g.created_by = me THEN g.partner_id ELSE g.created_by END;
   total := cardinality(g.cards);
   SELECT count(*) INTO meus FROM public.desire_answers WHERE game_id = g.id AND user_id = me;
   SELECT count(*) INTO dele FROM public.desire_answers WHERE game_id = g.id AND user_id = outro;
   RETURN jsonb_build_object(
-    'id', g.id, 'conversation_id', g.conversation_id, 'deck', g.deck, 'status', g.status,
+    'kind', 'desejos', 'id', g.id, 'conversation_id', g.conversation_id, 'deck', g.deck, 'status', g.status,
     'eu_desafiei', g.created_by = me, 'total', total, 'meus', meus, 'dele', dele,
     'outro', (SELECT jsonb_build_object('id', p.id, 'nome', p.display_name, 'avatar', p.avatar_url) FROM public.profiles p WHERE p.id = outro),
     'cartas', (SELECT jsonb_agg(jsonb_build_object('id', c.id, 'emoji', c.emoji, 'titulo', c.title, 'descricao', c.description,
@@ -6012,7 +6020,7 @@ BEGIN
   IF conv IS NULL THEN RAISE EXCEPTION 'O jogo só pode ser enviado numa conversa já aceita.' USING ERRCODE = '42501'; END IF;
 
   SELECT id INTO jogo FROM public.desire_games
-   WHERE status = 'playing' AND least(created_by, partner_id) = least(me, p_partner) AND greatest(created_by, partner_id) = greatest(me, p_partner);
+   WHERE kind = 'desejos' AND status = 'playing' AND least(created_by, partner_id) = least(me, p_partner) AND greatest(created_by, partner_id) = greatest(me, p_partner);
   IF jogo IS NOT NULL THEN RETURN jsonb_build_object('id', jogo, 'conversation_id', conv, 'existente', true); END IF;
   IF (SELECT count(*) FROM public.desire_games WHERE created_by = me AND created_at > now() - interval '1 day') >= 15 THEN
     RAISE EXCEPTION 'Você já enviou muitos jogos hoje. Tente amanhã.' USING ERRCODE = '54000';
@@ -6043,7 +6051,7 @@ DECLARE
   outro UUID; total INT; meus INT; dele INT; comuns INT; nome TEXT;
 BEGIN
   IF g.status <> 'playing' THEN RAISE EXCEPTION 'Este jogo já terminou.' USING ERRCODE = '22023'; END IF;
-  IF p_answer NOT BETWEEN 0 AND 2 OR NOT (p_card = ANY (g.cards)) THEN RAISE EXCEPTION 'Resposta inválida.' USING ERRCODE = '22023'; END IF;
+  IF g.kind <> 'desejos' OR p_answer NOT BETWEEN 0 AND 2 OR NOT (p_card = ANY (g.cards)) THEN RAISE EXCEPTION 'Resposta inválida.' USING ERRCODE = '22023'; END IF;
   INSERT INTO public.desire_answers (game_id, user_id, card_id, answer) VALUES (g.id, me, p_card, p_answer)
   ON CONFLICT (game_id, user_id, card_id) DO UPDATE SET answer = EXCLUDED.answer, answered_at = now();
 
@@ -6086,3 +6094,141 @@ REVOKE EXECUTE ON FUNCTION public.desire_game(UUID), public.desire_start(UUID, T
   public.desire_decline(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.desire_game(UUID), public.desire_start(UUID, TEXT), public.desire_answer(UUID, TEXT, INTEGER),
   public.desire_decline(UUID) TO authenticated;
+
+-- ==============================================================================
+-- 27. QUIZ DO KAMA SUTRA (jogo a dois no direct)
+-- Mesmo convite, avisos e regras do Match de Desejos (§26), com tipo 'quiz': 8 perguntas com o
+-- desenho de uma posição e 4 nomes para escolher. Cada um responde no seu tempo, sem poder mudar a
+-- resposta; vê na hora se acertou. O placar e as respostas da outra pessoa só aparecem no final.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.quiz_game(p_game UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  g public.desire_games := public.desire_game_for(p_game);
+  outro UUID; total INT; meus INT; dele INT; fim BOOLEAN;
+BEGIN
+  IF g.kind <> 'quiz' THEN RAISE EXCEPTION 'Jogo não encontrado.' USING ERRCODE = '42501'; END IF;
+  outro := CASE WHEN g.created_by = me THEN g.partner_id ELSE g.created_by END;
+  total := cardinality(g.cards);
+  fim := g.status = 'done';
+  SELECT count(*) INTO meus FROM public.desire_answers WHERE game_id = g.id AND user_id = me;
+  SELECT count(*) INTO dele FROM public.desire_answers WHERE game_id = g.id AND user_id = outro;
+  RETURN jsonb_build_object(
+    'kind', 'quiz', 'id', g.id, 'conversation_id', g.conversation_id, 'deck', g.deck, 'status', g.status,
+    'eu_desafiei', g.created_by = me, 'total', total, 'meus', meus, 'dele', dele,
+    'outro', (SELECT jsonb_build_object('id', p.id, 'nome', p.display_name, 'avatar', p.avatar_url) FROM public.profiles p WHERE p.id = outro),
+    'perguntas', (
+      SELECT jsonb_agg(jsonb_build_object(
+          'id', q.carta,
+          'opcoes', (SELECT jsonb_agg(jsonb_build_object('id', c.id, 'titulo', c.title) ORDER BY o.pos)
+                       FROM jsonb_array_elements_text(g.options -> (q.n - 1)::int) WITH ORDINALITY o(id, pos)
+                       JOIN public.desire_cards c ON c.id = o.id),
+          'minha', mi.answer,
+          -- a resposta certa só aparece para quem já respondeu
+          'certa', CASE WHEN mi.answer IS NOT NULL OR fim THEN q.certa END,
+          'outro_acertou', CASE WHEN fim THEN de.answer = q.certa END)
+        ORDER BY q.n)
+        FROM (SELECT x.carta, x.n,
+                     (SELECT (o.pos - 1)::int FROM jsonb_array_elements_text(g.options -> (x.n - 1)::int) WITH ORDINALITY o(id, pos) WHERE o.id = x.carta) AS certa
+                FROM unnest(g.cards) WITH ORDINALITY x(carta, n)) q
+        LEFT JOIN public.desire_answers mi ON mi.game_id = g.id AND mi.user_id = me AND mi.card_id = q.carta
+        LEFT JOIN public.desire_answers de ON de.game_id = g.id AND de.user_id = outro AND de.card_id = q.carta),
+    'placar', CASE WHEN fim THEN jsonb_build_object(
+        'eu', (SELECT count(*) FROM public.desire_answers a, unnest(g.cards) WITH ORDINALITY x(carta, n)
+                WHERE a.game_id = g.id AND a.user_id = me AND a.card_id = x.carta AND g.options -> (x.n - 1)::int ->> a.answer = x.carta),
+        'outro', (SELECT count(*) FROM public.desire_answers a, unnest(g.cards) WITH ORDINALITY x(carta, n)
+                WHERE a.game_id = g.id AND a.user_id = outro AND a.card_id = x.carta AND g.options -> (x.n - 1)::int ->> a.answer = x.carta)) END);
+END;
+$$;
+
+-- Desafiar para o quiz (conversa já aceita). Se já houver quiz em andamento entre os dois, devolve ele.
+CREATE OR REPLACE FUNCTION public.quiz_start(p_partner UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  conv UUID; jogo UUID; cartas VARCHAR(40)[]; opcoes JSONB := '[]'::jsonb; c TEXT;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Entre na sua conta.' USING ERRCODE = '42501'; END IF;
+  IF p_partner = me OR public.is_blocked_between(me, p_partner) OR NOT public.can_interact()
+     OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_partner AND status = 'active') THEN
+    RAISE EXCEPTION 'Não é possível jogar com esse perfil.' USING ERRCODE = '42501';
+  END IF;
+  SELECT cv.id INTO conv FROM public.conversations cv
+    JOIN public.conversation_participants a ON a.conversation_id = cv.id AND a.user_id = me
+    JOIN public.conversation_participants b ON b.conversation_id = cv.id AND b.user_id = p_partner
+   WHERE NOT cv.is_pending_request ORDER BY cv.created_at LIMIT 1;
+  IF conv IS NULL THEN RAISE EXCEPTION 'O jogo só pode ser enviado numa conversa já aceita.' USING ERRCODE = '42501'; END IF;
+
+  SELECT id INTO jogo FROM public.desire_games
+   WHERE kind = 'quiz' AND status = 'playing' AND least(created_by, partner_id) = least(me, p_partner) AND greatest(created_by, partner_id) = greatest(me, p_partner);
+  IF jogo IS NOT NULL THEN RETURN jsonb_build_object('id', jogo, 'conversation_id', conv, 'existente', true); END IF;
+  IF (SELECT count(*) FROM public.desire_games WHERE created_by = me AND created_at > now() - interval '1 day') >= 15 THEN
+    RAISE EXCEPTION 'Você já enviou muitos jogos hoje. Tente amanhã.' USING ERRCODE = '54000';
+  END IF;
+
+  SELECT array_agg(id) INTO cartas FROM (SELECT id FROM public.desire_cards WHERE active AND deck = 'posicoes' ORDER BY random() LIMIT 8) x;
+  IF coalesce(cardinality(cartas), 0) < 4 THEN RAISE EXCEPTION 'Baralho indisponível.' USING ERRCODE = '22023'; END IF;
+  -- cada pergunta: a posição certa e outras 3, embaralhadas
+  FOREACH c IN ARRAY cartas LOOP
+    opcoes := opcoes || jsonb_build_array((
+      SELECT jsonb_agg(id ORDER BY random()) FROM (
+        SELECT c AS id
+        UNION ALL
+        (SELECT id FROM public.desire_cards WHERE active AND deck = 'posicoes' AND id <> c ORDER BY random() LIMIT 3)) o));
+  END LOOP;
+
+  INSERT INTO public.desire_games (conversation_id, created_by, partner_id, deck, cards, kind, options)
+  VALUES (conv, me, p_partner, 'posicoes', cartas, 'quiz', opcoes) RETURNING id INTO jogo;
+
+  PERFORM set_config('vybe.desire_rpc', 'sim', true);
+  INSERT INTO public.messages (conversation_id, sender_id, content, game_id)
+  VALUES (conv, me, '🧠 Te desafiei no Quiz do Kama Sutra! São 8 posições: quem acertar mais nomes vence 😏', jogo);
+  PERFORM set_config('vybe.desire_rpc', '', true);
+  RETURN jsonb_build_object('id', jogo, 'conversation_id', conv, 'existente', false);
+END;
+$$;
+
+-- Responder uma pergunta (uma vez só). Devolve se acertou e o estado do jogo.
+CREATE OR REPLACE FUNCTION public.quiz_answer(p_game UUID, p_card TEXT, p_choice INTEGER)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  g public.desire_games := public.desire_game_for(p_game);
+  idx INT; outro UUID; total INT; meus INT; dele INT; nome TEXT; pontos_eu INT; pontos_outro INT; estado JSONB;
+BEGIN
+  IF g.kind <> 'quiz' THEN RAISE EXCEPTION 'Resposta inválida.' USING ERRCODE = '22023'; END IF;
+  IF g.status <> 'playing' THEN RAISE EXCEPTION 'Este jogo já terminou.' USING ERRCODE = '22023'; END IF;
+  idx := array_position(g.cards, p_card::varchar);
+  IF idx IS NULL OR p_choice NOT BETWEEN 0 AND 3 THEN RAISE EXCEPTION 'Resposta inválida.' USING ERRCODE = '22023'; END IF;
+  INSERT INTO public.desire_answers (game_id, user_id, card_id, answer) VALUES (g.id, me, p_card, p_choice)
+  ON CONFLICT (game_id, user_id, card_id) DO NOTHING;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Você já respondeu esta pergunta.' USING ERRCODE = '22023'; END IF;
+
+  outro := CASE WHEN g.created_by = me THEN g.partner_id ELSE g.created_by END;
+  total := cardinality(g.cards);
+  SELECT count(*) INTO meus FROM public.desire_answers WHERE game_id = g.id AND user_id = me;
+  SELECT count(*) INTO dele FROM public.desire_answers WHERE game_id = g.id AND user_id = outro;
+  IF meus = total THEN
+    SELECT display_name INTO nome FROM public.profiles WHERE id = me;
+    IF dele = total THEN
+      UPDATE public.desire_games SET status = 'done', finished_at = now() WHERE id = g.id;
+      estado := public.quiz_game(g.id);
+      pontos_eu := (estado -> 'placar' ->> 'eu')::int;
+      pontos_outro := (estado -> 'placar' ->> 'outro')::int;
+      PERFORM public.desire_notify(outro, me, 'Saiu o placar do Quiz do Kama Sutra!',
+        CASE WHEN pontos_outro > pontos_eu THEN 'Você venceu ' || nome || ' por ' || pontos_outro || ' a ' || pontos_eu || '! 🏆 Escolha a próxima posição 😏'
+             WHEN pontos_outro < pontos_eu THEN nome || ' venceu por ' || pontos_eu || ' a ' || pontos_outro || '. Hora da revanche? 😏'
+             ELSE 'Empate com ' || nome || ': ' || pontos_eu || ' a ' || pontos_outro || '. Desempate ao vivo? 😏' END,
+        g.conversation_id, 'quiz-fim-' || g.id);
+      RETURN estado;
+    END IF;
+    PERFORM public.desire_notify(outro, me, nome || ' já fez o Quiz do Kama Sutra',
+      'Falta só você para ver quem conhece mais posições 😏', g.conversation_id, 'quiz-falta-' || g.id);
+  END IF;
+  RETURN public.quiz_game(g.id);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.quiz_game(UUID), public.quiz_start(UUID), public.quiz_answer(UUID, TEXT, INTEGER) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.quiz_game(UUID), public.quiz_start(UUID), public.quiz_answer(UUID, TEXT, INTEGER) TO authenticated;
