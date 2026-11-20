@@ -24,6 +24,9 @@ import { AdminThumb, viewAdminMedia } from './AdminImageViewer';
 import { fetchUserPosts } from '../../lib/social';
 import { adminUserAlbumItems, AdminAlbumItem } from '../../lib/admin';
 import { Seletor } from '../common/Seletor';
+import { AdminFichaUsuario } from './AdminFichaUsuario';
+import { FichaPublicacao, VISIBILIDADE } from '../../lib/adminDetalhes';
+import { SITUACAO_MIDIA, TOM } from '../../lib/adminRotulos';
 
 interface AdminUserDetailModalProps {
   user: AdminUserRecord | null;
@@ -45,7 +48,9 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
     setActiveTab
   } = useApp();
 
-  const [activeTab, setActiveTabInternal] = useState<'overview' | 'media' | 'moderation' | 'notes'>('overview');
+  const [activeTab, setActiveTabInternal] = useState<'ficha' | 'overview' | 'media' | 'moderation' | 'notes'>('ficha');
+  // Métricas por publicação (vêm da ficha completa)
+  const [metricas, setMetricas] = useState<Map<string, FichaPublicacao>>(new Map());
   const [newNote, setNewNote] = useState('');
   const [statusReason, setStatusReason] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<UserAccountStatus>(user?.status || 'active');
@@ -187,7 +192,8 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
         {/* Modal Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-purple-900/30 py-3 overflow-x-auto scrollbar-none">
           {[
-            { id: 'overview', label: 'Dados Cadastrais & Perfil' },
+            { id: 'ficha', label: 'Ficha completa' },
+            { id: 'overview', label: 'Resumo' },
             { id: 'media', label: `Publicações & Mídias (${userPosts.length})` },
             { id: 'moderation', label: 'Status & Sanções' },
             { id: 'notes', label: `Notas Confidenciais (${user.moderationNotes?.length || 0})` }
@@ -209,6 +215,15 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto py-4 space-y-4 text-xs pr-1">
           
+          {activeTab === 'ficha' && (
+            <AdminFichaUsuario
+              userId={user.id}
+              username={user.username}
+              isSuperadmin={adminRole === 'superadmin'}
+              onFicha={f => setMetricas(new Map(f.publicacoes.map(p => [p.id, p])))}
+            />
+          )}
+
           {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="space-y-4">
@@ -301,10 +316,24 @@ export const AdminUserDetailModal: React.FC<AdminUserDetailModalProps> = ({ user
                           ))}
                         </div>
                       )}
-                      <div className="text-[10px] text-zinc-500 flex items-center justify-between">
+                      <div className="text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                         <span>Postado em: {p.createdAt}</span>
-                        <span>{p.likesCount} curtidas • {p.commentsCount} comentários</span>
+                        <span>{p.likesCount} curtidas • {p.commentsCount} comentários{metricas.get(p.id) ? ` • ${metricas.get(p.id)!.salvamentos} salvamentos` : ''}</span>
                       </div>
+                      {metricas.get(p.id) && (() => {
+                        const m = metricas.get(p.id)!;
+                        return (
+                          <div className="flex flex-wrap gap-1.5 text-[11px]">
+                            <span className={`px-2 py-0.5 rounded-full ${m.moderacao === 'approved' ? TOM.ok : m.moderacao === 'flagged' ? TOM.perigo : m.moderacao === 'pending_review' ? TOM.alerta : TOM.neutro}`}>
+                              {SITUACAO_MIDIA[m.moderacao as keyof typeof SITUACAO_MIDIA] ?? m.moderacao}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full ${TOM.neutro}`}>{VISIBILIDADE[m.visibilidade] ?? m.visibilidade}</span>
+                            {m.comunidade && <span className={`px-2 py-0.5 rounded-full ${TOM.neutro}`}>Comunidade: {m.comunidade}</span>}
+                            {m.enquete && <span className={`px-2 py-0.5 rounded-full ${TOM.neutro}`}>Enquete</span>}
+                            {m.denuncias > 0 && <span className={`px-2 py-0.5 rounded-full ${TOM.perigo}`}>{m.denuncias} denúncia(s)</span>}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>

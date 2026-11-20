@@ -7,6 +7,7 @@ import { AdminIndicadores } from './AdminIndicadores';
 import { AdminComunicadosTab } from './AdminComunicadosTab';
 import { AdminCrescimentoTab } from './AdminCrescimentoTab';
 import { AdminConversationsTab } from './AdminConversationsTab';
+import { AdminPublicacoesTab } from './AdminPublicacoesTab';
 import { AdminImageViewerHost, AdminThumb } from './AdminImageViewer';
 import {
   ShieldCheck,
@@ -42,7 +43,8 @@ import {
   ArrowLeft,
   Send,
   ChevronRight,
-  Inbox
+  Inbox,
+  BarChart3
 } from 'lucide-react';
 import { ALVO_DENUNCIA, CATEGORIA_DENUNCIA, PAPEL_ADMIN, PESO_PRIORIDADE, PRIORIDADE, SITUACAO_CONTA, SITUACAO_DENUNCIA, SITUACAO_MIDIA, TIPO_PERFIL, TOM, acaoLegivel } from '../../lib/adminRotulos';
 import { ModerationReport, AdminUserRecord, AdminMediaRecord } from '../../types';
@@ -67,7 +69,7 @@ export const AdminPortal: React.FC = () => {
     adminMfaVerified
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useEstadoSalvo<'dashboard' | 'users' | 'reports' | 'media' | 'conversations' | 'events' | 'ads' | 'broadcasts' | 'growth' | 'audit'>('admin.aba', 'dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useEstadoSalvo<'dashboard' | 'users' | 'reports' | 'media' | 'posts' | 'conversations' | 'events' | 'ads' | 'broadcasts' | 'growth' | 'audit'>('admin.aba', 'dashboard');
 
   // Modals state
   const [inspectingUser, setInspectingUser] = useState<AdminUserRecord | null>(null);
@@ -112,6 +114,7 @@ export const AdminPortal: React.FC = () => {
     { id: 'dashboard', label: 'Visão geral', icon: Activity },
     { id: 'reports', label: 'Denúncias', icon: ShieldAlert, contador: pendingReports.length },
     { id: 'users', label: 'Usuários', icon: Users },
+    { id: 'posts', label: 'Publicações', icon: BarChart3 },
     { id: 'media', label: 'Mídias', icon: Image, contador: flaggedMediaCount },
     { id: 'events', label: 'Eventos', icon: CalendarHeart },
     { id: 'ads', label: 'Publicidade', icon: Megaphone },
@@ -719,6 +722,9 @@ export const AdminPortal: React.FC = () => {
       )}
 
       {/* ==================== TAB 5: AUDIT LOGS ==================== */}
+      {activeAdminTab === 'posts' && (
+        <AdminPublicacoesTab onAbrirUsuario={id => { const u = adminUsers.find(x => x.id === id); if (u) setInspectingUser(u); }} />
+      )}
       {activeAdminTab === 'events' && <AdminEventsTab />}
       {activeAdminTab === 'ads' && <AdminAdsTab />}
       {activeAdminTab === 'broadcasts' && <AdminComunicadosTab />}

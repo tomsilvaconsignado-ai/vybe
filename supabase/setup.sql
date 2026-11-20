@@ -5363,3 +5363,255 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.message_reactions;
   END IF;
 END $$;
+
+-- Descadastro dos comunicados por e-mail (função Edge "descadastrar").
+-- Só a função (service role) lê e grava; nenhum acesso pelo app.
+CREATE TABLE IF NOT EXISTS public.email_descadastros (
+  email TEXT PRIMARY KEY,
+  criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.email_descadastros ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.email_descadastros FROM anon, authenticated;
+
+-- ==============================================================================
+-- 24. PAINEL ADMINISTRATIVO DETALHADO (ficha do usuário, registros de acesso e publicações)
+--
+-- Limites legais adotados (LGPD, Lei 13.709/2018, e Marco Civil, Lei 12.965/2014):
+--  * Finalidade e necessidade (LGPD art. 6º): a ficha reúne dados de conta, atividade e
+--    moderação, úteis para segurança, suporte e cumprimento dos termos de uso.
+--  * Dados sensíveis (LGPD art. 5º, II e art. 11): orientação sexual, preferências e limites
+--    íntimos NÃO entram na ficha. Conteúdo de mensagens, cofres e álbuns continua acessível
+--    somente pelos fluxos já existentes, com justificativa e auditoria.
+--  * Mensagens: a ficha mostra apenas contagens, nunca o conteúdo.
+--  * Registros de acesso (IP, aparelho, data/hora) são guardados por exigência do Marco Civil
+--    (art. 15). Por serem sigilosos, só o superadministrador consulta, com justificativa.
+--  * Toda consulta à ficha ou aos registros de acesso fica no livro de auditoria.
+-- Pode ser executado mais de uma vez.
+-- ==============================================================================
+
+CREATE OR REPLACE FUNCTION public.admin_user_dossier(target UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE r JSONB;
+BEGIN
+  IF NOT public.is_staff() THEN
+    RAISE EXCEPTION 'Acesso negado: requer papel administrativo com MFA ativo.';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = target) THEN
+    RAISE EXCEPTION 'Usuário não encontrado.';
+  END IF;
+
+  PERFORM public.admin_log('user_dossier_viewed', target::text, 'user', 'Consulta à ficha detalhada do usuário');
+
+  SELECT jsonb_build_object(
+    'conta', (
+      SELECT jsonb_build_object(
+        'email', coalesce(pp.email, u.email),
+        'email_confirmado_em', u.email_confirmed_at,
+        'cadastro_em', u.created_at,
+        'ultimo_login_em', u.last_sign_in_at,
+        'provedores', (SELECT coalesce(jsonb_agg(DISTINCT i.provider), '[]') FROM auth.identities i WHERE i.user_id = u.id),
+        'mfa_ativo', EXISTS (SELECT 1 FROM auth.mfa_factors f WHERE f.user_id = u.id AND f.status = 'verified'),
+        'nascimento', pp.birthdate,
+        'maioridade_declarada_em', pp.adult_declared_at,
+        'termos_aceitos_em', pp.terms_accepted_at,
+        'cidade_privada', nullif(concat_ws(' / ', pp.city, pp.state), ''),
+        'sessoes_ativas', (SELECT count(*) FROM auth.sessions s WHERE s.user_id = u.id AND (s.not_after IS NULL OR s.not_after > now())),
+        'aparelhos_push', (SELECT count(*) FROM public.push_subscriptions ps WHERE ps.user_id = u.id AND ps.active),
+        'descadastrado_email', EXISTS (SELECT 1 FROM public.email_descadastros d WHERE d.email = lower(coalesce(pp.email, u.email)))
+      )
+      FROM auth.users u LEFT JOIN public.profile_private pp ON pp.user_id = u.id
+      WHERE u.id = target
+    ),
+    'perfil', (
+      SELECT jsonb_build_object(
+        'genero', p.gender,
+        'tipo', p.profile_type,
+        'bio', p.bio,
+        'status_texto', p.status_text,
+        'modo_discreto', p.discreet_mode_enabled,
+        'mostra_online', p.show_online_status,
+        'privacidade_local', p.location_privacy,
+        'tem_foto', p.avatar_url IS NOT NULL AND p.avatar_url <> '',
+        'username_alterado_em', p.username_changed_at,
+        'atualizado_em', p.updated_at,
+        'ultimo_acesso', coalesce((SELECT up.last_seen_at FROM public.user_presence up WHERE up.user_id = p.id), p.last_active_at),
+        'parceiros_conjuntos', (SELECT count(*) FROM public.joint_partners jp WHERE jp.profile_id = p.id)
+      )
+      FROM public.profiles p WHERE p.id = target
+    ),
+    'crescimento', (
+      SELECT jsonb_build_object(
+        'fundador_numero', g.founder_number,
+        'embaixador', coalesce(g.ambassador, false),
+        'vip_ate', g.vip_until,
+        'destaque_ate', g.featured_until,
+        'selos', coalesce(to_jsonb(g.badges), '[]'),
+        'codigo_convite', (SELECT gc.code FROM public.growth_codes gc WHERE gc.user_id = target AND gc.active ORDER BY gc.created_at DESC LIMIT 1),
+        'convidou_validos', (SELECT count(*) FROM public.growth_referrals gr WHERE gr.referrer_id = target AND gr.status = 'valid'),
+        'convidou_total', (SELECT count(*) FROM public.growth_referrals gr WHERE gr.referrer_id = target),
+        'convidado_por', (SELECT pr.username FROM public.growth_referrals gr JOIN public.profiles pr ON pr.id = gr.referrer_id WHERE gr.referred_id = target LIMIT 1),
+        'recompensas', (SELECT count(*) FROM public.growth_grants gg WHERE gg.user_id = target)
+      )
+      FROM (SELECT target AS uid) x LEFT JOIN public.profile_growth g ON g.user_id = x.uid
+    ),
+    'atividade', jsonb_build_object(
+      'publicacoes', (SELECT count(*) FROM public.posts WHERE user_id = target),
+      'publicacoes_7d', (SELECT count(*) FROM public.posts WHERE user_id = target AND created_at > now() - INTERVAL '7 days'),
+      'publicacoes_30d', (SELECT count(*) FROM public.posts WHERE user_id = target AND created_at > now() - INTERVAL '30 days'),
+      'publicacoes_com_midia', (SELECT count(*) FROM public.posts WHERE user_id = target AND media_urls <> '{}'),
+      'curtidas_recebidas', (SELECT coalesce(sum(likes_count), 0) FROM public.posts WHERE user_id = target),
+      'comentarios_recebidos', (SELECT coalesce(sum(comments_count), 0) FROM public.posts WHERE user_id = target),
+      'salvamentos_recebidos', (SELECT count(*) FROM public.post_saves s JOIN public.posts po ON po.id = s.post_id WHERE po.user_id = target),
+      'curtidas_dadas', (SELECT count(*) FROM public.post_likes WHERE user_id = target),
+      'comentarios_feitos', (SELECT count(*) FROM public.post_comments WHERE user_id = target),
+      'comentarios_feitos_7d', (SELECT count(*) FROM public.post_comments WHERE user_id = target AND created_at > now() - INTERVAL '7 days'),
+      'stories', (SELECT count(*) FROM public.stories WHERE user_id = target),
+      'stories_ativos', (SELECT count(*) FROM public.stories WHERE user_id = target AND expires_at > now()),
+      'visualizacoes_stories', (SELECT count(*) FROM public.story_views v JOIN public.stories s ON s.id = v.story_id WHERE s.user_id = target),
+      'seguidores', (SELECT count(*) FROM public.follows WHERE following_id = target),
+      'seguindo', (SELECT count(*) FROM public.follows WHERE follower_id = target),
+      'conexoes', (SELECT count(*) FROM public.connections WHERE status = 'accepted' AND (requester_id = target OR addressee_id = target)),
+      'conexoes_pendentes', (SELECT count(*) FROM public.connections WHERE status = 'pending' AND (requester_id = target OR addressee_id = target)),
+      'conversas', (SELECT count(*) FROM public.conversation_participants WHERE user_id = target),
+      'mensagens_enviadas', (SELECT count(*) FROM public.messages WHERE sender_id = target),
+      'mensagens_enviadas_7d', (SELECT count(*) FROM public.messages WHERE sender_id = target AND created_at > now() - INTERVAL '7 days'),
+      'pessoas_contatadas', (SELECT count(DISTINCT cp2.user_id) FROM public.conversation_participants cp1 JOIN public.conversation_participants cp2 ON cp2.conversation_id = cp1.conversation_id AND cp2.user_id <> cp1.user_id WHERE cp1.user_id = target),
+      'bloqueou', (SELECT count(*) FROM public.user_blocks WHERE blocker_id = target),
+      'bloqueado_por', (SELECT count(*) FROM public.user_blocks WHERE blocked_id = target),
+      'albuns', (SELECT count(*) FROM public.albums WHERE user_id = target),
+      'fotos_em_albuns', (SELECT count(*) FROM public.album_items ai JOIN public.albums a ON a.id = ai.album_id WHERE a.user_id = target),
+      'acessos_cofre_concedidos', (SELECT count(*) FROM public.album_permissions ap JOIN public.albums a ON a.id = ap.album_id WHERE a.user_id = target AND ap.status = 'granted'),
+      'eventos_criados', (SELECT count(*) FROM public.events WHERE created_by = target),
+      'eventos_vai', (SELECT count(*) FROM public.event_attendees WHERE user_id = target AND status = 'going'),
+      'eventos_interesse', (SELECT count(*) FROM public.event_attendees WHERE user_id = target AND status = 'interested'),
+      'comunidades_criadas', (SELECT count(*) FROM public.communities WHERE created_by = target),
+      'comunidades_membro', (SELECT count(*) FROM public.community_members WHERE user_id = target),
+      'banido_de_comunidades', (SELECT count(*) FROM public.community_bans WHERE user_id = target),
+      'notificacoes_nao_lidas', (SELECT count(*) FROM public.notifications WHERE user_id = target AND NOT read)
+    ),
+    'denuncias', jsonb_build_object(
+      'recebidas', (SELECT count(*) FROM public.moderation_reports WHERE reported_user_id = target),
+      'recebidas_abertas', (SELECT count(*) FROM public.moderation_reports WHERE reported_user_id = target AND status IN ('pending', 'under_review')),
+      'recebidas_procedentes', (SELECT count(*) FROM public.moderation_reports WHERE reported_user_id = target AND status = 'resolved'),
+      'feitas', (SELECT count(*) FROM public.moderation_reports WHERE reporter_user_id = target),
+      'feitas_arquivadas', (SELECT count(*) FROM public.moderation_reports WHERE reporter_user_id = target AND status = 'dismissed'),
+      'por_categoria', (SELECT coalesce(jsonb_object_agg(category, n), '{}') FROM (SELECT category, count(*) n FROM public.moderation_reports WHERE reported_user_id = target GROUP BY 1) c),
+      'ultimas', (SELECT coalesce(jsonb_agg(x ORDER BY x->>'criada_em' DESC), '[]') FROM (
+        SELECT jsonb_build_object('categoria', mr.category, 'alvo', mr.target_type, 'status', mr.status, 'prioridade', mr.priority,
+                                  'descricao', left(mr.description, 200), 'criada_em', mr.created_at, 'denunciante', rp.username) x
+          FROM public.moderation_reports mr LEFT JOIN public.profiles rp ON rp.id = mr.reporter_user_id
+         WHERE mr.reported_user_id = target ORDER BY mr.created_at DESC LIMIT 10) t)
+    ),
+    'historico_moderacao', (
+      SELECT coalesce(jsonb_agg(x ORDER BY x->>'em' DESC), '[]') FROM (
+        SELECT jsonb_build_object('acao', l.action, 'motivo', l.reason, 'em', l.created_at, 'por', ap.display_name, 'papel', l.admin_role) x
+          FROM public.admin_audit_logs l LEFT JOIN public.profiles ap ON ap.id = l.admin_id
+         WHERE l.target_id = target::text AND l.action NOT IN ('user_dossier_viewed', 'user_access_logs_viewed')
+         ORDER BY l.created_at DESC LIMIT 30) t
+    ),
+    'consultas_da_ficha', (SELECT count(*) FROM public.admin_audit_logs WHERE target_id = target::text AND action IN ('user_dossier_viewed', 'user_access_logs_viewed')),
+    'publicacoes', (
+      SELECT coalesce(jsonb_agg(x ORDER BY x->>'criada_em' DESC), '[]') FROM (
+        SELECT jsonb_build_object(
+          'id', po.id, 'criada_em', po.created_at, 'texto', left(po.content, 160),
+          'midias', coalesce(array_length(po.media_urls, 1), 0), 'tipo_midia', po.media_type,
+          'visibilidade', po.visibility, 'moderacao', po.moderation_status,
+          'curtidas', po.likes_count, 'comentarios', po.comments_count,
+          'salvamentos', (SELECT count(*) FROM public.post_saves s WHERE s.post_id = po.id),
+          'denuncias', (SELECT count(*) FROM public.moderation_reports mr WHERE mr.target_type IN ('post', 'media') AND mr.target_id = po.id::text),
+          'comunidade', (SELECT c.name FROM public.communities c WHERE c.id = po.community_id),
+          'enquete', EXISTS (SELECT 1 FROM public.post_polls pl WHERE pl.post_id = po.id)) x
+          FROM public.posts po WHERE po.user_id = target ORDER BY po.created_at DESC LIMIT 100) t
+    )
+  ) INTO r;
+  RETURN r;
+END;
+$$;
+
+-- Registros de acesso (Marco Civil art. 15): superadmin, com justificativa auditada
+CREATE OR REPLACE FUNCTION public.admin_user_access_logs(target UUID, justification TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.require_superadmin_reason(justification);
+  PERFORM public.admin_log('user_access_logs_viewed', target::text, 'user', trim(justification));
+  RETURN jsonb_build_object(
+    'sessoes', (SELECT coalesce(jsonb_agg(x ORDER BY x->>'ultima_atividade' DESC), '[]') FROM (
+      SELECT jsonb_build_object('inicio', s.created_at, 'ultima_atividade', coalesce(s.refreshed_at, s.updated_at, s.created_at),
+                                'ip', host(s.ip), 'aparelho', left(s.user_agent, 220), 'nivel', s.aal,
+                                'ativa', s.not_after IS NULL OR s.not_after > now()) x
+        FROM auth.sessions s WHERE s.user_id = target
+       ORDER BY coalesce(s.refreshed_at, s.updated_at, s.created_at) DESC LIMIT 50) t),
+    'ips_distintos', (SELECT count(DISTINCT s.ip) FROM auth.sessions s WHERE s.user_id = target)
+  );
+END;
+$$;
+
+-- Painel de publicações: resumo, evolução diária e lista detalhada
+CREATE OR REPLACE FUNCTION public.admin_posts_overview(dias INTEGER DEFAULT 30)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
+DECLARE d INTEGER := least(greatest(coalesce(dias, 30), 1), 365);
+BEGIN
+  IF NOT public.is_staff() THEN
+    RAISE EXCEPTION 'Acesso negado: requer papel administrativo com MFA ativo.';
+  END IF;
+  RETURN jsonb_build_object(
+    'periodo_dias', d,
+    'resumo', (SELECT jsonb_build_object(
+      'total', count(*),
+      'no_periodo', count(*) FILTER (WHERE created_at > now() - make_interval(days => d)),
+      'com_midia', count(*) FILTER (WHERE media_urls <> '{}'),
+      'videos', count(*) FILTER (WHERE media_type = 'video'),
+      'publicas', count(*) FILTER (WHERE visibility::text = 'public'),
+      'so_conexoes', count(*) FILTER (WHERE visibility::text <> 'public'),
+      'em_comunidades', count(*) FILTER (WHERE community_id IS NOT NULL),
+      'aprovadas', count(*) FILTER (WHERE moderation_status::text = 'approved'),
+      'em_analise', count(*) FILTER (WHERE moderation_status::text = 'pending_review'),
+      'sinalizadas', count(*) FILTER (WHERE moderation_status::text = 'flagged'),
+      'removidas', count(*) FILTER (WHERE moderation_status::text NOT IN ('approved', 'pending_review', 'flagged')),
+      'curtidas', coalesce(sum(likes_count), 0),
+      'comentarios', coalesce(sum(comments_count), 0),
+      'autores', count(DISTINCT user_id),
+      'autores_no_periodo', count(DISTINCT user_id) FILTER (WHERE created_at > now() - make_interval(days => d)),
+      'salvamentos', (SELECT count(*) FROM public.post_saves),
+      'stories_ativos', (SELECT count(*) FROM public.stories WHERE expires_at > now()),
+      'stories_no_periodo', (SELECT count(*) FROM public.stories WHERE created_at > now() - make_interval(days => d))
+    ) FROM public.posts),
+    'por_dia', (SELECT coalesce(jsonb_agg(jsonb_build_object('dia', dia, 'publicacoes', pubs, 'comentarios', coms, 'curtidas', curt) ORDER BY dia), '[]') FROM (
+      SELECT g::date dia,
+        (SELECT count(*) FROM public.posts p WHERE p.created_at::date = g::date) pubs,
+        (SELECT count(*) FROM public.post_comments c WHERE c.created_at::date = g::date) coms,
+        (SELECT count(*) FROM public.post_likes l WHERE l.created_at::date = g::date) curt
+      FROM generate_series(current_date - (least(d, 60) - 1), current_date, INTERVAL '1 day') g) t),
+    'por_hora', (SELECT coalesce(jsonb_object_agg(h, n), '{}') FROM (
+      SELECT extract(hour FROM created_at AT TIME ZONE 'America/Sao_Paulo')::int h, count(*) n
+        FROM public.posts WHERE created_at > now() - make_interval(days => d) GROUP BY 1) t),
+    'tags', (SELECT coalesce(jsonb_agg(jsonb_build_object('tag', tag, 'n', n) ORDER BY n DESC), '[]') FROM (
+      SELECT lower(t) tag, count(*) n FROM public.posts, unnest(coalesce(tags, '{}')) t
+       WHERE created_at > now() - make_interval(days => d) GROUP BY 1 ORDER BY 2 DESC LIMIT 15) t),
+    'autores_top', (SELECT coalesce(jsonb_agg(x ORDER BY (x->>'publicacoes')::int DESC), '[]') FROM (
+      SELECT jsonb_build_object('id', pr.id, 'username', pr.username, 'publicacoes', count(*), 'curtidas', sum(p.likes_count), 'comentarios', sum(p.comments_count)) x
+        FROM public.posts p JOIN public.profiles pr ON pr.id = p.user_id
+       WHERE p.created_at > now() - make_interval(days => d)
+       GROUP BY pr.id, pr.username ORDER BY count(*) DESC LIMIT 10) t),
+    'publicacoes', (SELECT coalesce(jsonb_agg(x ORDER BY x->>'criada_em' DESC), '[]') FROM (
+      SELECT jsonb_build_object(
+        'id', p.id, 'autor_id', p.user_id, 'autor', pr.username, 'autor_status', pr.status,
+        'criada_em', p.created_at, 'editada_em', nullif(p.updated_at, p.created_at),
+        'texto', left(p.content, 200), 'midia', coalesce(p.media_urls[1], null), 'midias', coalesce(array_length(p.media_urls, 1), 0),
+        'tipo_midia', p.media_type, 'visibilidade', p.visibility, 'moderacao', p.moderation_status,
+        'tags', coalesce(to_jsonb(p.tags), '[]'), 'local', p.location,
+        'comunidade', (SELECT c.name FROM public.communities c WHERE c.id = p.community_id),
+        'curtidas', p.likes_count, 'comentarios', p.comments_count,
+        'salvamentos', (SELECT count(*) FROM public.post_saves s WHERE s.post_id = p.id),
+        'votos_enquete', (SELECT count(*) FROM public.post_poll_votes v JOIN public.post_polls pl ON pl.id = v.poll_id WHERE pl.post_id = p.id),
+        'denuncias', (SELECT count(*) FROM public.moderation_reports mr WHERE mr.target_type IN ('post', 'media') AND mr.target_id = p.id::text),
+        'engajamento', p.likes_count + 2 * p.comments_count + 3 * (SELECT count(*) FROM public.post_saves s WHERE s.post_id = p.id)) x
+        FROM public.posts p JOIN public.profiles pr ON pr.id = p.user_id
+       WHERE p.created_at > now() - make_interval(days => d)
+       ORDER BY p.created_at DESC LIMIT 300) t)
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.admin_user_dossier(UUID), public.admin_user_access_logs(UUID, TEXT), public.admin_posts_overview(INTEGER) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_user_dossier(UUID), public.admin_user_access_logs(UUID, TEXT), public.admin_posts_overview(INTEGER) TO authenticated;
