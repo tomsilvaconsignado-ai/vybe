@@ -84,6 +84,7 @@ import { fetchStoryGroups } from '../lib/stories';
 import { fetchEvents, fetchActiveAds, setEventRsvp } from '../lib/events';
 import type { EvidenceMessage } from '../lib/admin';
 import { notify } from '../components/common/Feedback';
+import { avisarAcaoMissao } from '../lib/missoes';
 
 // Dados enviados ao Supabase Auth no cadastro; o gatilho handle_new_user cria o perfil a partir deles
 export interface SignUpMetadata {
@@ -890,7 +891,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (error) {
       console.error('[Vybelog] Falha ao salvar perfil:', error);
       notify('Não foi possível salvar as alterações do perfil. Tente novamente.');
-    }
+    } else avisarAcaoMissao();
     return error;
   };
 
@@ -963,6 +964,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updatePost(postId, p => ({ ...p, likedByCurrentUser: like, likesCount: p.likesCount + (like ? 1 : -1) }));
     const error = await setLike(currentUser.id, postId, like);
     if (error) reportFailure('registrar a curtida', error);
+    else avisarAcaoMissao();
     await reloadPost(postId);
   };
 
@@ -982,6 +984,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!text.trim()) return;
     const error = await insertComment(currentUser.id, postId, text.trim(), parentId);
     if (error) reportFailure('publicar o comentário', error);
+    else avisarAcaoMissao();
     await reloadPost(postId);
   };
 
@@ -1003,6 +1006,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { postId, error } = await insertPost(currentUser.id, content, mediaUrls, tags, pollData, mediaType);
     if (error) reportFailure('publicar', error);
     if (!postId) return;
+    avisarAcaoMissao();
     const fresh = await fetchPost(postId, currentUser.id);
     if (fresh) setPosts(prev => [fresh, ...prev]);
   };
@@ -1079,7 +1083,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reportFailure(follow ? 'seguir o perfil' : 'deixar de seguir', error);
       bumpFollowCounts(userId, follow ? -1 : 1);
       applySocialGraph(await fetchSocialGraph(currentUser.id));
-    }
+    } else avisarAcaoMissao();
   };
 
   const removeFollower = async (userId: string): Promise<string | null> => {

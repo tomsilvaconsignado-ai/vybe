@@ -2,6 +2,7 @@ import { supabase, uploadPublicMedia } from './supabase';
 import { avatarOrDefault } from './profiles';
 import { formatRelativeTime } from './social';
 import { Story, StoryGroup } from '../types';
+import { avisarAcaoMissao } from './missoes';
 
 export async function fetchStoryGroups(me: string): Promise<StoryGroup[]> {
   const { data, error } = await supabase
@@ -60,6 +61,7 @@ export async function publishStory(me: string, file: File, caption: string, audi
     audience
   });
   if (error?.message.includes('row-level security')) return 'Sua conta está com publicações restritas.';
+  if (!error) avisarAcaoMissao();
   return error?.message ?? null;
 }
 

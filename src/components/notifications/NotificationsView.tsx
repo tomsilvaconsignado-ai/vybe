@@ -18,7 +18,8 @@ import {
   Reply,
   Hash,
   CalendarHeart,
-  Gift
+  Gift,
+  Flame
 } from 'lucide-react';
 
 export const NotificationsView: React.FC = () => {
@@ -72,6 +73,8 @@ export const NotificationsView: React.FC = () => {
         return <Gift className="w-4 h-4 text-amber-300" />;
       case 'event_invite':
         return <CalendarHeart className="w-4 h-4 text-rose-400" />;
+      case 'mission':
+        return <Flame className="w-4 h-4 text-orange-400" />;
       default:
         return <Bell className="w-4 h-4 text-purple-400" />;
     }

@@ -6,6 +6,7 @@ import { ConviteCard } from '../growth/ConviteCard';
 import { CreatePostModal } from './CreatePostModal';
 import { AdSlot } from '../ads/AdSlot';
 import { AvisoSeloFoto } from '../growth/AvisoSeloFoto';
+import { MissoesCard } from '../growth/MissoesCard';
 import { Plus, HeartHandshake, ArrowUp } from 'lucide-react';
 
 export const FeedView: React.FC = () => {
@@ -72,6 +73,10 @@ export const FeedView: React.FC = () => {
       {/* sem foto de perfil: avisa que os selos só aparecem com foto */}
       <AvisoSeloFoto className="mx-3 sm:mx-0 mt-4" />
 
+      {/* missões de boas-vindas e do dia, com a sequência de dias */}
+      <MissoesCard className="mx-3 sm:mx-0 mt-4" onPublicar={() => setCreatePostOpen(true)}
+        onVerFeed={() => document.getElementById('feed-publicacoes')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} />
+
       {/* Publicar: uma linha leve, sem caixa */}
       <div className="flex items-center gap-3 px-3 sm:px-1 py-3 border-b border-white/[0.06]">
         <img src={currentUser.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover ring-1 ring-white/10" />
@@ -128,7 +133,7 @@ export const FeedView: React.FC = () => {
         </div>
       )}
 
-      <div className="sm:space-y-5" role="feed" aria-busy={feedLoadingMore} aria-label="Publicações">
+      <div id="feed-publicacoes" className="sm:space-y-5 scroll-mt-28" role="feed" aria-busy={feedLoadingMore} aria-label="Publicações">
         {filteredPosts.map((post, index) => (
           <React.Fragment key={post.id}>
             <PostCard post={post} priority={index === 0} position={index + 1} total={filteredPosts.length} />

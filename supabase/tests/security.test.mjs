@@ -1044,5 +1044,87 @@ await expectFail('pedido de conversa ainda não aceito não recebe reação', r3
 await as(r3.c, `SELECT public.block_user($1)`, [r3.d]);
 await expectFail('depois do bloqueio, não reage mais', r3.d, `SELECT public.react_to_message($1, '❤️')`, [msgC]);
 
+
+// ---------------------------------------------------------------- 25. Missões e sequência de dias
+console.log('\nMissões e sequência');
+const mi = { m: '00000000-0000-0000-0000-0000000000f1', autor: '00000000-0000-0000-0000-0000000000f2' };
+const extras = [3, 4, 5, 6, 7].map((n) => `00000000-0000-0000-0000-0000000000f${n}`);
+await db.query(`INSERT INTO auth.users VALUES ($1,'mi@x.com',$2,now())`, [mi.m, meta('missoeira')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'au@x.com',$2,now())`, [mi.autor, meta('autora')]);
+for (const [k, id] of extras.entries()) await db.query(`INSERT INTO auth.users VALUES ($1,$2,$3,now())`, [id, `ex${k}@x.com`, meta('extra' + k)]);
+const postsAutor = [];
+for (let k = 0; k < 5; k++) postsAutor.push((await as(mi.autor, `INSERT INTO posts (user_id, content) VALUES ($1, $2) RETURNING id`, [mi.autor, 'post ' + k])).rows[0].id);
+const missoes = async (uid) => (await as(uid, `SELECT public.my_missions() AS m`)).rows[0].m;
+
+let mm = await missoes(mi.m);
+mm.hoje.concluido === false && mm.sequencia.atual === 0 ? ok('começa sem missão do dia e sem sequência') : bad('estado inicial errado: ' + JSON.stringify(mm.sequencia));
+mm.boas_vindas.itens.length === 6 && mm.boas_vindas.itens.every((i) => !i.feito) ? ok('boas-vindas com 6 itens pendentes') : bad('boas-vindas: ' + JSON.stringify(mm.boas_vindas));
+await expectFail('anônimo não consulta missões', null, `SELECT public.my_missions()`);
+await expectFail('ninguém grava a própria sequência direto na tabela', mi.m, `UPDATE user_streaks SET current_days = 99 WHERE user_id = $1`, [mi.m]);
+await expectFail('ninguém cria sequência direto na tabela', mi.autor, `INSERT INTO user_streaks (user_id, current_days) VALUES ($1, 50)`, [mi.autor]);
+await expectFail('o app não dispara o destaque por conta própria', mi.m, `SELECT public.missao_destaque($1, 30)`, [mi.m]);
+await expectFail('o app não dispara o lembrete da noite', mi.m, `SELECT public.send_streak_reminders()`);
+r = await as(mi.autor, `SELECT * FROM user_streaks WHERE user_id = $1`, [mi.m]);
+r.rows.length === 0 ? ok('ninguém vê a sequência de outra pessoa') : bad('sequência de outra pessoa exposta');
+
+// curtidas e comentários nas próprias publicações não contam
+const meuPost = (await as(mi.m, `INSERT INTO posts (user_id, content) VALUES ($1, 'minha foto') RETURNING id`, [mi.m])).rows[0].id;
+await as(mi.m, `INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)`, [meuPost, mi.m]);
+await as(mi.m, `INSERT INTO post_comments (post_id, user_id, content) VALUES ($1, $2, 'eu mesma')`, [meuPost, mi.m]);
+mm = await missoes(mi.m);
+const itemMissao = (lista, chave) => lista.find((i) => i.chave === chave);
+itemMissao(mm.hoje.itens, 'curtir').progresso === 0 && itemMissao(mm.hoje.itens, 'comentar').progresso === 0 ? ok('curtir e comentar a si mesmo não conta') : bad('autointeração contou');
+itemMissao(mm.hoje.itens, 'publicar').feito ? ok('publicar hoje conta') : bad('publicação não contou');
+
+// ontem completou (sequência de 2): hoje completa e chega a 3 dias → destaque de 1 dia
+await db.query(`UPDATE user_streaks SET current_days = 2, best_days = 2, last_day = public.missao_hoje() - 1 WHERE user_id = $1`, [mi.m]);
+for (const p of postsAutor) await as(mi.m, `INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)`, [p, mi.m]);
+await as(mi.m, `INSERT INTO post_comments (post_id, user_id, content) VALUES ($1, $2, 'que lindo')`, [postsAutor[0], mi.m]);
+mm = await missoes(mi.m);
+mm.hoje.concluido === false ? ok('um comentário só não completa o dia') : bad('dia completou cedo');
+await as(mi.m, `INSERT INTO post_comments (post_id, user_id, content) VALUES ($1, $2, 'adorei')`, [postsAutor[1], mi.m]);
+mm = await missoes(mi.m);
+mm.hoje.concluido && mm.sequencia.atual === 3 && mm.sequencia.hoje_contou ? ok('dia completo: sequência vai a 3') : bad('sequência: ' + JSON.stringify(mm.sequencia));
+mm.novidade?.tipo === 'dia' && mm.novidade.dias_destaque === 1 ? ok('marco de 3 dias avisa o prêmio') : bad('novidade: ' + JSON.stringify(mm.novidade));
+r = await db.query(`SELECT featured_until > now() + interval '23 hours' AS ok FROM profile_growth WHERE user_id = $1`, [mi.m]);
+r.rows[0]?.ok ? ok('ganhou 1 dia de destaque no Descobrir') : bad('destaque não concedido');
+r = await db.query(`SELECT count(*)::int n FROM notifications WHERE user_id = $1 AND type = 'mission'`, [mi.m]);
+r.rows[0].n === 1 ? ok('aviso do marco na central') : bad('avisos: ' + r.rows[0].n);
+mm = await missoes(mi.m);
+mm.sequencia.atual === 3 && !mm.novidade ? ok('consultar de novo não conta o dia duas vezes') : bad('contou de novo');
+mm.sequencia.proxima_meta === 7 && mm.sequencia.premio_proxima === 3 ? ok('próxima meta: 7 dias, 3 de destaque') : bad('próxima meta errada');
+
+// sequência quebrada aparece zerada
+await db.query(`UPDATE user_streaks SET last_day = public.missao_hoje() - 3 WHERE user_id = $1`, [mi.autor]);
+await db.query(`INSERT INTO user_streaks (user_id, current_days, best_days, last_day) VALUES ($1, 5, 5, public.missao_hoje() - 3)
+  ON CONFLICT (user_id) DO UPDATE SET current_days = 5, last_day = public.missao_hoje() - 3`, [mi.autor]);
+mm = await missoes(mi.autor);
+mm.sequencia.atual === 0 && mm.sequencia.melhor === 5 ? ok('sem completar ontem, a sequência zera (o recorde fica)') : bad('quebra: ' + JSON.stringify(mm.sequencia));
+
+// lembrete da noite: só para quem tem sequência e não completou hoje
+await db.query(`INSERT INTO user_streaks (user_id, current_days, best_days, last_day) VALUES ($1, 4, 4, public.missao_hoje() - 1)`, [extras[0]]);
+r = await db.query(`SELECT public.send_streak_reminders() AS n`);
+const lembrados = (await db.query(`SELECT user_id FROM notifications WHERE dedupe_key LIKE 'missao-lembrete-%'`)).rows.map((x) => x.user_id);
+lembrados.includes(extras[0]) && !lembrados.includes(mi.m) && !lembrados.includes(mi.autor) ? ok('lembrete só para quem ainda pode perder a sequência') : bad('lembrete: ' + lembrados);
+await db.query(`SELECT public.send_streak_reminders()`);
+r = await db.query(`SELECT count(*)::int n FROM notifications WHERE user_id = $1 AND dedupe_key LIKE 'missao-lembrete-%'`, [extras[0]]);
+r.rows[0].n === 1 ? ok('lembrete não se repete no mesmo dia') : bad('lembrete repetido');
+
+// boas-vindas completas → 3 dias de destaque, uma única vez
+await db.query(`UPDATE profiles SET avatar_url = 'https://exemplo.supabase.co/storage/v1/object/public/avatars/f1/a.jpg', bio = 'Casal animado de Aracaju' WHERE id = $1`, [mi.m]);
+for (const id of extras) await as(mi.m, `INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)`, [mi.m, id]);
+await as(mi.m, `INSERT INTO post_comments (post_id, user_id, content) VALUES ($1, $2, 'top')`, [postsAutor[2], mi.m]);
+mm = await missoes(mi.m);
+!itemMissao(mm.boas_vindas.itens, 'convidar').feito && !mm.boas_vindas.recompensa_recebida ? ok('sem ninguém abrir o convite, falta a última missão') : bad('convite contou sem visita');
+const codigo = (await db.query(`SELECT public.growth_code_for($1) AS c`, [mi.m])).rows[0].c;
+await db.query(`INSERT INTO growth_visits (code, visits) VALUES ($1, 1) ON CONFLICT (code, day) DO UPDATE SET visits = growth_visits.visits + 1`, [codigo]);
+const antes = (await db.query(`SELECT featured_until FROM profile_growth WHERE user_id = $1`, [mi.m])).rows[0].featured_until;
+mm = await missoes(mi.m);
+mm.boas_vindas.recompensa_recebida && mm.novidade?.tipo === 'boas_vindas' ? ok('boas-vindas completas dão o prêmio') : bad('boas-vindas: ' + JSON.stringify(mm.boas_vindas) + JSON.stringify(mm.novidade));
+const depois = (await db.query(`SELECT featured_until FROM profile_growth WHERE user_id = $1`, [mi.m])).rows[0].featured_until;
+(depois - antes) > 2.9 * 86400000 ? ok('3 dias de destaque somados ao que já tinha') : bad('destaque não somou');
+mm = await missoes(mi.m);
+!mm.novidade ? ok('prêmio de boas-vindas só uma vez') : bad('prêmio repetido');
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

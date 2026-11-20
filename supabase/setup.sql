@@ -5615,3 +5615,182 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.admin_user_dossier(UUID), public.admin_user_access_logs(UUID, TEXT), public.admin_posts_overview(INTEGER) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_user_dossier(UUID), public.admin_user_access_logs(UUID, TEXT), public.admin_posts_overview(INTEGER) TO authenticated;
+
+-- ==============================================================================
+-- 25. MISSÕES E SEQUÊNCIA DE DIAS (engajamento)
+-- Boas-vindas (uma vez): foto, bio, 1ª publicação, seguir 5 pessoas, comentar em 3 publicações de
+-- outras pessoas e ter o link de convite aberto por alguém. Concluir tudo dá 3 dias de destaque.
+-- Missões do dia (horário de Brasília): curtir 5 publicações de outras pessoas, comentar em 2 e
+-- publicar uma foto ou story. Dia completo soma na sequência; 3, 7, 14 e 30 dias seguidos dão destaque.
+-- Tudo é calculado a partir das ações reais (não há pontos para forjar); só as funções gravam.
+-- À noite, quem tem sequência e ainda não completou o dia recebe um lembrete.
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.user_streaks (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  current_days INTEGER NOT NULL DEFAULT 0,
+  best_days INTEGER NOT NULL DEFAULT 0,
+  last_day DATE,
+  welcome_rewarded_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.user_streaks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS user_streaks_own ON public.user_streaks;
+CREATE POLICY user_streaks_own ON public.user_streaks FOR SELECT TO authenticated USING (user_id = (SELECT auth.uid()));
+REVOKE ALL ON public.user_streaks FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.user_streaks FROM authenticated;
+GRANT SELECT ON public.user_streaks TO authenticated;
+
+-- contagens do dia por pessoa (curtidas, comentários e stories feitos)
+CREATE INDEX IF NOT EXISTS idx_post_likes_user_created ON public.post_likes(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_post_comments_user_created ON public.post_comments(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_stories_user_created ON public.stories(user_id, created_at);
+
+-- dia de hoje no horário de Brasília
+CREATE OR REPLACE FUNCTION public.missao_hoje() RETURNS DATE LANGUAGE sql STABLE SET search_path = public AS $$
+  SELECT (now() AT TIME ZONE 'America/Sao_Paulo')::date
+$$;
+
+-- destaque no Descobrir por alguns dias (soma ao que a pessoa já tiver)
+CREATE OR REPLACE FUNCTION public.missao_destaque(p_user UUID, p_dias INTEGER)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.profile_growth (user_id, featured_until, updated_at)
+  VALUES (p_user, now() + make_interval(days => p_dias), now())
+  ON CONFLICT (user_id) DO UPDATE
+    SET featured_until = greatest(coalesce(profile_growth.featured_until, now()), now()) + make_interval(days => p_dias),
+        updated_at = now();
+$$;
+
+-- aviso na central (e no push), uma vez por chave
+CREATE OR REPLACE FUNCTION public.missao_avisar(p_user UUID, p_titulo TEXT, p_texto TEXT, p_chave TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.notifications (user_id, type, title, message, link, dedupe_key)
+  VALUES (p_user, 'mission', p_titulo, p_texto, '/', p_chave)
+  ON CONFLICT DO NOTHING;
+$$;
+
+-- Missões de quem chama: devolve o progresso e grava conclusões e recompensas
+CREATE OR REPLACE FUNCTION public.my_missions()
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  hoje DATE := public.missao_hoje();
+  inicio TIMESTAMPTZ := (public.missao_hoje()::timestamp AT TIME ZONE 'America/Sao_Paulo');
+  p public.profiles;
+  s public.user_streaks;
+  tem_foto BOOLEAN; tem_bio BOOLEAN; publicou_algum BOOLEAN;
+  n_seguindo INT; n_comentados INT; convite BOOLEAN;
+  n_curtidas INT; n_comentarios_hoje INT; n_publicou INT;
+  hoje_ok BOOLEAN;
+  premio_marco INT := 0; novidade JSONB := NULL;
+  marcos CONSTANT INT[] := ARRAY[3, 7, 14, 30];
+  premios CONSTANT INT[] := ARRAY[1, 3, 5, 10];
+  atual INT; proximo INT;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Entre na sua conta.' USING ERRCODE = '42501'; END IF;
+  SELECT * INTO p FROM public.profiles WHERE id = me;
+  IF p.id IS NULL OR p.status <> 'active' THEN RAISE EXCEPTION 'Conta indisponível.' USING ERRCODE = '42501'; END IF;
+  INSERT INTO public.user_streaks (user_id) VALUES (me) ON CONFLICT (user_id) DO NOTHING;
+  SELECT * INTO s FROM public.user_streaks WHERE user_id = me FOR UPDATE;
+
+  -- boas-vindas
+  tem_foto := p.avatar_url <> '' AND p.avatar_url NOT LIKE 'data:%';
+  tem_bio := length(btrim(p.bio)) >= 10;
+  publicou_algum := EXISTS (SELECT 1 FROM public.posts WHERE user_id = me);
+  SELECT count(*) INTO n_seguindo FROM public.follows WHERE follower_id = me;
+  SELECT count(DISTINCT c.post_id) INTO n_comentados FROM public.post_comments c JOIN public.posts po ON po.id = c.post_id
+   WHERE c.user_id = me AND po.user_id <> me;
+  convite := EXISTS (SELECT 1 FROM public.growth_codes gc JOIN public.growth_visits gv ON gv.code = gc.code WHERE gc.user_id = me AND gv.visits > 0)
+          OR EXISTS (SELECT 1 FROM public.growth_referrals r WHERE r.referrer_id = me);
+  IF tem_foto AND tem_bio AND publicou_algum AND n_seguindo >= 5 AND n_comentados >= 3 AND convite AND s.welcome_rewarded_at IS NULL THEN
+    UPDATE public.user_streaks SET welcome_rewarded_at = now(), updated_at = now() WHERE user_id = me RETURNING * INTO s;
+    PERFORM public.missao_destaque(me, 3);
+    PERFORM public.missao_avisar(me, 'Missões de boas-vindas concluídas!',
+      'Seu perfil fica em destaque no Descobrir por 3 dias. Continue com as missões do dia.', 'missao-boas-vindas');
+    novidade := jsonb_build_object('tipo', 'boas_vindas', 'dias_destaque', 3);
+  END IF;
+
+  -- missões do dia (só contam interações com publicações de outras pessoas)
+  SELECT count(*) INTO n_curtidas FROM public.post_likes l JOIN public.posts po ON po.id = l.post_id
+   WHERE l.user_id = me AND l.created_at >= inicio AND po.user_id <> me;
+  SELECT count(DISTINCT c.post_id) INTO n_comentarios_hoje FROM public.post_comments c JOIN public.posts po ON po.id = c.post_id
+   WHERE c.user_id = me AND c.created_at >= inicio AND po.user_id <> me;
+  SELECT (SELECT count(*) FROM public.posts WHERE user_id = me AND created_at >= inicio)
+       + (SELECT count(*) FROM public.stories WHERE user_id = me AND created_at >= inicio) INTO n_publicou;
+  hoje_ok := n_curtidas >= 5 AND n_comentarios_hoje >= 2 AND n_publicou >= 1;
+
+  IF hoje_ok AND (s.last_day IS NULL OR s.last_day < hoje) THEN
+    atual := CASE WHEN s.last_day = hoje - 1 THEN s.current_days + 1 ELSE 1 END;
+    UPDATE public.user_streaks SET current_days = atual, best_days = greatest(best_days, atual), last_day = hoje, updated_at = now()
+     WHERE user_id = me RETURNING * INTO s;
+    IF atual = ANY (marcos) THEN
+      premio_marco := premios[array_position(marcos, atual)];
+      PERFORM public.missao_destaque(me, premio_marco);
+      PERFORM public.missao_avisar(me, atual || ' dias seguidos!',
+        'Você completou as missões ' || atual || ' dias seguidos e ganhou ' || premio_marco
+          || CASE WHEN premio_marco = 1 THEN ' dia' ELSE ' dias' END || ' de destaque no Descobrir.',
+        'missao-sequencia-' || hoje || '-' || atual);
+    END IF;
+    novidade := coalesce(novidade, jsonb_build_object('tipo', 'dia', 'sequencia', atual, 'dias_destaque', premio_marco));
+  END IF;
+
+  -- sequência que não foi mantida (ontem não completou) aparece zerada
+  atual := CASE WHEN s.last_day >= hoje - 1 THEN s.current_days ELSE 0 END;
+  SELECT m INTO proximo FROM unnest(marcos) m WHERE m > atual ORDER BY m LIMIT 1;
+
+  RETURN jsonb_build_object(
+    'boas_vindas', jsonb_build_object(
+      'recompensa_recebida', s.welcome_rewarded_at IS NOT NULL,
+      'itens', jsonb_build_array(
+        jsonb_build_object('chave', 'foto', 'feito', tem_foto, 'progresso', tem_foto::int, 'meta', 1),
+        jsonb_build_object('chave', 'bio', 'feito', tem_bio, 'progresso', tem_bio::int, 'meta', 1),
+        jsonb_build_object('chave', 'publicar', 'feito', publicou_algum, 'progresso', publicou_algum::int, 'meta', 1),
+        jsonb_build_object('chave', 'seguir', 'feito', n_seguindo >= 5, 'progresso', least(n_seguindo, 5), 'meta', 5),
+        jsonb_build_object('chave', 'comentar', 'feito', n_comentados >= 3, 'progresso', least(n_comentados, 3), 'meta', 3),
+        jsonb_build_object('chave', 'convidar', 'feito', convite, 'progresso', convite::int, 'meta', 1))),
+    'hoje', jsonb_build_object(
+      'concluido', hoje_ok,
+      'itens', jsonb_build_array(
+        jsonb_build_object('chave', 'curtir', 'feito', n_curtidas >= 5, 'progresso', least(n_curtidas, 5), 'meta', 5),
+        jsonb_build_object('chave', 'comentar', 'feito', n_comentarios_hoje >= 2, 'progresso', least(n_comentarios_hoje, 2), 'meta', 2),
+        jsonb_build_object('chave', 'publicar', 'feito', n_publicou >= 1, 'progresso', least(n_publicou, 1), 'meta', 1))),
+    'sequencia', jsonb_build_object(
+      'atual', atual, 'melhor', s.best_days, 'hoje_contou', coalesce(s.last_day = hoje, false),
+      'proxima_meta', proximo,
+      'premio_proxima', CASE WHEN proximo IS NULL THEN NULL ELSE premios[array_position(marcos, proximo)] END),
+    'novidade', novidade);
+END;
+$$;
+
+-- Lembrete das 20h (Brasília): sequência de 2 dias ou mais que ainda não contou hoje
+CREATE OR REPLACE FUNCTION public.send_streak_reminders()
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE n INT;
+BEGIN
+  INSERT INTO public.notifications (user_id, type, title, message, link, dedupe_key)
+  SELECT s.user_id, 'mission', 'Sua sequência de ' || s.current_days || ' dias termina hoje',
+         'Complete as missões do dia (curtir, comentar e publicar) para não perder a sequência.', '/',
+         'missao-lembrete-' || public.missao_hoje()
+    FROM public.user_streaks s JOIN public.profiles p ON p.id = s.user_id
+   WHERE p.status = 'active' AND s.current_days >= 2 AND s.last_day = public.missao_hoje() - 1
+  ON CONFLICT DO NOTHING;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.missao_hoje(), public.missao_destaque(UUID, INTEGER), public.missao_avisar(UUID, TEXT, TEXT, TEXT),
+  public.send_streak_reminders(), public.my_missions() FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.missao_destaque(UUID, INTEGER), public.missao_avisar(UUID, TEXT, TEXT, TEXT),
+  public.send_streak_reminders() FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.my_missions(), public.missao_hoje() TO authenticated;
+
+-- lembrete todo dia às 20h de Brasília (23h UTC)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname = 'vybelog-lembrete-sequencia';
+    PERFORM cron.schedule('vybelog-lembrete-sequencia', '0 23 * * *', 'SELECT public.send_streak_reminders()');
+  END IF;
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'Agendamento do lembrete de sequência não criado: %', SQLERRM;
+END $$;
