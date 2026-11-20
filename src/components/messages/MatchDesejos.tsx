@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, Lock, X } from 'lucide-react';
 import { askConfirm, notify } from '../common/Feedback';
+import { PictogramaPosicao, temPictograma } from './Pictogramas';
 import { BARALHOS, abrirJogo, desafiar, recusar, responder, type Baralho, type JogoDesejos, type Resposta } from '../../lib/desejos';
 
 const OPCOES: Array<{ valor: Resposta; rotulo: string; emoji: string; classe: string }> = [
@@ -153,8 +154,10 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
               ))}
             </div>
             <div key={carta.id} className="carta-desejo rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-600/25 via-purple-800/20 to-rose-500/15 px-5 py-8 text-center">
-              <p className="text-7xl leading-none" aria-hidden>{carta.emoji}</p>
-              <h3 className="mt-4 text-xl font-extrabold">{carta.titulo}</h3>
+              {temPictograma(carta.id)
+                ? <PictogramaPosicao id={carta.id} titulo={`Ilustração: ${carta.titulo}`} className="mx-auto -mt-3 w-full max-w-[260px] drop-shadow-[0_0_18px_rgba(236,72,153,0.35)]" />
+                : <p className="text-7xl leading-none" aria-hidden>{carta.emoji}</p>}
+              <h3 className={`${temPictograma(carta.id) ? 'mt-1' : 'mt-4'} text-xl font-extrabold`}>{carta.titulo} {temPictograma(carta.id) && <span aria-hidden>{carta.emoji}</span>}</h3>
               <p className="mt-1.5 text-sm text-zinc-200">{carta.descricao}</p>
               <p className="mt-3 text-sm" aria-label={`Intensidade ${carta.intensidade} de 3`}>{'🌶️'.repeat(carta.intensidade)}<span className="opacity-25">{'🌶️'.repeat(3 - carta.intensidade)}</span></p>
             </div>
@@ -203,7 +206,9 @@ const Resultado: React.FC<{ jogo: JogoDesejos; aoNovo: () => void; aoConversar: 
         <ul className="mt-4 flex flex-col gap-2">
           {lista.map((c) => (
             <li key={c.id} className="flex items-center gap-3 rounded-2xl bg-white/[0.06] px-3 py-2.5">
-              <span className="text-3xl" aria-hidden>{c.emoji}</span>
+              {temPictograma(c.id)
+                ? <PictogramaPosicao id={c.id} titulo={`Ilustração: ${c.titulo}`} className="w-16 shrink-0" />
+                : <span className="text-3xl" aria-hidden>{c.emoji}</span>}
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold">{c.titulo}</span>
                 <span className="block text-[12px] text-zinc-400">{c.descricao}</span>
