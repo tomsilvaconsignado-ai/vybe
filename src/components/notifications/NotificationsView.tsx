@@ -19,7 +19,8 @@ import {
   Hash,
   CalendarHeart,
   Gift,
-  Flame
+  Flame,
+  Dices
 } from 'lucide-react';
 
 export const NotificationsView: React.FC = () => {
@@ -75,6 +76,8 @@ export const NotificationsView: React.FC = () => {
         return <CalendarHeart className="w-4 h-4 text-rose-400" />;
       case 'mission':
         return <Flame className="w-4 h-4 text-orange-400" />;
+      case 'desire_game':
+        return <Dices className="w-4 h-4 text-fuchsia-400" />;
       default:
         return <Bell className="w-4 h-4 text-purple-400" />;
     }

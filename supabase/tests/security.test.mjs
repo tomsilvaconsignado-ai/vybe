@@ -1126,5 +1126,69 @@ const depois = (await db.query(`SELECT featured_until FROM profile_growth WHERE 
 mm = await missoes(mi.m);
 !mm.novidade ? ok('prêmio de boas-vindas só uma vez') : bad('prêmio repetido');
 
+
+{
+// ---------------------------------------------------------------- 26. Match de Desejos
+console.log('\nMatch de Desejos');
+const md = { a: '00000000-0000-0000-0000-0000000000a7', b: '00000000-0000-0000-0000-0000000000b7', x: '00000000-0000-0000-0000-0000000000c7', p: '00000000-0000-0000-0000-0000000000d7' };
+await db.query(`INSERT INTO auth.users VALUES ($1,'ma@x.com',$2,now())`, [md.a, meta('jogadora')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'mb@x.com',$2,now())`, [md.b, meta('jogador')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'mx@x.com',$2,now())`, [md.x, meta('xereta')]);
+await db.query(`INSERT INTO auth.users VALUES ($1,'mp@x.com',$2,now())`, [md.p, meta('pedido')]);
+await as(md.a, `INSERT INTO connections (requester_id, addressee_id) VALUES ($1, $2)`, [md.a, md.b]);
+await as(md.b, `UPDATE connections SET status = 'accepted' WHERE requester_id = $1 AND addressee_id = $2`, [md.a, md.b]);
+const convAB = (await as(md.a, `SELECT public.start_conversation($1) AS id`, [md.b])).rows[0].id;
+await as(md.p, `SELECT public.start_conversation($1) AS id`, [md.a]);
+
+await expectFail('não dá para jogar com quem ainda é só um pedido de conversa', md.a, `SELECT public.desire_start($1, 'posicoes')`, [md.p]);
+await expectFail('baralho inexistente é recusado', md.a, `SELECT public.desire_start($1, 'nada')`, [md.b]);
+await expectFail('anônimo não joga', null, `SELECT public.desire_start($1, 'mix')`, [md.b]);
+let jg = (await as(md.a, `SELECT public.desire_start($1, 'posicoes') AS j`, [md.b])).rows[0].j;
+!jg.existente && jg.conversation_id === convAB ? ok('desafio criado na conversa aceita') : bad('desafio: ' + JSON.stringify(jg));
+const jogo = jg.id;
+r = await as(md.b, `SELECT content, game_id FROM messages WHERE conversation_id = $1 AND game_id IS NOT NULL`, [convAB]);
+r.rows[0]?.game_id === jogo ? ok('o convite aparece no direct com o jogo anexado') : bad('mensagem do convite não encontrada');
+jg = (await as(md.b, `SELECT public.desire_start($1, 'fantasias') AS j`, [md.a])).rows[0].j;
+jg.existente && jg.id === jogo ? ok('um jogo por vez: desafiar de novo abre o mesmo jogo') : bad('criou jogo duplicado');
+await expectFail('ninguém forja convite de jogo numa mensagem comum', md.b, `INSERT INTO messages (conversation_id, sender_id, content, game_id) VALUES ($1, $2, 'oi', $3)`, [convAB, md.b, jogo]);
+await expectFail('quem está fora do jogo não abre o jogo', md.x, `SELECT public.desire_game($1)`, [jogo]);
+await expectFail('quem está fora do jogo não responde', md.x, `SELECT public.desire_answer($1, 'conchinha', 2)`, [jogo]);
+await expectFail('ninguém lê as respostas direto da tabela', md.a, `SELECT * FROM desire_answers`);
+await expectFail('ninguém lê os jogos direto da tabela', md.a, `SELECT * FROM desire_games`);
+
+let ga = (await as(md.a, `SELECT public.desire_game($1) AS g`, [jogo])).rows[0].g;
+const cartas = ga.cartas.map((c) => c.id);
+ga.total === 10 && cartas.length === 10 && ga.cartas.every((c) => c.baralho === 'posicoes') ? ok('10 cartas do baralho escolhido') : bad('cartas: ' + cartas.length);
+await expectFail('carta fora do jogo é recusada', md.a, `SELECT public.desire_answer($1, 'massagem', 2)`, [jogo]);
+await expectFail('resposta fora de 0 a 2 é recusada', md.a, `SELECT public.desire_answer($1, $2, 5)`, [jogo, cartas[0]]);
+
+// A: quero nas 3 primeiras, talvez na 4ª, não no resto. B: quero na 1ª, talvez na 2ª, não na 3ª, quero na 4ª e na 5ª.
+const respA = cartas.map((_, i) => (i < 3 ? 2 : i === 3 ? 1 : 0));
+const respB = cartas.map((_, i) => [2, 1, 0, 2, 2][i] ?? 0);
+const retorno = (await as(md.a, `SELECT public.desire_answer($1, $2, 2) AS g`, [jogo, cartas[0]])).rows[0].g;
+retorno.meus === 1 && retorno.cartas[0].minha === 2 ? ok('a resposta já volta marcada no estado do jogo') : bad('estado devolvido sem a resposta: ' + retorno.meus);
+for (const [i, c] of cartas.entries()) await as(md.a, `SELECT public.desire_answer($1, $2, $3)`, [jogo, c, respA[i]]);
+let gb = (await as(md.b, `SELECT public.desire_game($1) AS g`, [jogo])).rows[0].g;
+gb.dele === 10 && gb.meus === 0 && gb.combinacoes === null && gb.cartas.every((c) => c.minha === null) ? ok('B vê só que A terminou, sem ver as respostas') : bad('vazou resposta: ' + JSON.stringify(gb).slice(0, 200));
+r = await db.query(`SELECT count(*)::int n FROM notifications WHERE user_id = $1 AND type = 'desire_game'`, [md.b]);
+r.rows[0].n === 1 ? ok('B é avisado de que falta só ele') : bad('aviso de "falta você": ' + r.rows[0].n);
+for (const [i, c] of cartas.entries()) await as(md.b, `SELECT public.desire_answer($1, $2, $3)`, [jogo, c, respB[i]]);
+gb = (await as(md.b, `SELECT public.desire_game($1) AS g`, [jogo])).rows[0].g;
+const ids = gb.combinacoes.map((c) => c.id);
+gb.status === 'done' && ids.length === 3 && ids[0] === cartas[0] && ids.includes(cartas[1]) && ids.includes(cartas[3]) ? ok('resultado: só os desejos em comum (quero+quero e quero+talvez)') : bad('combinações: ' + JSON.stringify(ids));
+!ids.includes(cartas[2]) && !ids.includes(cartas[4]) ? ok('o "não" de um esconde a carta: ninguém descobre a resposta do outro') : bad('carta com "não" apareceu');
+gb.combinacoes[0].nivel === 'os_dois_querem' && gb.sintonia === 30 ? ok('os dois querem vem primeiro; sintonia de 30%') : bad('nível/sintonia: ' + gb.combinacoes[0].nivel + ' ' + gb.sintonia);
+r = await db.query(`SELECT count(*)::int n FROM notifications WHERE user_id = $1 AND type = 'desire_game' AND title LIKE 'Saiu o resultado%'`, [md.a]);
+r.rows[0].n === 1 ? ok('A é avisada do resultado') : bad('aviso do resultado');
+await expectFail('jogo terminado não aceita mais respostas', md.a, `SELECT public.desire_answer($1, $2, 2)`, [jogo, cartas[5]]);
+
+jg = (await as(md.b, `SELECT public.desire_start($1, 'mix') AS j`, [md.a])).rows[0].j;
+!jg.existente ? ok('terminado o jogo, dá para começar outro') : bad('não abriu novo jogo');
+await expectOk('quem foi desafiado pode recusar', md.a, `SELECT public.desire_decline($1)`, [jg.id]);
+await as(md.a, `SELECT public.block_user($1)`, [md.b]);
+await expectFail('depois do bloqueio, o jogo some para os dois', md.b, `SELECT public.desire_game($1)`, [jogo]);
+await expectFail('depois do bloqueio, não dá para desafiar', md.b, `SELECT public.desire_start($1, 'mix')`, [md.a]);
+}
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);

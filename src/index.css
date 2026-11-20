@@ -389,7 +389,14 @@ video {
   to { opacity: 1; transform: none; }
 }
 
+/* Match de Desejos: cada carta nova entra girando de leve */
+.carta-desejo { animation: carta-desejo 0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes carta-desejo {
+  from { opacity: 0; transform: translateX(24px) rotate(2deg) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .anel-neon, .curtida-pulo, .coracao-explode, .faisca, .msg-entra { animation: none !important; }
+  .anel-neon, .curtida-pulo, .coracao-explode, .faisca, .msg-entra, .carta-desejo { animation: none !important; }
   .coracao-explode, .faisca { display: none; }
 }

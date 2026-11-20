@@ -21,9 +21,11 @@ import {
   SmilePlus,
   BadgeCheck,
   Camera,
-  ChevronDown
+  ChevronDown,
+  Dices
 } from 'lucide-react';
 import { ChatMessage } from '../../types';
+import { MatchDesejos } from './MatchDesejos';
 import { askConfirm, notify } from '../common/Feedback';
 import { OnlineDot, activityLabel } from '../common/OnlineDot';
 import { EmojiPicker, isEmojiOnly } from '../common/EmojiPicker';
@@ -76,14 +78,14 @@ interface LinhaProps {
   msg: ChatMessage; isMine: boolean; fimDoBloco: boolean; avatarDoOutro: string; desfoque: string; eUltimaMinha: boolean; eu: string;
   nomeDoOutro: string; original?: ChatMessage; podeInteragir: boolean; destacada: boolean; celular: boolean;
   aoMenu: (m: ChatMessage) => void; aoResponder: (m: ChatMessage) => void; aoReagir: (m: ChatMessage, emoji: string) => void;
-  aoIrPara: (id: string) => void; aoAmpliar: (url: string) => void;
+  aoIrPara: (id: string) => void; aoAmpliar: (url: string) => void; aoAbrirJogo: (id: string) => void;
 }
 
 // Uma mensagem da conversa (componente próprio: cada bolha tem o seu gesto de segurar/arrastar)
 const LinhaDaMensagem: React.FC<LinhaProps> = ({
   entra,
   msg, isMine, fimDoBloco, avatarDoOutro, desfoque, eUltimaMinha, eu, nomeDoOutro, original, podeInteragir, destacada, celular,
-  aoMenu, aoResponder, aoReagir, aoIrPara, aoAmpliar,
+  aoMenu, aoResponder, aoReagir, aoIrPara, aoAmpliar, aoAbrirJogo,
 }) => {
   const { desloc, handlers } = useGestosDaBolha({ aoSegurar: () => aoMenu(msg), aoArrastar: () => aoResponder(msg), ativo: podeInteragir });
   const bigEmoji = !msg.mediaUrl && !msg.replyToId && isEmojiOnly(msg.content);
@@ -136,6 +138,12 @@ const LinhaDaMensagem: React.FC<LinhaProps> = ({
             )}
             {msg.mediaUrl && <MidiaDaMensagem url={msg.mediaUrl} temTexto={!!msg.content} aoAmpliar={aoAmpliar} />}
             {msg.content && <p data-texto-msg={msg.id}>{msg.content}</p>}
+            {msg.gameId && (
+              <button type="button" onClick={() => aoAbrirJogo(msg.gameId!)}
+                className={`mt-2 mb-1 w-full min-h-[40px] rounded-xl px-3 text-[13px] font-bold flex items-center justify-center gap-1.5 cursor-pointer ${isMine ? 'bg-white/20 hover:bg-white/30' : 'fundo-neon'}`}>
+                <Dices className="w-4 h-4" /> {isMine ? 'Abrir o jogo' : 'Jogar agora'}
+              </button>
+            )}
             <span className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${isMine ? 'text-white/70' : 'text-zinc-400'}`}>
               {msg.createdAt}{isMine && <Confirmacao status={msg.status} claro />}
             </span>
@@ -223,6 +231,8 @@ export const MessagesView: React.FC = () => {
   const [showEmoji, setShowEmoji] = useState(false);
   const [attachment, setAttachment] = useState<{ file: File; preview: string } | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  // Match de Desejos aberto: id do jogo (convite tocado) ou null (escolher o baralho para desafiar)
+  const [jogoAberto, setJogoAberto] = useState<{ id: string | null } | null>(null);
   // responder / reagir
   const [resposta, setResposta] = useState<Resposta | null>(null);
   const [menuDe, setMenuDe] = useState<ChatMessage | null>(null);
@@ -570,6 +580,17 @@ export const MessagesView: React.FC = () => {
               </button>
 
               <div className="flex items-center shrink-0">
+                {!activeConv.isPendingRequest && (
+                  <button
+                    type="button"
+                    onClick={() => setJogoAberto({ id: null })}
+                    className="h-10 px-3 mr-0.5 rounded-full text-[13px] font-bold text-white fundo-neon flex items-center gap-1.5 cursor-pointer shadow-[0_6px_18px_-8px_rgba(236,72,153,0.9)]"
+                    title="Match de Desejos: um jogo a dois, com respostas secretas"
+                    aria-label={`Jogar Match de Desejos com ${otherParticipant.displayName}`}
+                  >
+                    <Dices className="w-[18px] h-[18px]" /><span className="hidden sm:inline">Jogar</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setDiscreetBlur(!discreetBlur)}
@@ -683,6 +704,7 @@ export const MessagesView: React.FC = () => {
                     aoReagir={reagir}
                     aoIrPara={irPara}
                     aoAmpliar={setViewerUrl}
+                    aoAbrirJogo={id => setJogoAberto({ id })}
                   />
                   </React.Fragment>
                 );
@@ -837,6 +859,15 @@ export const MessagesView: React.FC = () => {
         <BotaoResponderTrecho
           selecao={selecao}
           aoResponder={() => { const m = porId.get(selecao.msgId); if (m) responder(m, selecao.texto); }}
+        />
+      )}
+
+      {jogoAberto && activeConv && otherParticipant && (
+        <MatchDesejos
+          key={jogoAberto.id ?? 'novo'}
+          outro={{ id: otherParticipant.id, nome: otherParticipant.displayName }}
+          jogoId={jogoAberto.id}
+          aoFechar={() => setJogoAberto(null)}
         />
       )}
 

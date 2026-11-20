@@ -77,6 +77,7 @@ function mapMessage(row: any, senders: Map<string, { name: string; avatar: strin
     sentAt: row.created_at ?? undefined,
     replyToId: row.reply_to_id ?? undefined,
     replyQuote: row.reply_quote ?? undefined,
+    gameId: row.game_id ?? undefined,
   };
 }
 
@@ -138,7 +139,7 @@ export async function fetchMessages(conversation: Conversation, me: { id: string
   const [msgs, reacoes] = await Promise.all([
     supabase
       .from('messages')
-      .select('id, conversation_id, sender_id, content, media_url, status, created_at, reply_to_id, reply_quote')
+      .select('id, conversation_id, sender_id, content, media_url, status, created_at, reply_to_id, reply_quote, game_id')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .limit(500),

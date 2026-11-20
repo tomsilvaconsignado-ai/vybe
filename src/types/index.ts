@@ -208,6 +208,8 @@ export interface ChatMessage {
   sentAt?: string;
   replyToId?: string;
   replyQuote?: string;
+  /** convite do Match de Desejos (jogo a dois) anexado à mensagem */
+  gameId?: string;
   /** reações: um emoji por pessoa */
   reactions?: Array<{ userId: string; emoji: string }>;
 }

@@ -2892,7 +2892,7 @@ $$;
 
 -- Texto da tela bloqueada: discreto por padrão; com "mostrar nomes", cita quem agiu (nunca o conteúdo)
 CREATE OR REPLACE FUNCTION public.push_text(p_type TEXT, p_actor UUID, p_user UUID, p_title TEXT, p_message TEXT)
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   nomes BOOLEAN := coalesce((SELECT show_names FROM public.notification_preferences WHERE user_id = p_user), false);
   quem TEXT := CASE WHEN nomes AND p_actor IS NOT NULL THEN (SELECT display_name FROM public.profiles WHERE id = p_actor) END;
@@ -3207,7 +3207,7 @@ $$;
 
 -- Painel do push (equipe): aparelhos, envios e falhas recentes
 CREATE OR REPLACE FUNCTION public.admin_push_stats()
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
   RETURN jsonb_build_object(
@@ -3910,7 +3910,7 @@ GRANT SELECT ON public.community_requests, public.community_invites, public.comm
 -- 14. PAINEL ADMINISTRATIVO: indicadores reais da plataforma (só contagens, sem dados pessoais)
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.admin_platform_stats()
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
   RETURN jsonb_build_object(
@@ -4218,7 +4218,7 @@ RETURNS TEXT LANGUAGE sql IMMUTABLE SET search_path = public, extensions, pg_tem
 $$;
 
 CREATE OR REPLACE FUNCTION public.push_text(p_type TEXT, p_actor UUID, p_user UUID, p_title TEXT, p_message TEXT)
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   nomes BOOLEAN := coalesce((SELECT show_names FROM public.notification_preferences WHERE user_id = p_user), false);
   quem TEXT := CASE WHEN nomes AND p_actor IS NOT NULL THEN (SELECT display_name FROM public.profiles WHERE id = p_actor) END;
@@ -4504,7 +4504,7 @@ $$;
 
 -- Destaques do Descobrir (só ids: os perfis são buscados depois com as regras de privacidade de quem vê)
 CREATE OR REPLACE FUNCTION public.growth_highlights()
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE me UUID := auth.uid();
 BEGIN
   IF me IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
@@ -4554,7 +4554,7 @@ $$;
 
 -- 16.16 Growth Center (administração)
 CREATE OR REPLACE FUNCTION public.growth_admin_stats()
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
   IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
   RETURN jsonb_build_object(
@@ -4869,7 +4869,7 @@ REVOKE EXECUTE ON FUNCTION public.growth_validate() FROM PUBLIC, anon, authentic
 
 -- Destaques: o membro da semana inclui pessoas solteiras de qualquer gênero
 CREATE OR REPLACE FUNCTION public.growth_highlights()
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE me UUID := auth.uid();
 BEGIN
   IF me IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
@@ -5193,7 +5193,7 @@ GRANT EXECUTE ON FUNCTION public.admin_delete_event(UUID, TEXT) TO authenticated
 -- "Em destaque" do Descobrir só lista perfis com foto, e o aviso do VIP de padrinho pede a foto.
 -- ==============================================================================
 CREATE OR REPLACE FUNCTION public.growth_highlights()
-RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE me UUID := auth.uid();
 BEGIN
   IF me IS NULL THEN RAISE EXCEPTION 'Faça login.'; END IF;
@@ -5794,3 +5794,295 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'Agendamento do lembrete de sequência não criado: %', SQLERRM;
 END $$;
+
+-- ==============================================================================
+-- 26. MATCH DE DESEJOS (jogo a dois no direct)
+-- Uma pessoa desafia outra numa conversa já aceita. As duas respondem em segredo às mesmas
+-- 10 cartas (🔥 quero, 🤔 talvez, 🙅 não). Quando as duas terminam, aparecem só os desejos em
+-- comum: ninguém vê o "não" (nem o "talvez" isolado) da outra pessoa. As respostas não podem ser
+-- lidas direto da tabela; só as funções abaixo leem e gravam. Bloqueio encerra o acesso ao jogo.
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.desire_cards (
+  id VARCHAR(40) PRIMARY KEY CHECK (id ~ '^[a-z0-9-]{2,40}$'),
+  deck VARCHAR(20) NOT NULL CHECK (deck IN ('posicoes', 'esquenta', 'fantasias', 'encontros')),
+  emoji VARCHAR(16) NOT NULL,
+  title VARCHAR(60) NOT NULL,
+  description VARCHAR(200) NOT NULL,
+  intensity SMALLINT NOT NULL DEFAULT 1 CHECK (intensity BETWEEN 1 AND 3),
+  active BOOLEAN NOT NULL DEFAULT true
+);
+ALTER TABLE public.desire_cards ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS desire_cards_read ON public.desire_cards;
+CREATE POLICY desire_cards_read ON public.desire_cards FOR SELECT TO authenticated USING (active);
+REVOKE ALL ON public.desire_cards FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.desire_cards FROM authenticated;
+GRANT SELECT ON public.desire_cards TO authenticated;
+
+INSERT INTO public.desire_cards (id, deck, emoji, title, description, intensity) VALUES
+  -- Posições
+  ('conchinha', 'posicoes', '🥄', 'Conchinha', 'Lado a lado, colados, no ritmo mais carinhoso da noite.', 1),
+  ('olho-no-olho', 'posicoes', '👀', 'Olho no olho', 'O clássico frente a frente, com beijos e muito contato visual.', 1),
+  ('lotus', 'posicoes', '🪷', 'Lótus', 'Sentados frente a frente, abraçados, bem devagar.', 1),
+  ('no-sofa', 'posicoes', '🛋️', 'Escapada no sofá', 'Nem deu tempo de chegar no quarto.', 1),
+  ('cavalgada', 'posicoes', '🤠', 'Cavalgada', 'Por cima e no comando do ritmo.', 2),
+  ('cavalgada-invertida', 'posicoes', '🔄', 'Cavalgada invertida', 'Por cima, de costas, com vista especial.', 2),
+  ('quatro-apoios', 'posicoes', '🐾', 'Quatro apoios', 'De joelhos e mãos na cama, intensidade lá em cima.', 2),
+  ('beira-da-cama', 'posicoes', '🛏️', 'Beira da cama', 'Um na beirada, o outro de pé: ângulo perfeito.', 2),
+  ('na-cadeira', 'posicoes', '🪑', 'Trono', 'Na cadeira, um sentado e o outro no colo.', 2),
+  ('meia-nove', 'posicoes', '♋', 'Meia-nove', 'Os dois dando e recebendo ao mesmo tempo.', 2),
+  ('no-chuveiro', 'posicoes', '🚿', 'Banho quente', 'No chuveiro, com água morna e pouca roupa (nenhuma).', 2),
+  ('contra-a-parede', 'posicoes', '🧱', 'Contra a parede', 'De pé, com urgência, como nos filmes.', 3),
+  ('bancada', 'posicoes', '🍳', 'Bancada da cozinha', 'O jantar pode esperar.', 3),
+  ('borboleta', 'posicoes', '🦋', 'Borboleta', 'Quadril na beirada e pernas para o alto.', 3),
+  ('tesoura', 'posicoes', '✂️', 'Tesoura', 'Pernas entrelaçadas, encaixe sem pressa.', 3),
+  ('carrinho-de-mao', 'posicoes', '🛒', 'Carrinho de mão', 'Acrobático, para quem gosta de desafio (e de rir junto).', 3),
+  -- Esquenta (preliminares)
+  ('massagem', 'esquenta', '💆', 'Massagem com óleo', 'Luz baixa, óleo aquecido e mãos sem pressa.', 1),
+  ('banho-juntos', 'esquenta', '🛁', 'Banho a dois', 'Espuma, música e conversa ao pé do ouvido.', 1),
+  ('beijos-pelo-corpo', 'esquenta', '💋', 'Mapa de beijos', 'Beijar o corpo inteiro, sem pular nenhuma parte.', 1),
+  ('mensagens-picantes', 'esquenta', '📱', 'Provocação o dia todo', 'Mensagens picantes desde cedo até a noite chegar.', 1),
+  ('lingerie', 'esquenta', '👙', 'Lingerie nova', 'Uma surpresa por baixo da roupa.', 1),
+  ('velas-musica', 'esquenta', '🕯️', 'Clima de velas', 'Velas, playlist sensual e celular desligado.', 1),
+  ('venda', 'esquenta', '🙈', 'Venda nos olhos', 'Sem enxergar, cada toque vira surpresa.', 2),
+  ('gelo', 'esquenta', '🧊', 'Gelo e calor', 'Alternar gelo e boca quente pelo corpo.', 2),
+  ('strip', 'esquenta', '💃', 'Strip-tease', 'Show particular, com direito a música escolhida.', 2),
+  ('frutas', 'esquenta', '🍓', 'Morango e chantilly', 'Sobremesa servida no corpo.', 2),
+  ('pena', 'esquenta', '🪶', 'Toque de pena', 'Arrepios em câmera lenta.', 2),
+  ('ordem-proibida', 'esquenta', '🤫', 'Proibido tocar', 'Um manda, o outro só pode olhar… até ganhar permissão.', 3),
+  ('verdade-desafio', 'esquenta', '🎲', 'Verdade ou desafio picante', 'Perguntas ousadas e desafios para valer.', 3),
+  -- Fantasias
+  ('desconhecidos-bar', 'fantasias', '🍸', 'Desconhecidos no bar', 'Chegar separados e fingir que é a primeira vez.', 1),
+  ('hotel-vista', 'fantasias', '🌃', 'Hotel com vista', 'Uma noite fora da rotina, com cidade aos pés.', 1),
+  ('motel-tematico', 'fantasias', '🏨', 'Motel temático', 'Hidro, espelho e tema exótico.', 1),
+  ('fotos-nossas', 'fantasias', '📸', 'Ensaio só nosso', 'Fotos sensuais que ficam só entre os dois.', 2),
+  ('assistir-juntos', 'fantasias', '🎬', 'Filme picante a dois', 'Assistir algo ousado e se inspirar.', 2),
+  ('fantasia-roupa', 'fantasias', '👮', 'Roupa de personagem', 'Enfermeira, policial, executivo… você escolhe.', 2),
+  ('algemas', 'fantasias', '🔗', 'Algemas de pelúcia', 'Um pouco de controle, muito de confiança.', 2),
+  ('dominar', 'fantasias', '👑', 'Quem manda hoje', 'Um assume o comando por uma noite inteira.', 3),
+  ('ar-livre', 'fantasias', '🌙', 'Ao ar livre (com discrição)', 'Lugar reservado, adrenalina e lua cheia.', 3),
+  ('festa-liberal', 'fantasias', '🎭', 'Festa liberal juntos', 'Conhecer o ambiente lado a lado, só olhando no começo.', 3),
+  ('casal-convidado', 'fantasias', '👥', 'Conversar sobre um terceiro', 'Só conversar: o que pensam de convidar alguém?', 3),
+  ('troca', 'fantasias', '🔁', 'Conversar sobre troca de casais', 'Fantasia para explorar primeiro em conversa.', 3),
+  -- Encontros
+  ('jantar-velas', 'encontros', '🍷', 'Jantar à luz de velas', 'Restaurante charmoso e conversa sem pressa.', 1),
+  ('rooftop', 'encontros', '🌆', 'Drinks num rooftop', 'Pôr do sol, drink gelado e cidade iluminada.', 1),
+  ('cinema-fundo', 'encontros', '🍿', 'Última fileira do cinema', 'O filme é o que menos importa.', 1),
+  ('piquenique', 'encontros', '🧺', 'Piquenique', 'Vinho, queijos e um lugar bonito.', 1),
+  ('dancar', 'encontros', '🪩', 'Dançar coladinho', 'Uma noite de dança até os pés doerem.', 1),
+  ('karaoke', 'encontros', '🎤', 'Karaokê a dois', 'Cantar mal juntos também é romântico.', 1),
+  ('cafe-na-cama', 'encontros', '🥐', 'Café da manhã na cama', 'Depois de uma noite longa.', 1),
+  ('praia-por-do-sol', 'encontros', '🌅', 'Praia ao pôr do sol', 'Pé na areia e mãos dadas.', 1),
+  ('viagem-surpresa', 'encontros', '🧳', 'Viagem surpresa', 'Malas prontas sem saber o destino.', 2),
+  ('spa', 'encontros', '🧖', 'Day spa a dois', 'Massagem, sauna e muito relaxamento.', 2),
+  ('show', 'encontros', '🎸', 'Show ao vivo', 'Música alta e beijo no meio da multidão.', 2),
+  ('balada', 'encontros', '🎉', 'Balada até o sol nascer', 'Para quem gosta de noite sem fim.', 2)
+ON CONFLICT (id) DO UPDATE SET deck = EXCLUDED.deck, emoji = EXCLUDED.emoji, title = EXCLUDED.title,
+  description = EXCLUDED.description, intensity = EXCLUDED.intensity;
+
+CREATE TABLE IF NOT EXISTS public.desire_games (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  partner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  deck VARCHAR(20) NOT NULL CHECK (deck IN ('posicoes', 'esquenta', 'fantasias', 'encontros', 'mix')),
+  cards VARCHAR(40)[] NOT NULL,
+  status VARCHAR(10) NOT NULL DEFAULT 'playing' CHECK (status IN ('playing', 'done', 'declined')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at TIMESTAMPTZ,
+  CHECK (created_by <> partner_id)
+);
+CREATE INDEX IF NOT EXISTS idx_desire_games_conv ON public.desire_games(conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_desire_games_creator ON public.desire_games(created_by, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_desire_games_partner ON public.desire_games(partner_id, created_at DESC);
+-- um jogo em andamento por dupla
+CREATE UNIQUE INDEX IF NOT EXISTS uq_desire_games_ativo ON public.desire_games(least(created_by, partner_id), greatest(created_by, partner_id)) WHERE status = 'playing';
+
+CREATE TABLE IF NOT EXISTS public.desire_answers (
+  game_id UUID NOT NULL REFERENCES public.desire_games(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  card_id VARCHAR(40) NOT NULL,
+  answer SMALLINT NOT NULL CHECK (answer BETWEEN 0 AND 2),
+  answered_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (game_id, user_id, card_id)
+);
+CREATE INDEX IF NOT EXISTS idx_desire_answers_user ON public.desire_answers(user_id);
+
+-- jogos e respostas: só pelas funções (as respostas nunca são lidas direto)
+ALTER TABLE public.desire_games ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.desire_answers ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.desire_games, public.desire_answers FROM anon, authenticated;
+
+-- a mensagem do convite leva o jogo (só a função do jogo grava essa coluna)
+ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS game_id UUID REFERENCES public.desire_games(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_messages_game ON public.messages(game_id) WHERE game_id IS NOT NULL;
+CREATE OR REPLACE FUNCTION public.messages_check_game() RETURNS TRIGGER
+LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF NEW.game_id IS NOT NULL AND coalesce(current_setting('vybe.desire_rpc', true), '') <> 'sim'
+     AND (TG_OP = 'INSERT' OR NEW.game_id IS DISTINCT FROM OLD.game_id) THEN
+    RAISE EXCEPTION 'Convite de jogo inválido.' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS messages_check_game ON public.messages;
+CREATE TRIGGER messages_check_game BEFORE INSERT OR UPDATE OF game_id ON public.messages
+  FOR EACH ROW EXECUTE FUNCTION public.messages_check_game();
+
+-- participante do jogo, sem bloqueio entre os dois
+CREATE OR REPLACE FUNCTION public.desire_game_for(p_game UUID)
+RETURNS public.desire_games LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE g public.desire_games;
+BEGIN
+  SELECT * INTO g FROM public.desire_games WHERE id = p_game;
+  IF g.id IS NULL OR auth.uid() NOT IN (g.created_by, g.partner_id) OR public.is_blocked_between(g.created_by, g.partner_id) THEN
+    RAISE EXCEPTION 'Jogo não encontrado.' USING ERRCODE = '42501';
+  END IF;
+  RETURN g;
+END;
+$$;
+
+-- aviso do jogo na central (abre a conversa)
+CREATE OR REPLACE FUNCTION public.desire_notify(p_user UUID, p_actor UUID, p_titulo TEXT, p_texto TEXT, p_conv UUID, p_chave TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.notifications (user_id, actor_id, type, title, message, link, dedupe_key)
+  VALUES (p_user, p_actor, 'desire_game', p_titulo, p_texto, '/mensagens/' || p_conv, p_chave)
+  ON CONFLICT DO NOTHING;
+$$;
+
+-- Estado do jogo para quem chama: cartas, minhas respostas, progresso da outra pessoa e,
+-- no fim, só as cartas em que os dois disseram "quero" ou "talvez" (com pelo menos um "quero")
+CREATE OR REPLACE FUNCTION public.desire_game(p_game UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  g public.desire_games := public.desire_game_for(p_game);
+  outro UUID;
+  total INT;
+  meus INT; dele INT;
+BEGIN
+  outro := CASE WHEN g.created_by = me THEN g.partner_id ELSE g.created_by END;
+  total := cardinality(g.cards);
+  SELECT count(*) INTO meus FROM public.desire_answers WHERE game_id = g.id AND user_id = me;
+  SELECT count(*) INTO dele FROM public.desire_answers WHERE game_id = g.id AND user_id = outro;
+  RETURN jsonb_build_object(
+    'id', g.id, 'conversation_id', g.conversation_id, 'deck', g.deck, 'status', g.status,
+    'eu_desafiei', g.created_by = me, 'total', total, 'meus', meus, 'dele', dele,
+    'outro', (SELECT jsonb_build_object('id', p.id, 'nome', p.display_name, 'avatar', p.avatar_url) FROM public.profiles p WHERE p.id = outro),
+    'cartas', (SELECT jsonb_agg(jsonb_build_object('id', c.id, 'emoji', c.emoji, 'titulo', c.title, 'descricao', c.description,
+                 'intensidade', c.intensity, 'baralho', c.deck,
+                 'minha', (SELECT a.answer FROM public.desire_answers a WHERE a.game_id = g.id AND a.user_id = me AND a.card_id = c.id))
+                 ORDER BY array_position(g.cards, c.id))
+               FROM public.desire_cards c WHERE c.id = ANY (g.cards)),
+    'combinacoes', CASE WHEN g.status = 'done' THEN coalesce((
+        SELECT jsonb_agg(jsonb_build_object('id', c.id, 'emoji', c.emoji, 'titulo', c.title, 'descricao', c.description,
+                 'nivel', CASE WHEN a1.answer = 2 AND a2.answer = 2 THEN 'os_dois_querem' ELSE 'quem_sabe' END)
+                 ORDER BY (a1.answer + a2.answer) DESC, array_position(g.cards, c.id))
+          FROM public.desire_cards c
+          JOIN public.desire_answers a1 ON a1.game_id = g.id AND a1.user_id = me AND a1.card_id = c.id
+          JOIN public.desire_answers a2 ON a2.game_id = g.id AND a2.user_id = outro AND a2.card_id = c.id
+         WHERE a1.answer >= 1 AND a2.answer >= 1 AND a1.answer + a2.answer >= 3), '[]'::jsonb) END,
+    'sintonia', CASE WHEN g.status = 'done' THEN (
+        SELECT round(100.0 * count(*) FILTER (WHERE a1.answer >= 1 AND a2.answer >= 1) / greatest(total, 1))::int
+          FROM public.desire_answers a1 JOIN public.desire_answers a2 ON a2.game_id = a1.game_id AND a2.card_id = a1.card_id AND a2.user_id = outro
+         WHERE a1.game_id = g.id AND a1.user_id = me) END);
+END;
+$$;
+
+-- Desafiar alguém (conversa já aceita entre os dois). Se já houver jogo em andamento, devolve ele.
+CREATE OR REPLACE FUNCTION public.desire_start(p_partner UUID, p_deck TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  conv UUID; jogo UUID; cartas VARCHAR(40)[];
+  rotulo TEXT := CASE p_deck WHEN 'posicoes' THEN 'Posições' WHEN 'esquenta' THEN 'Esquenta' WHEN 'fantasias' THEN 'Fantasias'
+                             WHEN 'encontros' THEN 'Encontros' WHEN 'mix' THEN 'Mix surpresa' END;
+  nome TEXT;
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Entre na sua conta.' USING ERRCODE = '42501'; END IF;
+  IF rotulo IS NULL THEN RAISE EXCEPTION 'Baralho inválido.' USING ERRCODE = '22023'; END IF;
+  IF p_partner = me OR public.is_blocked_between(me, p_partner) OR NOT public.can_interact()
+     OR NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_partner AND status = 'active') THEN
+    RAISE EXCEPTION 'Não é possível jogar com esse perfil.' USING ERRCODE = '42501';
+  END IF;
+  SELECT c.id INTO conv FROM public.conversations c
+    JOIN public.conversation_participants a ON a.conversation_id = c.id AND a.user_id = me
+    JOIN public.conversation_participants b ON b.conversation_id = c.id AND b.user_id = p_partner
+   WHERE NOT c.is_pending_request ORDER BY c.created_at LIMIT 1;
+  IF conv IS NULL THEN RAISE EXCEPTION 'O jogo só pode ser enviado numa conversa já aceita.' USING ERRCODE = '42501'; END IF;
+
+  SELECT id INTO jogo FROM public.desire_games
+   WHERE status = 'playing' AND least(created_by, partner_id) = least(me, p_partner) AND greatest(created_by, partner_id) = greatest(me, p_partner);
+  IF jogo IS NOT NULL THEN RETURN jsonb_build_object('id', jogo, 'conversation_id', conv, 'existente', true); END IF;
+  IF (SELECT count(*) FROM public.desire_games WHERE created_by = me AND created_at > now() - interval '1 day') >= 15 THEN
+    RAISE EXCEPTION 'Você já enviou muitos jogos hoje. Tente amanhã.' USING ERRCODE = '54000';
+  END IF;
+
+  SELECT array_agg(id) INTO cartas FROM (
+    SELECT id FROM public.desire_cards WHERE active AND (p_deck = 'mix' OR deck = p_deck) ORDER BY random() LIMIT 10) x;
+  IF coalesce(cardinality(cartas), 0) < 3 THEN RAISE EXCEPTION 'Baralho indisponível.' USING ERRCODE = '22023'; END IF;
+
+  INSERT INTO public.desire_games (conversation_id, created_by, partner_id, deck, cards)
+  VALUES (conv, me, p_partner, p_deck, cartas) RETURNING id INTO jogo;
+
+  SELECT display_name INTO nome FROM public.profiles WHERE id = me;
+  PERFORM set_config('vybe.desire_rpc', 'sim', true);
+  INSERT INTO public.messages (conversation_id, sender_id, content, game_id)
+  VALUES (conv, me, '🔥 Te desafiei no Match de Desejos (' || rotulo || ')! Responda em segredo: só o que a gente tiver em comum aparece.', jogo);
+  PERFORM set_config('vybe.desire_rpc', '', true);
+  RETURN jsonb_build_object('id', jogo, 'conversation_id', conv, 'existente', false);
+END;
+$$;
+
+-- Responder uma carta (pode mudar até a outra pessoa também terminar)
+CREATE OR REPLACE FUNCTION public.desire_answer(p_game UUID, p_card TEXT, p_answer INTEGER)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  me UUID := auth.uid();
+  g public.desire_games := public.desire_game_for(p_game);
+  outro UUID; total INT; meus INT; dele INT; comuns INT; nome TEXT;
+BEGIN
+  IF g.status <> 'playing' THEN RAISE EXCEPTION 'Este jogo já terminou.' USING ERRCODE = '22023'; END IF;
+  IF p_answer NOT BETWEEN 0 AND 2 OR NOT (p_card = ANY (g.cards)) THEN RAISE EXCEPTION 'Resposta inválida.' USING ERRCODE = '22023'; END IF;
+  INSERT INTO public.desire_answers (game_id, user_id, card_id, answer) VALUES (g.id, me, p_card, p_answer)
+  ON CONFLICT (game_id, user_id, card_id) DO UPDATE SET answer = EXCLUDED.answer, answered_at = now();
+
+  outro := CASE WHEN g.created_by = me THEN g.partner_id ELSE g.created_by END;
+  total := cardinality(g.cards);
+  SELECT count(*) INTO meus FROM public.desire_answers WHERE game_id = g.id AND user_id = me;
+  SELECT count(*) INTO dele FROM public.desire_answers WHERE game_id = g.id AND user_id = outro;
+  IF meus = total THEN
+    SELECT display_name INTO nome FROM public.profiles WHERE id = me;
+    IF dele = total THEN
+      UPDATE public.desire_games SET status = 'done', finished_at = now() WHERE id = g.id;
+      SELECT count(*) INTO comuns FROM public.desire_answers a1 JOIN public.desire_answers a2
+        ON a2.game_id = a1.game_id AND a2.card_id = a1.card_id AND a2.user_id = outro
+       WHERE a1.game_id = g.id AND a1.user_id = me AND a1.answer >= 1 AND a2.answer >= 1 AND a1.answer + a2.answer >= 3;
+      PERFORM public.desire_notify(outro, me, 'Saiu o resultado do Match de Desejos!',
+        'Você e ' || nome || ' combinaram em ' || comuns || CASE WHEN comuns = 1 THEN ' desejo' ELSE ' desejos' END || '. Veja o que vocês têm em comum 🔥',
+        g.conversation_id, 'desejos-fim-' || g.id);
+    ELSE
+      PERFORM public.desire_notify(outro, me, nome || ' já respondeu o Match de Desejos',
+        'Falta só você para revelar os desejos em comum 😏', g.conversation_id, 'desejos-falta-' || g.id);
+    END IF;
+  END IF;
+  RETURN public.desire_game(g.id);
+END;
+$$;
+
+-- Recusar (ou encerrar) o jogo em andamento
+CREATE OR REPLACE FUNCTION public.desire_decline(p_game UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE g public.desire_games := public.desire_game_for(p_game);
+BEGIN
+  IF g.status <> 'playing' THEN RAISE EXCEPTION 'Este jogo já terminou.' USING ERRCODE = '22023'; END IF;
+  UPDATE public.desire_games SET status = 'declined', finished_at = now() WHERE id = g.id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.desire_game_for(UUID), public.desire_notify(UUID, UUID, TEXT, TEXT, UUID, TEXT),
+  public.messages_check_game() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.desire_game(UUID), public.desire_start(UUID, TEXT), public.desire_answer(UUID, TEXT, INTEGER),
+  public.desire_decline(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.desire_game(UUID), public.desire_start(UUID, TEXT), public.desire_answer(UUID, TEXT, INTEGER),
+  public.desire_decline(UUID) TO authenticated;
