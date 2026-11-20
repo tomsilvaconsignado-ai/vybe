@@ -8,6 +8,14 @@ import { responderQuiz, type JogoQuiz } from '../../lib/desejos';
 import { PictogramaPosicao } from './Pictogramas';
 
 const acertou = (q: JogoQuiz['perguntas'][number]) => q.minha !== null && q.minha === q.certa;
+const NIVEL: Record<number, { rotulo: string; classe: string }> = {
+  1: { rotulo: '🟢 Fácil', classe: 'bg-emerald-500/20 text-emerald-200' },
+  2: { rotulo: '🟠 Intermediário', classe: 'bg-orange-500/20 text-orange-200' },
+  3: { rotulo: '🔴 Difícil', classe: 'bg-rose-500/25 text-rose-200' },
+};
+const pts = (n: number) => `${n} ${n === 1 ? 'ponto' : 'pontos'}`;
+/** cada acerto vale o nível da posição */
+const meusPontos = (j: JogoQuiz) => j.perguntas.filter(acertou).reduce((s, q) => s + q.nivel, 0);
 
 export const QuizKamaSutra: React.FC<{
   jogo: JogoQuiz; aoAtualizar: (j: JogoQuiz) => void; aoFechar: () => void; aoRevanche: () => void; aoOutroJogo: () => void;
@@ -15,7 +23,7 @@ export const QuizKamaSutra: React.FC<{
   // pergunta em tela: a primeira sem resposta (ou a que acabou de ser respondida, até tocar em "Próxima")
   const [atual, setAtual] = useState(() => Math.max(0, jogo.perguntas.findIndex((q) => q.minha === null)));
   const [ocupado, setOcupado] = useState(false);
-  const pontos = jogo.perguntas.filter(acertou).length;
+  const pontos = meusPontos(jogo);
 
   if (jogo.status === 'done' && jogo.placar) return <Placar jogo={jogo} aoFechar={aoFechar} aoRevanche={aoRevanche} aoOutroJogo={aoOutroJogo} />;
 
@@ -41,7 +49,8 @@ export const QuizKamaSutra: React.FC<{
     return (
       <div className="py-4 text-center">
         <p className="text-5xl" aria-hidden>🧠</p>
-        <p className="mt-2 text-lg font-bold">Você acertou {pontos} de {jogo.total}!</p>
+        <p className="mt-2 text-lg font-bold">Você fez {pts(pontos)}!</p>
+        <p className="text-sm text-zinc-300">{jogo.perguntas.filter(acertou).length} de {jogo.total} posições certas</p>
         <p className="mt-1 text-sm text-zinc-400">Agora é a vez de {jogo.outro.nome} ({jogo.dele}/{jogo.total}). O placar sai quando os dois terminarem.</p>
         <div className="mx-auto mt-4 h-2 max-w-[220px] rounded-full bg-white/10">
           <div className="h-2 rounded-full bg-gradient-to-r from-fuchsia-500 to-amber-400 transition-[width] duration-500" style={{ width: `${(jogo.dele / jogo.total) * 100}%` }} />
@@ -56,14 +65,15 @@ export const QuizKamaSutra: React.FC<{
     <>
       <div className="mb-3 flex items-center text-[12px] text-zinc-400">
         <span className="tabular-nums">Pergunta {atual + 1} de {jogo.total}</span>
-        <span className="ml-auto tabular-nums">Seus acertos: <b className="text-white">{pontos}</b></span>
+        <span className="ml-auto tabular-nums">Seus pontos: <b className="text-white">{pontos}</b></span>
       </div>
       <div className="mb-4 flex gap-1" aria-hidden>
         {jogo.perguntas.map((p, i) => (
           <span key={p.id} className={`h-1.5 flex-1 rounded-full ${i === atual ? 'bg-white' : p.minha === null ? 'bg-white/15' : acertou(p) ? 'bg-emerald-400' : 'bg-rose-500'}`} />
         ))}
       </div>
-      <div key={q.id} className="carta-desejo rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-600/25 via-purple-800/20 to-rose-500/15 px-4 pt-3 pb-4 text-center">
+      <div key={q.id} className="carta-desejo relative rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-600/25 via-purple-800/20 to-rose-500/15 px-4 pt-3 pb-4 text-center">
+        <span className={`absolute left-3 top-3 rounded-full px-2 py-0.5 text-[11px] font-bold ${NIVEL[q.nivel]?.classe ?? ''}`}>{NIVEL[q.nivel]?.rotulo} · vale {pts(q.nivel)}</span>
         <PictogramaPosicao id={q.id} titulo="Posição do quiz" className="mx-auto w-full max-w-[260px] drop-shadow-[0_0_18px_rgba(236,72,153,0.35)]" />
         <p className="mt-1 text-lg font-extrabold">Qual é o nome desta posição?</p>
       </div>
@@ -83,7 +93,7 @@ export const QuizKamaSutra: React.FC<{
       </div>
       {respondida && (
         <div className="mt-4 text-center" aria-live="polite">
-          <p className="font-bold">{acertou(q) ? 'Acertou! 🔥' : `Era ${q.opcoes[certa ?? 0]?.titulo} 😏`}</p>
+          <p className="font-bold">{acertou(q) ? `Acertou! +${pts(q.nivel)} 🔥` : `Era ${q.opcoes[certa ?? 0]?.titulo} 😏`}</p>
           <button type="button" onClick={proxima} className="mt-3 min-h-[44px] w-full rounded-2xl fundo-neon font-bold cursor-pointer">
             {jogo.perguntas.some((p, i) => i > atual && p.minha === null) ? 'Próxima' : 'Ver resultado'}
           </button>
@@ -107,7 +117,7 @@ const Placar: React.FC<{ jogo: JogoQuiz; aoFechar: () => void; aoRevanche: () =>
           <span className="mx-2 text-zinc-500">×</span>
           <span className={outro >= eu ? 'text-fuchsia-300' : ''}>{outro}</span>
         </p>
-        <p className="text-[12px] text-zinc-400">Você × {jogo.outro.nome}</p>
+        <p className="text-[12px] text-zinc-400">pontos · você × {jogo.outro.nome}</p>
         <p className="mt-2 text-sm text-zinc-200">{frase}</p>
       </div>
       <ul className="mt-4 grid grid-cols-2 gap-2">
@@ -115,6 +125,7 @@ const Placar: React.FC<{ jogo: JogoQuiz; aoFechar: () => void; aoRevanche: () =>
           <li key={q.id} className="rounded-2xl bg-white/[0.06] p-2">
             <PictogramaPosicao id={q.id} titulo={q.opcoes[q.certa ?? 0]?.titulo} className="w-full" />
             <p className="truncate text-center text-[12px] font-bold">{q.opcoes[q.certa ?? 0]?.titulo}</p>
+            <p className="text-center text-[10px] text-zinc-400">{NIVEL[q.nivel]?.rotulo} · {pts(q.nivel)}</p>
             <p className="mt-0.5 flex justify-center gap-2 text-[11px] text-zinc-400">
               <span>Você {acertou(q) ? '✅' : '❌'}</span><span>{jogo.outro.nome.split(' ')[0]} {q.outro_acertou ? '✅' : '❌'}</span>
             </p>

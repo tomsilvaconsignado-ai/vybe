@@ -5,7 +5,7 @@ import React from 'react';
 
 type P = [number, number];
 interface Corpo { cabeca: P; pescoco: P; quadril: P; bracos: [P, P][]; pernas: [P, P][] }
-type Cenario = 'cama' | 'cadeira' | 'sofa' | 'parede' | 'bancada' | 'chuveiro' | 'chao';
+type Cenario = 'cama' | 'cama-curta' | 'cadeira' | 'banqueta' | 'sofa' | 'parede' | 'bancada' | 'chuveiro' | 'escada' | 'chao';
 interface Pose { a: Corpo; b: Corpo; cenario?: Cenario }
 
 const POSES: Record<string, Pose> = {
@@ -88,6 +88,122 @@ const POSES: Record<string, Pose> = {
     cenario: 'chao',
     b: { cabeca: [18, 52], pescoco: [25, 54], quadril: [56, 48], bracos: [[[24, 64], [22, 76]], [[30, 64], [30, 76]]], pernas: [[[72, 44], [86, 42]], [[72, 48], [86, 46]]] },
     a: { cabeca: [86, 14], pescoco: [85, 22], quadril: [80, 50], bracos: [[[80, 34], [84, 44]], [[86, 36], [88, 46]]], pernas: [[[82, 64], [84, 80]], [[78, 64], [76, 80]]] },
+  },
+  // ---- posições do quiz (nomes populares do Kama Sutra; desenhos próprios)
+  tigre: {
+    cenario: 'cama',
+    b: { cabeca: [24, 58], pescoco: [31, 60], quadril: [58, 50], bracos: [[[30, 70], [20, 71]], [[36, 70], [27, 71]]], pernas: [[[60, 70], [76, 71]], [[63, 70], [79, 71]]] },
+    a: { cabeca: [45, 30], pescoco: [52, 34], quadril: [72, 48], bracos: [[[50, 46], [56, 52]], [[56, 44], [61, 50]]], pernas: [[[72, 70], [90, 71]], [[75, 70], [93, 71]]] },
+  },
+  ponte: {
+    cenario: 'chao',
+    a: { cabeca: [32, 62], pescoco: [40, 54], quadril: [70, 50], bracos: [[[34, 68], [30, 81]], [[39, 68], [37, 81]]], pernas: [[[80, 64], [84, 81]], [[77, 66], [79, 81]]] },
+    b: { cabeca: [68, 10], pescoco: [68, 18], quadril: [70, 44], bracos: [[[61, 27], [57, 18]], [[75, 27], [79, 18]]], pernas: [[[80, 54], [84, 68]], [[60, 54], [56, 68]]] },
+  },
+  aguia: {
+    cenario: 'cama',
+    b: { cabeca: [16, 64], pescoco: [23, 65], quadril: [52, 66], bracos: [[[30, 70], [38, 71]], [[24, 70], [16, 71]]], pernas: [[[62, 50], [70, 32]], [[66, 56], [82, 44]]] },
+    a: { cabeca: [64, 17], pescoco: [64, 26], quadril: [64, 52], bracos: [[[66, 32], [70, 32]], [[74, 40], [80, 44]]], pernas: [[[72, 70], [90, 71]], [[70, 70], [88, 72]]] },
+  },
+  visitante: {
+    cenario: 'chao',
+    a: { cabeca: [50, 12], pescoco: [51, 20], quadril: [52, 48], bracos: [[[60, 28], [66, 26]], [[60, 36], [67, 38]]], pernas: [[[52, 64], [52, 81]], [[48, 64], [46, 81]]] },
+    b: { cabeca: [66, 15], pescoco: [64, 23], quadril: [62, 49], bracos: [[[56, 22], [48, 22]], [[58, 30], [50, 32]]], pernas: [[[64, 64], [66, 81]], [[60, 65], [60, 81]]] },
+  },
+  deslizar: {
+    cenario: 'cama',
+    a: { cabeca: [18, 62], pescoco: [25, 63], quadril: [56, 64], bracos: [[[30, 54], [40, 52]], [[34, 70], [42, 70]]], pernas: [[[74, 65], [94, 66]], [[74, 66], [92, 67]]] },
+    b: { cabeca: [24, 51], pescoco: [31, 54], quadril: [60, 56], bracos: [[[26, 62], [20, 70]], [[34, 62], [30, 70]]], pernas: [[[78, 58], [96, 60]], [[78, 59], [95, 61]]] },
+  },
+  heroi: {
+    cenario: 'cama',
+    b: { cabeca: [14, 64], pescoco: [21, 65], quadril: [50, 66], bracos: [[[28, 70], [36, 71]], [[22, 70], [14, 71]]], pernas: [[[42, 50], [52, 34]], [[46, 48], [58, 32]]] },
+    a: { cabeca: [64, 15], pescoco: [63, 24], quadril: [62, 50], bracos: [[[58, 34], [54, 36]], [[64, 34], [58, 32]]], pernas: [[[70, 70], [88, 71]], [[68, 70], [86, 72]]] },
+  },
+  caracol: {
+    cenario: 'banqueta',
+    b: { cabeca: [26, 38], pescoco: [33, 42], quadril: [62, 44], bracos: [[[28, 50], [26, 58]], [[33, 50], [31, 58]]], pernas: [[[62, 62], [64, 81]], [[58, 62], [58, 81]]] },
+    a: { cabeca: [76, 12], pescoco: [75, 20], quadril: [72, 48], bracos: [[[70, 34], [64, 42]], [[74, 36], [66, 44]]], pernas: [[[74, 64], [76, 81]], [[70, 64], [70, 81]]] },
+  },
+  lobo: {
+    cenario: 'chao',
+    b: { cabeca: [31, 24], pescoco: [38, 29], quadril: [58, 48], bracos: [[[46, 40], [56, 48]], [[44, 42], [54, 50]]], pernas: [[[58, 64], [56, 81]], [[54, 64], [50, 81]]] },
+    a: { cabeca: [72, 12], pescoco: [71, 20], quadril: [68, 48], bracos: [[[64, 36], [57, 47]], [[68, 38], [60, 49]]], pernas: [[[70, 64], [72, 81]], [[66, 64], [66, 81]]] },
+  },
+  sussurro: {
+    cenario: 'cama',
+    a: { cabeca: [16, 62], pescoco: [23, 63], quadril: [54, 64], bracos: [[[34, 56], [44, 56]], [[28, 70], [36, 71]]], pernas: [[[72, 65], [92, 66]], [[72, 66], [90, 67]]] },
+    b: { cabeca: [62, 23], pescoco: [62, 32], quadril: [54, 56], bracos: [[[72, 46], [76, 64]], [[70, 48], [72, 64]]], pernas: [[[42, 64], [52, 71]], [[44, 66], [55, 72]]] },
+  },
+  desafio: {
+    cenario: 'banqueta',
+    b: { cabeca: [22, 22], pescoco: [28, 26], quadril: [44, 40], bracos: [[[26, 40], [22, 46]], [[30, 40], [26, 48]]], pernas: [[[30, 42], [32, 58]], [[32, 44], [36, 58]]] },
+    a: { cabeca: [57, 12], pescoco: [56, 20], quadril: [54, 46], bracos: [[[52, 32], [46, 38]], [[56, 34], [48, 40]]], pernas: [[[56, 64], [58, 81]], [[52, 64], [50, 81]]] },
+  },
+  elefante: {
+    cenario: 'chao',
+    a: { cabeca: [51, 16], pescoco: [52, 24], quadril: [50, 52], bracos: [[[60, 30], [66, 28]], [[60, 38], [66, 40]]], pernas: [[[52, 80], [36, 81]], [[48, 80], [34, 81]]] },
+    b: { cabeca: [66, 18], pescoco: [64, 26], quadril: [64, 52], bracos: [[[56, 26], [48, 26]], [[58, 32], [50, 32]]], pernas: [[[62, 80], [80, 81]], [[66, 80], [82, 81]]] },
+  },
+  aranha: {
+    cenario: 'cama',
+    b: { cabeca: [24, 46], pescoco: [31, 50], quadril: [60, 50], bracos: [[[32, 60], [30, 70]], [[36, 60], [36, 70]]], pernas: [[[62, 70], [78, 71]], [[74, 48], [92, 40]]] },
+    a: { cabeca: [75, 13], pescoco: [74, 22], quadril: [72, 48], bracos: [[[70, 36], [64, 46]], [[80, 36], [88, 40]]], pernas: [[[76, 70], [94, 71]], [[72, 70], [90, 72]]] },
+  },
+  tarantula: {
+    cenario: 'cama',
+    a: { cabeca: [33, 37], pescoco: [38, 44], quadril: [52, 66], bracos: [[[32, 56], [28, 71]], [[36, 58], [34, 71]]], pernas: [[[70, 64], [90, 70]], [[70, 66], [88, 71]]] },
+    b: { cabeca: [77, 33], pescoco: [72, 40], quadril: [58, 62], bracos: [[[80, 52], [84, 71]], [[78, 54], [80, 71]]], pernas: [[[44, 58], [30, 64]], [[44, 62], [28, 68]]] },
+  },
+  esfinge: {
+    cenario: 'cama',
+    b: { cabeca: [22, 54], pescoco: [29, 58], quadril: [60, 64], bracos: [[[32, 68], [22, 70]], [[36, 68], [28, 70]]], pernas: [[[76, 66], [94, 68]], [[74, 60], [84, 52]]] },
+    a: { cabeca: [26, 39], pescoco: [33, 43], quadril: [64, 52], bracos: [[[32, 56], [30, 70]], [[38, 56], [38, 70]]], pernas: [[[80, 58], [98, 64]], [[80, 60], [96, 66]]] },
+  },
+  poltrona: {
+    cenario: 'cama',
+    a: { cabeca: [79, 33], pescoco: [74, 41], quadril: [62, 64], bracos: [[[82, 54], [86, 71]], [[80, 56], [82, 71]]], pernas: [[[50, 62], [36, 70]], [[50, 64], [38, 71]]] },
+    b: { cabeca: [12, 64], pescoco: [19, 65], quadril: [46, 62], bracos: [[[24, 70], [32, 71]], [[18, 70], [10, 71]]], pernas: [[[60, 52], [76, 40]], [[58, 54], [74, 44]]] },
+  },
+  'arco-do-triunfo': {
+    cenario: 'cama',
+    a: { cabeca: [46, 38], pescoco: [52, 44], quadril: [62, 66], bracos: [[[44, 54], [38, 58]], [[48, 56], [40, 62]]], pernas: [[[44, 68], [26, 70]], [[46, 66], [28, 68]]] },
+    b: { cabeca: [20, 63], pescoco: [28, 65], quadril: [56, 62], bracos: [[[24, 70], [16, 71]], [[34, 70], [42, 71]]], pernas: [[[66, 58], [74, 66]], [[68, 60], [78, 68]]] },
+  },
+  vela: {
+    cenario: 'cama',
+    b: { cabeca: [26, 67], pescoco: [34, 66], quadril: [40, 40], bracos: [[[26, 70], [18, 71]], [[40, 70], [48, 71]]], pernas: [[[42, 24], [44, 8]], [[46, 24], [50, 8]]] },
+    a: { cabeca: [59, 13], pescoco: [58, 22], quadril: [56, 48], bracos: [[[50, 30], [44, 26]], [[52, 36], [46, 34]]], pernas: [[[60, 70], [78, 71]], [[56, 70], [74, 72]]] },
+  },
+  lacada: {
+    cenario: 'cama',
+    a: { cabeca: [41, 31], pescoco: [42, 40], quadril: [44, 66], bracos: [[[50, 50], [58, 44]], [[50, 54], [58, 50]]], pernas: [[[60, 60], [74, 64]], [[58, 64], [72, 70]]] },
+    b: { cabeca: [73, 31], pescoco: [72, 40], quadril: [70, 64], bracos: [[[64, 48], [56, 44]], [[64, 52], [56, 50]]], pernas: [[[54, 56], [40, 60]], [[56, 60], [40, 66]]] },
+  },
+  contorcionista: {
+    cenario: 'cama-curta',
+    a: { cabeca: [84, 74], pescoco: [76, 66], quadril: [44, 66], bracos: [[[84, 76], [88, 84]], [[80, 76], [82, 84]]], pernas: [[[28, 64], [10, 66]], [[28, 66], [12, 67]]] },
+    b: { cabeca: [47, 21], pescoco: [46, 30], quadril: [46, 56], bracos: [[[40, 42], [36, 48]], [[52, 42], [56, 48]]], pernas: [[[34, 62], [26, 70]], [[58, 62], [66, 70]]] },
+  },
+  presidente: {
+    cenario: 'banqueta',
+    b: { cabeca: [36, 14], pescoco: [38, 22], quadril: [44, 48], bracos: [[[44, 32], [48, 40]], [[40, 34], [36, 42]]], pernas: [[[30, 50], [28, 58]], [[44, 64], [44, 81]]] },
+    a: { cabeca: [51, 10], pescoco: [50, 18], quadril: [53, 48], bracos: [[[44, 30], [40, 36]], [[46, 36], [42, 40]]], pernas: [[[53, 64], [55, 81]], [[57, 64], [59, 81]]] },
+  },
+  cipo: {
+    cenario: 'chao',
+    a: { cabeca: [70, 12], pescoco: [69, 20], quadril: [66, 48], bracos: [[[60, 34], [54, 40]], [[62, 40], [54, 46]]], pernas: [[[66, 64], [68, 81]], [[62, 64], [62, 81]]] },
+    b: { cabeca: [44, 16], pescoco: [46, 24], quadril: [50, 50], bracos: [[[56, 22], [64, 20]], [[56, 28], [64, 26]]], pernas: [[[50, 66], [50, 81]], [[58, 34], [68, 16]]] },
+  },
+  sereia: {
+    cenario: 'bancada',
+    b: { cabeca: [12, 48], pescoco: [19, 50], quadril: [48, 51], bracos: [[[24, 55], [30, 53]], [[16, 55], [10, 53]]], pernas: [[[52, 34], [56, 16]], [[54, 34], [60, 16]]] },
+    a: { cabeca: [66, 13], pescoco: [65, 22], quadril: [62, 48], bracos: [[[60, 28], [57, 18]], [[62, 26], [60, 16]]], pernas: [[[62, 64], [64, 81]], [[66, 64], [68, 81]]] },
+  },
+  escada: {
+    cenario: 'escada',
+    b: { cabeca: [22, 40], pescoco: [29, 44], quadril: [50, 48], bracos: [[[26, 52], [22, 58]], [[30, 52], [28, 58]]], pernas: [[[46, 66], [60, 74]], [[50, 66], [64, 74]]] },
+    a: { cabeca: [71, 13], pescoco: [70, 22], quadril: [68, 48], bracos: [[[64, 36], [56, 44]], [[68, 38], [58, 46]]], pernas: [[[70, 64], [72, 81]], [[66, 64], [66, 81]]] },
   },
 };
 
@@ -188,6 +304,9 @@ function Cenario({ tipo }: { tipo?: Cenario }) {
     case 'parede': return <g><path d="M4 4 H20 V82 H4 Z" fill="rgba(168,85,247,0.10)" /><g {...p}><path d="M20 4 V82 M6 83 H114" /></g></g>;
     case 'bancada': return <g><path d="M12 54 H54 V58 H12 Z" fill={lencol} /><g {...p}><path d="M16 58 V83 M50 58 V83 M6 83 H114" /></g></g>;
     case 'chuveiro': return <g><g {...p}><path d="M22 83 V6 H38 M35 6 V10 M6 83 H114" /></g><path d="M30 14 l-3 9 M35 14 l-1 10 M40 14 l1 9 M45 14 l3 9" stroke="rgba(125,211,252,0.45)" strokeWidth={1.2} strokeDasharray="2 3" strokeLinecap="round" /></g>;
+    case 'cama-curta': return <g><path d="M6 71 Q42 67 78 71 V74 H6 Z" fill={lencol} /><g {...p}><path d="M6 74 H78 M10 74 V83 M74 74 V83 M7 74 V58" /></g></g>;
+    case 'banqueta': return <g><path d="M16 57 H40 V60 H16 Z" fill={lencol} /><g {...p}><path d="M20 60 V83 M36 60 V83 M6 83 H114" /></g></g>;
+    case 'escada': return <g><path d="M8 83 V58 H24 V66 H40 V74 H56 V83 Z" fill="rgba(168,85,247,0.14)" /><g {...p}><path d="M8 58 H24 V66 H40 V74 H56 V83 M6 83 H114" /></g></g>;
     case 'chao': return <g {...p}><path d="M6 83 H114" /></g>;
     default: return null;
   }

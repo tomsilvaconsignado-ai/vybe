@@ -1231,7 +1231,10 @@ await expectFail('não dá para mudar a resposta', qz.a, `SELECT public.quiz_ans
 let eb = (await as(qz.b, `SELECT public.quiz_game($1) AS g`, [quiz])).rows[0].g;
 eb.dele === 8 && eb.perguntas.every((q) => q.certa === null) ? ok('B vê que A terminou, sem ver as respostas dela') : bad('B viu respostas');
 for (const [i, q] of eb.perguntas.entries()) eb = (await as(qz.b, `SELECT public.quiz_answer($1, $2, $3) AS g`, [quiz, q.id, i < 3 ? certa(q) : errada(q)])).rows[0].g;
-eb.status === 'done' && eb.placar.eu === 3 && eb.placar.outro === 6 ? ok('placar final: B 3 × 6 A') : bad('placar: ' + JSON.stringify(eb.placar));
+// pontos = soma do nível (1 a 3) das posições acertadas
+const pontos = (ate) => eb.perguntas.slice(0, ate).reduce((s, q) => s + q.nivel, 0);
+eb.perguntas.every((q) => q.nivel >= 1 && q.nivel <= 3) ? ok('cada pergunta traz o nível de dificuldade') : bad('nível ausente');
+eb.status === 'done' && eb.placar.eu === pontos(3) && eb.placar.outro === pontos(6) ? ok(`placar em pontos pelo nível: B ${pontos(3)} × ${pontos(6)} A`) : bad('placar: ' + JSON.stringify(eb.placar));
 eb.perguntas[5].outro_acertou === true && eb.perguntas[7].outro_acertou === false ? ok('no final, cada um vê onde o outro acertou') : bad('acertos do outro errados');
 r = await db.query(`SELECT message FROM notifications WHERE user_id = $1 AND dedupe_key = $2`, [qz.a, 'quiz-fim-' + quiz]);
 /Você venceu/.test(r.rows[0]?.message ?? '') ? ok('A recebe o aviso da vitória') : bad('aviso: ' + r.rows[0]?.message);

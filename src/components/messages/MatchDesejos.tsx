@@ -127,7 +127,7 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
               <PictogramaPosicao id="cavalgada" className="w-20 shrink-0" />
               <span className="min-w-0">
                 <span className="block text-[15px] font-extrabold">🧠 Quiz do Kama Sutra</span>
-                <span className="block text-[12px] text-zinc-200">8 posições desenhadas: quem acertar mais nomes vence e escolhe a próxima 😏</span>
+                <span className="block text-[12px] text-zinc-200">8 posições sorteadas entre 39 desenhadas. Difíceis valem mais pontos: quem vencer escolhe a próxima 😏</span>
               </span>
             </button>
             <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-zinc-400">Ou o Match de Desejos</p>

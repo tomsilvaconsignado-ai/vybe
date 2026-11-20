@@ -41,6 +41,8 @@ export async function desafiar(outroId: string, baralho: Baralho): Promise<{ id:
 export interface PerguntaQuiz {
   id: string; opcoes: Array<{ id: string; titulo: string }>;
   minha: number | null; certa: number | null; outro_acertou: boolean | null;
+  /** nível de dificuldade: 1 fácil, 2 intermediário, 3 difícil (vale esses pontos) */
+  nivel: 1 | 2 | 3;
 }
 export interface JogoQuiz {
   kind: 'quiz';

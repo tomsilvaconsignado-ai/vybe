@@ -5836,6 +5836,30 @@ INSERT INTO public.desire_cards (id, deck, emoji, title, description, intensity)
   ('borboleta', 'posicoes', '🦋', 'Borboleta', 'Quadril na beirada e pernas para o alto.', 3),
   ('tesoura', 'posicoes', '✂️', 'Tesoura', 'Pernas entrelaçadas, encaixe sem pressa.', 3),
   ('carrinho-de-mao', 'posicoes', '🛒', 'Carrinho de mão', 'Acrobático, para quem gosta de desafio (e de rir junto).', 3),
+  -- nomes populares do Kama Sutra (descrições próprias); intensidade = nível de dificuldade no quiz
+  ('tigre', 'posicoes', '🐯', 'O Tigre', 'De quatro, apoiada nos antebraços, com o par colado por trás.', 1),
+  ('ponte', 'posicoes', '🌉', 'A Ponte', 'Ele faz uma ponte e ela se acomoda por cima. Só para os fortes e flexíveis!', 3),
+  ('aguia', 'posicoes', '🦅', 'A Águia', 'Deitada, pernas abertas para o alto, seguras pelo par ajoelhado.', 1),
+  ('visitante', 'posicoes', '🚪', 'O Visitante', 'De pé, abraçados de frente. Serve para qualquer hora e lugar.', 1),
+  ('deslizar', 'posicoes', '🛝', 'Deslizar', 'Um deitado e o outro por cima, pernas juntinhas, corpo a corpo.', 1),
+  ('heroi', 'posicoes', '🦸', 'O Herói', 'Joelhos no peito e pés para o alto, com o par ajoelhado na frente.', 1),
+  ('caracol', 'posicoes', '🐌', 'O Caracol', 'Inclinada sobre uma banqueta, com o par de pé por trás.', 1),
+  ('lobo', 'posicoes', '🐺', 'O Lobo', 'De pé, um à frente do outro, braços seguros para trás.', 1),
+  ('sussurro', 'posicoes', '🤫', 'O Sussurro', 'Por cima, ajoelhada e inclinada para trás, apoiada nas mãos.', 1),
+  ('desafio', 'posicoes', '🏆', 'O Desafio', 'Agachada sobre uma banqueta, com o par por trás. Equilíbrio é tudo!', 3),
+  ('elefante', 'posicoes', '🐘', 'União do Elefante', 'Os dois ajoelhados, frente a frente, bem abraçados.', 1),
+  ('aranha', 'posicoes', '🕷️', 'A Aranha', 'De quatro, com uma perna erguida e segura pelo par.', 2),
+  ('tarantula', 'posicoes', '🕸️', 'A Tarântula', 'Os dois sentados, frente a frente, inclinados para trás nas mãos.', 2),
+  ('esfinge', 'posicoes', '🗿', 'A Esfinge', 'De bruços nos antebraços, uma perna dobrada, o par por cima.', 2),
+  ('poltrona', 'posicoes', '💺', 'A Poltrona', 'Deitada, pernas nos ombros do par, que se apoia para trás nas mãos.', 1),
+  ('arco-do-triunfo', 'posicoes', '🏛️', 'Arco do Triunfo', 'No colo dele e depois inclinada para trás, entre as pernas do par.', 2),
+  ('vela', 'posicoes', '🕯️', 'A Vela que Queima', 'Apoiada nos ombros, pernas para o alto, seguras pelo par.', 3),
+  ('lacada', 'posicoes', '🪢', 'A Laçada', 'Sentados frente a frente, pernas entrelaçadas na cintura um do outro.', 2),
+  ('contorcionista', 'posicoes', '🤸', 'O Contorcionista', 'Ele deitado com a cabeça para fora da cama, e ela por cima.', 3),
+  ('presidente', 'posicoes', '🎩', 'O Presidente', 'De pé, ela com um pé apoiado no alto e o par colado por trás.', 2),
+  ('cipo', 'posicoes', '🌿', 'O Cipó', 'De pé, frente a frente, uma perna apoiada no ombro do par.', 3),
+  ('sereia', 'posicoes', '🧜', 'A Sereia', 'Deitada na beira da mesa, pernas para o alto, seguras pelos pés.', 1),
+  ('escada', 'posicoes', '🪜', 'O Caso da Escada', 'Ajoelhada nos degraus, com o par logo atrás.', 1),
   -- Esquenta (preliminares)
   ('massagem', 'esquenta', '💆', 'Massagem com óleo', 'Luz baixa, óleo aquecido e mãos sem pressa.', 1),
   ('banho-juntos', 'esquenta', '🛁', 'Banho a dois', 'Espuma, música e conversa ao pé do ouvido.', 1),
@@ -6127,18 +6151,20 @@ BEGIN
           'minha', mi.answer,
           -- a resposta certa só aparece para quem já respondeu
           'certa', CASE WHEN mi.answer IS NOT NULL OR fim THEN q.certa END,
-          'outro_acertou', CASE WHEN fim THEN de.answer = q.certa END)
+          'outro_acertou', CASE WHEN fim THEN de.answer = q.certa END,
+          'nivel', (SELECT intensity FROM public.desire_cards WHERE id = q.carta))
         ORDER BY q.n)
         FROM (SELECT x.carta, x.n,
                      (SELECT (o.pos - 1)::int FROM jsonb_array_elements_text(g.options -> (x.n - 1)::int) WITH ORDINALITY o(id, pos) WHERE o.id = x.carta) AS certa
                 FROM unnest(g.cards) WITH ORDINALITY x(carta, n)) q
         LEFT JOIN public.desire_answers mi ON mi.game_id = g.id AND mi.user_id = me AND mi.card_id = q.carta
         LEFT JOIN public.desire_answers de ON de.game_id = g.id AND de.user_id = outro AND de.card_id = q.carta),
+    -- pontos: cada acerto vale o nível da posição (fácil 1, intermediário 2, difícil 3)
     'placar', CASE WHEN fim THEN jsonb_build_object(
-        'eu', (SELECT count(*) FROM public.desire_answers a, unnest(g.cards) WITH ORDINALITY x(carta, n)
-                WHERE a.game_id = g.id AND a.user_id = me AND a.card_id = x.carta AND g.options -> (x.n - 1)::int ->> a.answer = x.carta),
-        'outro', (SELECT count(*) FROM public.desire_answers a, unnest(g.cards) WITH ORDINALITY x(carta, n)
-                WHERE a.game_id = g.id AND a.user_id = outro AND a.card_id = x.carta AND g.options -> (x.n - 1)::int ->> a.answer = x.carta)) END);
+        'eu', (SELECT coalesce(sum(c.intensity), 0) FROM public.desire_answers a, unnest(g.cards) WITH ORDINALITY x(carta, n), public.desire_cards c
+                WHERE a.game_id = g.id AND a.user_id = me AND a.card_id = x.carta AND c.id = x.carta AND g.options -> (x.n - 1)::int ->> a.answer = x.carta),
+        'outro', (SELECT coalesce(sum(c.intensity), 0) FROM public.desire_answers a, unnest(g.cards) WITH ORDINALITY x(carta, n), public.desire_cards c
+                WHERE a.game_id = g.id AND a.user_id = outro AND a.card_id = x.carta AND c.id = x.carta AND g.options -> (x.n - 1)::int ->> a.answer = x.carta)) END);
 END;
 $$;
 
