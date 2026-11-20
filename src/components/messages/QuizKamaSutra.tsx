@@ -73,8 +73,8 @@ export const QuizKamaSutra: React.FC<{
         ))}
       </div>
       <div key={q.id} className="carta-desejo relative rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-600/25 via-purple-800/20 to-rose-500/15 px-4 pt-3 pb-4 text-center">
-        <span className={`absolute left-3 top-3 rounded-full px-2 py-0.5 text-[11px] font-bold ${NIVEL[q.nivel]?.classe ?? ''}`}>{NIVEL[q.nivel]?.rotulo} · vale {pts(q.nivel)}</span>
-        <PictogramaPosicao id={q.id} titulo="Posição do quiz" className="mx-auto w-full max-w-[260px] drop-shadow-[0_0_18px_rgba(236,72,153,0.35)]" />
+        <span className={`relative z-10 mb-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${NIVEL[q.nivel]?.classe ?? ''}`}>{NIVEL[q.nivel]?.rotulo} · vale {pts(q.nivel)}</span>
+        <PictogramaPosicao id={q.id} titulo="Posição do quiz" className="mx-auto w-full rounded-2xl shadow-lg shadow-black/30" />
         <p className="mt-1 text-lg font-extrabold">Qual é o nome desta posição?</p>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Opções">

@@ -142,8 +142,8 @@ const POSES: Record<string, Pose> = {
   },
   elefante: {
     cenario: 'chao',
-    a: { cabeca: [51, 16], pescoco: [52, 24], quadril: [50, 52], bracos: [[[60, 30], [66, 28]], [[60, 38], [66, 40]]], pernas: [[[52, 80], [36, 81]], [[48, 80], [34, 81]]] },
-    b: { cabeca: [66, 18], pescoco: [64, 26], quadril: [64, 52], bracos: [[[56, 26], [48, 26]], [[58, 32], [50, 32]]], pernas: [[[62, 80], [80, 81]], [[66, 80], [82, 81]]] },
+    a: { cabeca: [50, 25], pescoco: [52, 34], quadril: [50, 61], bracos: [[[60, 41], [66, 39]], [[60, 47], [66, 49]]], pernas: [[[52, 80], [36, 81]], [[48, 80], [34, 81]]] },
+    b: { cabeca: [66, 27], pescoco: [64, 36], quadril: [64, 61], bracos: [[[56, 35], [48, 35]], [[58, 41], [50, 41]]], pernas: [[[62, 80], [80, 81]], [[66, 80], [82, 81]]] },
   },
   aranha: {
     cenario: 'cama',
@@ -266,48 +266,75 @@ function pecas(c: Corpo, m: Medidas): string[] {
   return out;
 }
 
-function Silhueta({ c, m, id, borda, claro, escuro, cabelo }: { c: Corpo; m: Medidas; id: string; borda: string; claro: string; escuro: string; cabelo?: P }) {
-  // cabelo comprido: cai da cabeça pela nuca, para o lado oposto ao do parceiro (`cabelo` = cabeça dele)
-  let fio = '';
-  if (cabelo) {
-    const desce = sub(c.pescoco, c.cabeca);
-    const lado0 = normal(c.cabeca, c.pescoco);
-    const paraLonge = sub(c.cabeca, cabelo);
-    const lado = lado0[0] * paraLonge[0] + lado0[1] * paraLonge[1] >= 0 ? lado0 : mult(lado0, -1);
-    const topo = soma(c.cabeca, soma(mult(desce, -0.15), mult(lado, m.cabeca * 0.55)));
-    const ponta = soma(c.pescoco, soma(mult(desce, 0.9), mult(lado, m.cabeca * 1.1)));
-    fio = ' ' + membro(topo, ponta, m.cabeca * 1.7, 1.6);
-  }
-  const d = pecas(c, m).join(' ') + fio;
+// ---------------------------------------------------------------- personagens em cartoon
+// Corpo em tom de pele com contorno quente; rosto com olhos fechados, sorriso e bochecha rosada;
+// cabelo curto nele e coque com mecha nela. Nudez só insinuada: corpos lisos, sem detalhes íntimos.
+
+const unit = (a: P): P => mult(a, 1 / tam(a));
+const dot = (a: P, b: P) => a[0] * b[0] + a[1] * b[1];
+
+interface Estilo { pele: string; sombra: string; contorno: string; cabelo: string; coque?: boolean }
+const ESTILO_A: Estilo = { pele: '#f2c29b', sombra: '#e3a87f', contorno: '#b97a55', cabelo: '#4a2e24' };
+const ESTILO_B: Estilo = { pele: '#fcdcc4', sombra: '#f2c1a2', contorno: '#c98b68', cabelo: '#7a2a24', coque: true };
+
+function Personagem({ c, m, e, parceiro, id }: { c: Corpo; m: Medidas; e: Estilo; parceiro: P; id: string }) {
+  const corpo = pecas(c, m).slice(0, -1).join(' '); // sem a cabeça (vai à parte, com rosto)
+  const up = unit(sub(c.cabeca, c.pescoco));
+  const r = m.cabeca * 1.32;
+  // para onde o rosto olha: na direção do parceiro, perpendicular ao pescoço
+  const p = unit(sub(parceiro, c.cabeca));
+  let f = sub(p, mult(up, dot(p, up)));
+  f = tam(f) < 0.2 ? [1, 0] : unit(f);
+  const lado: P = [-up[1], up[0]];
+  const ladoFora = dot(lado, f) >= 0 ? mult(lado, -1) : lado; // nuca
+  const centro = c.cabeca;
+  const ponto = (frente: number, alto: number) => soma(centro, soma(mult(f, frente * r), mult(up, alto * r)));
+  const olho = ponto(0.4, 0.02), boca = ponto(0.58, -0.42), bochecha = ponto(0.22, -0.3);
+  const nOlho = mult(f, 1);
+  const arcoOlho = `M${f1(olho[0] - nOlho[0] * 1.1 - up[0] * 0.2)},${f1(olho[1] - nOlho[1] * 1.1 - up[1] * 0.2)} Q${f1(olho[0] - up[0] * 1.1)},${f1(olho[1] - up[1] * 1.1)} ${f1(olho[0] + nOlho[0] * 1.1 - up[0] * 0.2)},${f1(olho[1] + nOlho[1] * 1.1 - up[1] * 0.2)}`;
+  const sorriso = `M${f1(boca[0] - f[0] * 0.9 + up[0] * 0.4)},${f1(boca[1] - f[1] * 0.9 + up[1] * 0.4)} Q${f1(boca[0] - up[0] * 0.8)},${f1(boca[1] - up[1] * 0.8)} ${f1(boca[0] + f[0] * 0.6 + up[0] * 0.5)},${f1(boca[1] + f[1] * 0.6 + up[1] * 0.5)}`;
+  // cabelo: calota no alto da cabeça, puxada para a nuca
+  const cal = soma(centro, soma(mult(up, r * 0.78), mult(ladoFora, r * 0.42)));
+  const coque = soma(centro, soma(mult(up, r * 0.95), mult(ladoFora, r * 0.55)));
+  const mecha = soma(centro, soma(mult(up, -r * 0.7), mult(ladoFora, r * 0.75)));
   return (
     <g>
       <defs>
-        <linearGradient id={`grad-${id}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor={claro} /><stop offset="100%" stopColor={escuro} />
+        <linearGradient id={`pele-${id}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={e.pele} /><stop offset="100%" stopColor={e.sombra} />
         </linearGradient>
       </defs>
-      {/* brilho neon só na borda de fora: contorno por baixo, preenchimento por cima */}
-      <path d={d} fill="none" stroke={borda} strokeWidth={3.4} strokeLinejoin="round" opacity={0.5} filter="url(#pg-brilho)" />
-      <path d={d} fill="none" stroke={borda} strokeWidth={1.5} strokeLinejoin="round" />
-      <path d={d} fill={`url(#grad-${id})`} />
+      {/* contorno por baixo, preenchimento por cima: as peças viram um corpo só */}
+      <path d={corpo} fill="none" stroke={e.contorno} strokeWidth={1.5} strokeLinejoin="round" />
+      <path d={corpo} fill={`url(#pele-${id})`} />
+      {/* brilho suave no corpo */}
+      <path d={corpo} fill="#fff" opacity={0.08} transform={`translate(${f1(-up[0] * 0.6)},${f1(-up[1] * 0.6)})`} />
+      {e.coque && <circle cx={f1(coque[0])} cy={f1(coque[1])} r={f1(r * 0.55)} fill={e.cabelo} stroke={e.contorno} strokeWidth={0.6} />}
+      <circle cx={f1(centro[0])} cy={f1(centro[1])} r={f1(r)} fill={e.pele} stroke={e.contorno} strokeWidth={1.2} />
+      <circle cx={f1(cal[0])} cy={f1(cal[1])} r={f1(r * 0.92)} fill={e.cabelo} clipPath={`url(#cabeca-${id})`} />
+      {e.coque && <path d={membro(soma(centro, mult(ladoFora, r * 0.7)), mecha, r * 0.45, r * 0.2)} fill={e.cabelo} />}
+      <clipPath id={`cabeca-${id}`}><circle cx={f1(centro[0])} cy={f1(centro[1])} r={f1(r)} /></clipPath>
+      <circle cx={f1(bochecha[0])} cy={f1(bochecha[1])} r={f1(r * 0.24)} fill="#f08f8f" opacity={0.55} />
+      <path d={arcoOlho} fill="none" stroke="#3a2420" strokeWidth={0.85} strokeLinecap="round" />
+      <path d={sorriso} fill="none" stroke="#9c4a3a" strokeWidth={0.7} strokeLinecap="round" />
     </g>
   );
 }
 
 function Cenario({ tipo }: { tipo?: Cenario }) {
-  const p = { stroke: 'rgba(255,255,255,0.22)', strokeWidth: 1.6, fill: 'none', strokeLinecap: 'round' as const };
-  const lencol = 'rgba(168,85,247,0.16)';
+  const madeira = '#6e3f2a', lencol = '#ded4ec', lencolSombra = '#c9bcdc', chao = '#d8d0e4';
+  const pe = { stroke: madeira, strokeWidth: 2.2, strokeLinecap: 'round' as const };
   switch (tipo) {
-    case 'cama': return <g><path d="M6 71 Q60 66 114 71 V74 H6 Z" fill={lencol} /><g {...p}><path d="M6 74 H114 M10 74 V83 M110 74 V83 M7 74 V58" /></g></g>;
-    case 'cadeira': return <g {...p}><path d="M28 61 H72 M32 61 V83 M68 61 V83 M30 61 V22" /></g>;
-    case 'sofa': return <g><path d="M22 60 H78 V66 H22 Z" fill={lencol} /><g {...p}><path d="M22 66 V82 M78 66 V82 M22 60 V34 Q22 30 28 30 H34" /></g></g>;
-    case 'parede': return <g><path d="M4 4 H20 V82 H4 Z" fill="rgba(168,85,247,0.10)" /><g {...p}><path d="M20 4 V82 M6 83 H114" /></g></g>;
-    case 'bancada': return <g><path d="M12 54 H54 V58 H12 Z" fill={lencol} /><g {...p}><path d="M16 58 V83 M50 58 V83 M6 83 H114" /></g></g>;
-    case 'chuveiro': return <g><g {...p}><path d="M22 83 V6 H38 M35 6 V10 M6 83 H114" /></g><path d="M30 14 l-3 9 M35 14 l-1 10 M40 14 l1 9 M45 14 l3 9" stroke="rgba(125,211,252,0.45)" strokeWidth={1.2} strokeDasharray="2 3" strokeLinecap="round" /></g>;
-    case 'cama-curta': return <g><path d="M6 71 Q42 67 78 71 V74 H6 Z" fill={lencol} /><g {...p}><path d="M6 74 H78 M10 74 V83 M74 74 V83 M7 74 V58" /></g></g>;
-    case 'banqueta': return <g><path d="M16 57 H40 V60 H16 Z" fill={lencol} /><g {...p}><path d="M20 60 V83 M36 60 V83 M6 83 H114" /></g></g>;
-    case 'escada': return <g><path d="M8 83 V58 H24 V66 H40 V74 H56 V83 Z" fill="rgba(168,85,247,0.14)" /><g {...p}><path d="M8 58 H24 V66 H40 V74 H56 V83 M6 83 H114" /></g></g>;
-    case 'chao': return <g {...p}><path d="M6 83 H114" /></g>;
+    case 'cama': return <g><rect x="6" y="70" width="108" height="7" rx="2" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><path d="M12 77 V83 M108 77 V83" {...pe} /><ellipse cx="16" cy="69" rx="10" ry="3.2" fill="#f1eef7" stroke={lencolSombra} strokeWidth={0.6} /></g>;
+    case 'cama-curta': return <g><rect x="6" y="70" width="72" height="7" rx="2" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><path d="M12 77 V83 M72 77 V83" {...pe} /></g>;
+    case 'cadeira': return <g><path d="M28 61 H72" stroke={madeira} strokeWidth={3} strokeLinecap="round" /><path d="M32 62 V83 M68 62 V83 M30 61 V24" {...pe} /></g>;
+    case 'banqueta': return <g><path d="M16 58 H40" stroke={madeira} strokeWidth={3.2} strokeLinecap="round" /><path d="M20 59 V83 M36 59 V83" {...pe} /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
+    case 'sofa': return <g><rect x="22" y="58" width="56" height="9" rx="3" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><rect x="20" y="30" width="8" height="37" rx="3" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><path d="M26 67 V82 M74 67 V82" {...pe} /></g>;
+    case 'parede': return <g><rect x="4" y="4" width="16" height="79" fill="#e7e1ef" /><path d="M20 4 V83" stroke={lencolSombra} strokeWidth={1} /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
+    case 'bancada': return <g><path d="M10 56 H56" stroke={madeira} strokeWidth={3.4} strokeLinecap="round" /><path d="M16 58 V83 M50 58 V83" {...pe} /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
+    case 'chuveiro': return <g><path d="M22 83 V6 H38 M35 6 V10" stroke="#9aa3b5" strokeWidth={1.8} fill="none" strokeLinecap="round" /><path d="M30 14 l-3 9 M35 14 l-1 10 M40 14 l1 9 M45 14 l3 9" stroke="#7cc6f0" strokeWidth={1.2} strokeDasharray="2 3" strokeLinecap="round" /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
+    case 'escada': return <g><path d="M8 83 V58 H24 V66 H40 V74 H56 V83 Z" fill="#b9b2c6" /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
+    case 'chao': return <path d="M6 83 H114" stroke={chao} strokeWidth={1.4} />;
     default: return null;
   }
 }
@@ -318,16 +345,11 @@ export const PictogramaPosicao: React.FC<{ id: string; className?: string; titul
   if (!pose) return null;
   return (
     <svg viewBox="0 0 120 88" className={className} role="img" aria-label={titulo ?? 'Ilustração da posição'}>
-      <defs>
-        <radialGradient id={`luz-${uid}`} cx="50%" cy="45%" r="60%">
-          <stop offset="0%" stopColor="#ec4899" stopOpacity={0.28} /><stop offset="100%" stopColor="#ec4899" stopOpacity={0} />
-        </radialGradient>
-        <filter id="pg-brilho" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.6" /></filter>
-      </defs>
-      <ellipse cx="60" cy="46" rx="58" ry="42" fill={`url(#luz-${uid})`} />
+      <rect x="0" y="0" width="120" height="88" rx="9" fill="#fbf8fd" />
+      <circle cx="62" cy="44" r="36" fill="#e6def1" />
       <Cenario tipo={pose.cenario} />
-      <Silhueta c={pose.a} m={CORPO_A} id={`a-${uid}`} borda="#c4b5fd" claro="#3b2a63" escuro="#1a1033" />
-      <Silhueta c={pose.b} m={CORPO_B} id={`b-${uid}`} borda="#f472b6" claro="#9d174d" escuro="#3f0a24" cabelo={pose.a.cabeca} />
+      <Personagem c={pose.a} m={CORPO_A} e={ESTILO_A} parceiro={pose.b.cabeca} id={`a-${uid}`} />
+      <Personagem c={pose.b} m={CORPO_B} e={ESTILO_B} parceiro={pose.a.cabeca} id={`b-${uid}`} />
     </svg>
   );
 };

@@ -195,7 +195,7 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
             </div>
             <div key={carta.id} className="carta-desejo rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-600/25 via-purple-800/20 to-rose-500/15 px-5 py-8 text-center">
               {temPictograma(carta.id)
-                ? <PictogramaPosicao id={carta.id} titulo={`Ilustração: ${carta.titulo}`} className="mx-auto -mt-3 w-full max-w-[260px] drop-shadow-[0_0_18px_rgba(236,72,153,0.35)]" />
+                ? <PictogramaPosicao id={carta.id} titulo={`Ilustração: ${carta.titulo}`} className="mx-auto -mt-3 mb-1 w-full rounded-2xl shadow-lg shadow-black/30" />
                 : <p className="text-7xl leading-none" aria-hidden>{carta.emoji}</p>}
               <h3 className={`${temPictograma(carta.id) ? 'mt-1' : 'mt-4'} text-xl font-extrabold`}>{carta.titulo} {temPictograma(carta.id) && <span aria-hidden>{carta.emoji}</span>}</h3>
               <p className="mt-1.5 text-sm text-zinc-200">{carta.descricao}</p>
