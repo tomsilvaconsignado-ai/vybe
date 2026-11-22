@@ -6258,3 +6258,141 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.quiz_game(UUID), public.quiz_start(UUID), public.quiz_answer(UUID, TEXT, INTEGER) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.quiz_game(UUID), public.quiz_start(UUID), public.quiz_answer(UUID, TEXT, INTEGER) TO authenticated;
+
+-- ==============================================================================
+-- 28. AVALIAÇÃO DO APLICATIVO (campanhas lançadas pela administração)
+-- O superadministrador lança uma campanha de avaliação; enquanto ela está aberta, cada membro vê a
+-- janela com estrelas (1 a 5) e comentário opcional, e pode avaliar ou recusar. Uma resposta por
+-- pessoa por campanha. A equipe vê as notas, a média e os comentários no painel. Lançar uma campanha
+-- nova encerra a anterior.
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.app_rating_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(80) NOT NULL CHECK (length(trim(title)) >= 3),
+  message VARCHAR(240) NOT NULL DEFAULT '',
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ends_at TIMESTAMPTZ,
+  closed_at TIMESTAMPTZ,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.app_rating_campaigns ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS app_rating_campaigns_staff ON public.app_rating_campaigns;
+CREATE POLICY app_rating_campaigns_staff ON public.app_rating_campaigns FOR SELECT TO authenticated USING (public.is_staff());
+REVOKE ALL ON public.app_rating_campaigns FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.app_rating_campaigns FROM authenticated;
+GRANT SELECT ON public.app_rating_campaigns TO authenticated;
+
+-- stars NULL = a pessoa preferiu não avaliar
+CREATE TABLE IF NOT EXISTS public.app_ratings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  campaign_id UUID NOT NULL REFERENCES public.app_rating_campaigns(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  stars SMALLINT CHECK (stars BETWEEN 1 AND 5),
+  comment VARCHAR(500),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (campaign_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_app_ratings_campaign ON public.app_ratings(campaign_id, created_at DESC);
+ALTER TABLE public.app_ratings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS app_ratings_staff ON public.app_ratings;
+CREATE POLICY app_ratings_staff ON public.app_ratings FOR SELECT TO authenticated USING (public.is_staff());
+REVOKE ALL ON public.app_ratings FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.app_ratings FROM authenticated;
+GRANT SELECT ON public.app_ratings TO authenticated;
+
+-- Campanha aberta que a pessoa ainda não respondeu (ou NULL)
+CREATE OR REPLACE FUNCTION public.rating_campaign_current()
+RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT jsonb_build_object('id', c.id, 'title', c.title, 'message', c.message)
+    FROM public.app_rating_campaigns c
+   WHERE auth.uid() IS NOT NULL AND c.closed_at IS NULL AND c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now())
+     AND NOT EXISTS (SELECT 1 FROM public.app_ratings r WHERE r.campaign_id = c.id AND r.user_id = auth.uid())
+   ORDER BY c.starts_at DESC LIMIT 1;
+$$;
+
+-- Responder: estrelas (1 a 5) e comentário opcional; estrelas NULL = "não quero avaliar"
+CREATE OR REPLACE FUNCTION public.rating_respond(p_campaign UUID, p_stars INTEGER, p_comment TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE me UUID := auth.uid(); txt TEXT := nullif(trim(coalesce(p_comment, '')), '');
+BEGIN
+  IF me IS NULL THEN RAISE EXCEPTION 'Entre na sua conta para avaliar.' USING ERRCODE = '42501'; END IF;
+  IF p_stars IS NOT NULL AND p_stars NOT BETWEEN 1 AND 5 THEN RAISE EXCEPTION 'Escolha de 1 a 5 estrelas.' USING ERRCODE = '22023'; END IF;
+  IF p_stars IS NULL AND txt IS NOT NULL THEN RAISE EXCEPTION 'Escolha as estrelas para enviar o comentário.' USING ERRCODE = '22023'; END IF;
+  IF length(txt) > 500 THEN RAISE EXCEPTION 'O comentário pode ter até 500 caracteres.' USING ERRCODE = '22023'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.app_rating_campaigns c WHERE c.id = p_campaign AND c.closed_at IS NULL
+                   AND c.starts_at <= now() AND (c.ends_at IS NULL OR c.ends_at > now())) THEN
+    RAISE EXCEPTION 'Esta avaliação já foi encerrada.' USING ERRCODE = '22023';
+  END IF;
+  INSERT INTO public.app_ratings (campaign_id, user_id, stars, comment) VALUES (p_campaign, me, p_stars, txt)
+  ON CONFLICT (campaign_id, user_id) DO NOTHING;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Você já respondeu esta avaliação.' USING ERRCODE = '22023'; END IF;
+END;
+$$;
+
+-- Lançar campanha (superadministrador com MFA): encerra a que estiver aberta
+CREATE OR REPLACE FUNCTION public.admin_rating_launch(p_title TEXT, p_message TEXT, p_ends_at TIMESTAMPTZ, justification TEXT)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v UUID;
+BEGIN
+  IF NOT public.is_superadmin() THEN RAISE EXCEPTION 'Somente o superadministrador (com MFA) lança campanhas de avaliação.'; END IF;
+  IF coalesce(length(trim(justification)), 0) < 5 THEN RAISE EXCEPTION 'Informe a justificativa da campanha.'; END IF;
+  IF p_ends_at IS NOT NULL AND p_ends_at <= now() THEN RAISE EXCEPTION 'O encerramento precisa ser no futuro.'; END IF;
+  UPDATE public.app_rating_campaigns SET closed_at = now() WHERE closed_at IS NULL;
+  INSERT INTO public.app_rating_campaigns (title, message, ends_at, created_by)
+  VALUES (trim(p_title), left(trim(coalesce(p_message, '')), 240), p_ends_at, auth.uid())
+  RETURNING id INTO v;
+  INSERT INTO public.admin_audit_logs (admin_id, admin_role, action, target_type, target_id, reason)
+  VALUES (auth.uid(), public.admin_role_of(auth.uid()), 'rating_campaign_launched', 'rating_campaign', v::text, trim(justification));
+  RETURN v;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_rating_close(p_id UUID, justification TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_superadmin() THEN RAISE EXCEPTION 'Somente o superadministrador (com MFA).'; END IF;
+  UPDATE public.app_rating_campaigns SET closed_at = now() WHERE id = p_id AND closed_at IS NULL;
+  INSERT INTO public.admin_audit_logs (admin_id, admin_role, action, target_type, target_id, reason)
+  VALUES (auth.uid(), public.admin_role_of(auth.uid()), 'rating_campaign_closed', 'rating_campaign', p_id::text, coalesce(nullif(trim(justification), ''), 'Campanha encerrada'));
+END;
+$$;
+
+-- Campanhas com o resumo das respostas (equipe)
+CREATE OR REPLACE FUNCTION public.admin_rating_campaigns()
+RETURNS TABLE (id UUID, title TEXT, message TEXT, starts_at TIMESTAMPTZ, ends_at TIMESTAMPTZ, closed_at TIMESTAMPTZ,
+               rated BIGINT, declined BIGINT, comments BIGINT, average NUMERIC, s1 BIGINT, s2 BIGINT, s3 BIGINT, s4 BIGINT, s5 BIGINT)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
+  RETURN QUERY
+    SELECT c.id, c.title::text, c.message::text, c.starts_at, c.ends_at, c.closed_at,
+           count(r.stars), count(r.id) FILTER (WHERE r.stars IS NULL), count(r.comment),
+           round(avg(r.stars), 2),
+           count(*) FILTER (WHERE r.stars = 1), count(*) FILTER (WHERE r.stars = 2), count(*) FILTER (WHERE r.stars = 3),
+           count(*) FILTER (WHERE r.stars = 4), count(*) FILTER (WHERE r.stars = 5)
+      FROM public.app_rating_campaigns c LEFT JOIN public.app_ratings r ON r.campaign_id = c.id
+     GROUP BY c.id ORDER BY c.created_at DESC LIMIT 50;
+END;
+$$;
+
+-- Avaliações de uma campanha, com quem avaliou (equipe)
+CREATE OR REPLACE FUNCTION public.admin_rating_list(p_campaign UUID)
+RETURNS TABLE (id UUID, user_id UUID, username TEXT, display_name TEXT, avatar_url TEXT, stars SMALLINT, comment TEXT, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_staff() THEN RAISE EXCEPTION 'Acesso restrito à equipe.'; END IF;
+  RETURN QUERY
+    SELECT r.id, r.user_id, p.username::text, p.display_name::text, p.avatar_url, r.stars, r.comment::text, r.created_at
+      FROM public.app_ratings r JOIN public.profiles p ON p.id = r.user_id
+     WHERE r.campaign_id = p_campaign AND r.stars IS NOT NULL
+     ORDER BY r.created_at DESC LIMIT 500;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.rating_campaign_current(), public.rating_respond(UUID, INTEGER, TEXT),
+  public.admin_rating_launch(TEXT, TEXT, TIMESTAMPTZ, TEXT), public.admin_rating_close(UUID, TEXT),
+  public.admin_rating_campaigns(), public.admin_rating_list(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.rating_campaign_current(), public.rating_respond(UUID, INTEGER, TEXT),
+  public.admin_rating_launch(TEXT, TEXT, TIMESTAMPTZ, TEXT), public.admin_rating_close(UUID, TEXT),
+  public.admin_rating_campaigns(), public.admin_rating_list(UUID) TO authenticated;

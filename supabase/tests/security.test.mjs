@@ -1243,5 +1243,47 @@ r.rows[0].n === 1 ? ok('B recebeu o "falta você"') : bad('aviso "falta você" d
 await expectFail('quiz terminado não aceita resposta', qz.b, `SELECT public.quiz_answer($1, $2, 0)`, [quiz, eb.perguntas[0].id]);
 }
 
+console.log('\nAvaliação do aplicativo (campanhas)');
+{
+  r = await as(ids.a, `SELECT public.rating_campaign_current() AS c`);
+  r.rows[0].c === null ? ok('sem campanha, nenhuma janela de avaliação') : bad('campanha fantasma');
+  await expectFail('membro não lança campanha', ids.a, `SELECT public.admin_rating_launch('Avalie', 'msg', NULL, 'campanha de teste')`);
+  await expectFail('superadmin sem MFA não lança', ids.admin, `SELECT public.admin_rating_launch('Avalie', 'msg', NULL, 'campanha de teste')`);
+  await expectFail('membro não cria campanha direto na tabela', ids.a, `INSERT INTO app_rating_campaigns (title) VALUES ('Falsa')`);
+  const c1 = (await expectOk('superadmin (MFA) lança campanha', ids.admin, `SELECT public.admin_rating_launch('Avalie o Vybelog', 'Sua opinião ajuda', NULL, 'primeira campanha') AS id`, [], 'aal2')).rows[0].id;
+  r = await as(ids.a, `SELECT public.rating_campaign_current() AS c`);
+  r.rows[0].c?.id === c1 ? ok('membro vê a campanha aberta') : bad('campanha não aparece');
+  await expectFail('anônimo não avalia', null, `SELECT public.rating_respond($1, 5, NULL)`, [c1]);
+  await expectFail('6 estrelas é recusado', ids.a, `SELECT public.rating_respond($1, 6, NULL)`, [c1]);
+  await expectFail('comentário sem estrelas é recusado', ids.a, `SELECT public.rating_respond($1, NULL, 'oi')`, [c1]);
+  await expectOk('A avalia com 4 estrelas e comentário', ids.a, `SELECT public.rating_respond($1, 4, '  Gostei muito  ')`, [c1]);
+  await expectFail('A não avalia duas vezes', ids.a, `SELECT public.rating_respond($1, 1, NULL)`, [c1]);
+  await expectFail('A não altera a nota direto', ids.a, `UPDATE app_ratings SET stars = 1`);
+  await expectOk('B prefere não avaliar', ids.b, `SELECT public.rating_respond($1, NULL, NULL)`, [c1]);
+  r = await as(ids.a, `SELECT public.rating_campaign_current() AS c`);
+  r.rows[0].c === null ? ok('depois de responder, a janela não volta') : bad('janela volta depois de responder');
+  r = await as(ids.a, `SELECT * FROM app_ratings`);
+  r.rows.length === 0 ? ok('membro não lê as avaliações') : bad('avaliações expostas');
+  await expectFail('membro não vê o resumo', ids.a, `SELECT * FROM public.admin_rating_campaigns()`);
+  r = await expectOk('equipe vê o resumo', ids.mod, `SELECT * FROM public.admin_rating_campaigns()`, [], 'aal2');
+  const s = r?.rows[0];
+  s && Number(s.rated) === 1 && Number(s.declined) === 1 && Number(s.s4) === 1 && Number(s.average) === 4 && Number(s.comments) === 1
+    ? ok('resumo: 1 avaliação (4★), 1 recusa, média 4') : bad('resumo: ' + JSON.stringify(s));
+  r = await expectOk('equipe lê os comentários', ids.mod, `SELECT * FROM public.admin_rating_list($1)`, [c1], 'aal2');
+  r?.rows.length === 1 && r.rows[0].comment === 'Gostei muito' ? ok('comentário guardado sem espaços extras') : bad('lista: ' + JSON.stringify(r?.rows));
+  await expectFail('moderador não lança campanha', ids.mod, `SELECT public.admin_rating_launch('X', '', NULL, 'campanha de teste')`, [], 'aal2');
+  const c2 = (await expectOk('nova campanha', ids.admin, `SELECT public.admin_rating_launch('Nova versão', '', NULL, 'segunda campanha') AS id`, [], 'aal2')).rows[0].id;
+  r = await db.query(`SELECT closed_at FROM app_rating_campaigns WHERE id = $1`, [c1]);
+  r.rows[0].closed_at ? ok('lançar outra encerra a anterior') : bad('anterior continua aberta');
+  await expectFail('campanha encerrada não recebe resposta', ids.v, `SELECT public.rating_respond($1, 5, NULL)`, [c1]);
+  r = await as(ids.a, `SELECT public.rating_campaign_current() AS c`);
+  r.rows[0].c?.id === c2 ? ok('A volta a ver a janela na campanha nova') : bad('campanha nova não aparece');
+  await expectOk('superadmin encerra a campanha', ids.admin, `SELECT public.admin_rating_close($1, 'fim da campanha')`, [c2], 'aal2');
+  r = await as(ids.a, `SELECT public.rating_campaign_current() AS c`);
+  r.rows[0].c === null ? ok('campanha encerrada some da tela') : bad('campanha encerrada aparece');
+  r = await db.query(`SELECT count(*)::int n FROM admin_audit_logs WHERE action LIKE 'rating_campaign_%'`);
+  r.rows[0].n === 3 ? ok('lançar e encerrar ficam na auditoria') : bad('auditoria: ' + r.rows[0].n);
+}
+
 console.log(failures ? `\n${failures} FALHA(S)` : '\nTodos os testes passaram');
 process.exit(failures ? 1 : 0);
