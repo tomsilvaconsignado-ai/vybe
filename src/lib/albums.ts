@@ -1,6 +1,7 @@
 import { supabase, uploadToBucket } from './supabase';
 import { DEFAULT_COVER } from './profiles';
 import { AlbumVisibility, MediaAlbum, MediaItem } from '../types';
+import { uploadPosterFor } from './videoPoster';
 
 // Fotos de cofre ficam no bucket privado e só são exibidas por link temporário
 const SIGNED_URL_SECONDS = 300;
@@ -93,6 +94,7 @@ export async function uploadAlbumItem(me: string, album: MediaAlbum, file: File,
   const path = `${me}/albums/${album.id}/${fileName}`;
   const uploadError = await uploadToBucket('public-media', path, file);
   if (uploadError) return uploadError.message;
+  if (type === 'video') await uploadPosterFor(file, path);
   const { data } = supabase.storage.from('public-media').getPublicUrl(path);
   const { error } = await supabase.from('album_items').insert({ album_id: album.id, url: data.publicUrl, type, caption: caption ?? null, blur_preview: false });
   return error?.message ?? null;

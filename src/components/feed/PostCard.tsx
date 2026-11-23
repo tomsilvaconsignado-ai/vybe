@@ -23,6 +23,7 @@ import { Post } from '../../types';
 import { notify, askConfirm } from '../common/Feedback';
 import { FEED_WIDTH, feedVersionUrl } from '../../lib/media';
 import { TextoComMencoes } from '../common/TextoComMencoes';
+import { posterOf, withFirstFrame } from '../../lib/videoPoster';
 
 interface PostCardProps {
   post: Post;
@@ -228,7 +229,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
           >
             {isVideo ? (
               <video
-                src={post.mediaUrls[0]}
+                src={withFirstFrame(post.mediaUrls[0])}
+                poster={posterOf(post.mediaUrls[0])}
                 controls
                 playsInline
                 preload="metadata"

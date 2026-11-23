@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import { StoryGroup } from '../../types';
 import { deleteStory, fetchStoryViewers, markStoryViewed } from '../../lib/stories';
 import { notify, askConfirm } from '../common/Feedback';
+import { posterOf } from '../../lib/videoPoster';
 
 interface StoryViewerProps {
   groups: StoryGroup[];
@@ -141,6 +142,7 @@ export const StoryViewer: React.FC<StoryViewerProps> = ({ groups, startGroupInde
             ref={videoRef}
             key={story.id}
             src={story.mediaUrl}
+            poster={posterOf(story.mediaUrl)}
             autoPlay
             playsInline
             disablePictureInPicture

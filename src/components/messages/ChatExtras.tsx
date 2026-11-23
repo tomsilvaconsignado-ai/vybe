@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Square, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { posterOf, withFirstFrame } from '../../lib/videoPoster';
 
 /** "Digitando…": avisa a conversa enquanto a pessoa escreve (no máximo a cada 2 s) e mostra quando o outro lado escreve */
 export function useDigitando(conversaId: string | null, eu: string) {
@@ -68,7 +69,7 @@ export function tipoDaMidia(url: string): 'image' | 'video' | 'audio' {
 export const MidiaDaMensagem: React.FC<{ url: string; temTexto: boolean; aoAmpliar: (url: string) => void }> = ({ url, temTexto, aoAmpliar }) => {
   const tipo = tipoDaMidia(url);
   if (tipo === 'audio') return <audio src={url} controls preload="metadata" className={`max-w-[260px] ${temTexto ? 'mb-2' : ''}`} />;
-  if (tipo === 'video') return <video src={url} controls playsInline preload="metadata" className={`rounded-xl max-h-72 max-w-full ${temTexto ? 'mb-2' : ''}`} />;
+  if (tipo === 'video') return <video src={withFirstFrame(url)} poster={posterOf(url)} controls playsInline preload="metadata" className={`rounded-xl max-h-72 max-w-full ${temTexto ? 'mb-2' : ''}`} />;
   return (
     <button type="button" onClick={() => aoAmpliar(url)} className={`block cursor-zoom-in ${temTexto ? 'mb-2' : ''}`}>
       <img src={url} alt="Imagem enviada" loading="lazy" className="rounded-xl max-h-64 max-w-full object-cover" />

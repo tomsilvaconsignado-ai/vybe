@@ -5,6 +5,7 @@ import { fetchPainelPublicacoes, PainelPublicacoes, PublicacaoPainel, dataHora, 
 import { SITUACAO_MIDIA, TOM } from '../../lib/adminRotulos';
 import { AdminThumb, viewAdminMedia } from './AdminImageViewer';
 import { Seletor } from '../common/Seletor';
+import { VideoThumb } from '../../lib/videoPoster';
 
 const fmt = (n: number | null | undefined) => Number(n ?? 0).toLocaleString('pt-BR');
 
@@ -213,8 +214,9 @@ export const AdminPublicacoesTab: React.FC<{ onAbrirUsuario?: (id: string) => vo
               <li key={p.id} className="p-3 rounded-2xl bg-zinc-950/60 border border-zinc-800 flex gap-3">
                 {p.midia && p.tipo_midia === 'video' ? (
                   <button type="button" onClick={() => viewAdminMedia(p.midia!, `Vídeo de @${p.autor}`, true)} aria-label={`Ver vídeo de @${p.autor}`}
-                    className="w-16 h-16 rounded-xl bg-black border border-purple-900/40 shrink-0 flex items-center justify-center text-zinc-300 cursor-zoom-in">
-                    <Film className="w-5 h-5" />
+                    className="relative w-16 h-16 rounded-xl overflow-hidden bg-black border border-purple-900/40 shrink-0 flex items-center justify-center text-zinc-300 cursor-zoom-in">
+                    <VideoThumb url={p.midia} className="absolute inset-0 w-full h-full object-cover" />
+                    <Film className="relative w-5 h-5 drop-shadow" />
                   </button>
                 ) : p.midia ? (
                   <AdminThumb src={p.midia} label={`Publicação de @${p.autor}`} alt="" className="w-16 h-16 rounded-xl object-cover border border-purple-900/40 shrink-0" />

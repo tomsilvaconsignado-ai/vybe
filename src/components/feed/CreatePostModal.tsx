@@ -5,6 +5,7 @@ import { X, Image, Sparkles, Send, Plus, BarChart2, Film } from 'lucide-react';
 import { notify } from '../common/Feedback';
 import { feedVersion, fitToFrame, FrameMode, MediaProcessingError } from '../../lib/media';
 import { FrameModeToggle } from './FrameModeToggle';
+import { uploadPosterFor, VideoThumb } from '../../lib/videoPoster';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -71,9 +72,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
     if (file.size > 20 * 1024 * 1024) { notify(`O vídeo tem ${(file.size / 1048576).toFixed(1)} MB; o limite é 20 MB.`); return; }
     setIsUploading(true);
     const ext = file.type === 'video/quicktime' ? 'mov' : 'mp4';
-    const { publicUrl, error } = await uploadPublicMedia(file, `${currentUser.id}/posts/${crypto.randomUUID()}.${ext}`, true);
+    const path = `${currentUser.id}/posts/${crypto.randomUUID()}.${ext}`;
+    const { publicUrl, error } = await uploadPublicMedia(file, path, true);
+    if (error || !publicUrl) { setIsUploading(false); notify('Não foi possível enviar o vídeo. Tente novamente.'); return; }
+    await uploadPosterFor(file, path); // capa para a prévia no feed e no perfil
     setIsUploading(false);
-    if (error || !publicUrl) { notify('Não foi possível enviar o vídeo. Tente novamente.'); return; }
     setMediaUrls([publicUrl]);
     setMediaType('video');
   };
@@ -154,7 +157,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({ isOpen, onClos
               {mediaUrls.map((url, i) => (
                 <div key={i} className="relative w-14 aspect-[9/16] rounded-xl overflow-hidden shrink-0 border border-purple-500/40">
                   {mediaType === 'video'
-                    ? <video src={url} muted playsInline preload="metadata" className="w-full h-full object-cover" />
+                    ? <VideoThumb url={url} className="w-full h-full object-cover" />
                     : <img src={url} alt="Upload" className="w-full h-full object-cover" />}
                   <button
                     type="button"

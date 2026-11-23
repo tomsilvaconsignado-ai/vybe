@@ -3,6 +3,7 @@ import { avatarOrDefault } from './profiles';
 import { formatRelativeTime } from './social';
 import { Story, StoryGroup } from '../types';
 import { avisarAcaoMissao } from './missoes';
+import { uploadPosterFor } from './videoPoster';
 
 export async function fetchStoryGroups(me: string): Promise<StoryGroup[]> {
   const { data, error } = await supabase
@@ -51,8 +52,10 @@ export async function fetchStoryGroups(me: string): Promise<StoryGroup[]> {
 
 export async function publishStory(me: string, file: File, caption: string, audience: 'all' | 'connections') {
   const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-  const { publicUrl, error: uploadError } = await uploadPublicMedia(file, `${me}/stories/${crypto.randomUUID()}.${extension}`);
+  const path = `${me}/stories/${crypto.randomUUID()}.${extension}`;
+  const { publicUrl, error: uploadError } = await uploadPublicMedia(file, path);
   if (uploadError || !publicUrl) return uploadError?.message ?? 'Falha no envio da mídia.';
+  if (file.type.startsWith('video/')) await uploadPosterFor(file, path);
   const { error } = await supabase.from('stories').insert({
     user_id: me,
     media_url: publicUrl,

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
+import { posterOf } from '../../lib/videoPoster';
 
 // Visualizador do painel administrativo: abre qualquer foto (ou vídeo) em tamanho real.
 // Qualquer tela do admin chama viewAdminMedia(url); o <AdminImageViewerHost /> fica montado no portal.
@@ -92,7 +93,7 @@ export const AdminImageViewerHost: React.FC = () => {
         onClick={e => { if (e.target === e.currentTarget) close(); }}
       >
         {media.isVideo ? (
-          <video src={media.url} controls autoPlay className="max-w-full max-h-full" />
+          <video src={media.url} poster={posterOf(media.url)} controls autoPlay playsInline className="max-w-full max-h-full" />
         ) : (
           <img
             src={media.url}
