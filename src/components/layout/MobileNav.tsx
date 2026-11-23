@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { Home, Compass, MessageCircle, CalendarHeart } from 'lucide-react';
+import { Home, Compass, MessageCircle, CalendarHeart, Hash } from 'lucide-react';
 
 // Barra de baixo do celular: só ícones (como no Instagram). A aba ativa ganha o ícone cheio
 // e um ponto de luz em gradiente; o perfil aparece com a sua foto.
@@ -23,6 +23,7 @@ export const MobileNav: React.FC = () => {
     { id: 'feed', label: 'Início', icon: Home },
     { id: 'discover', label: 'Descobrir', icon: Compass },
     { id: 'events', label: 'Eventos', icon: CalendarHeart },
+    { id: 'communities', label: 'Comunidades', icon: Hash },
     { id: 'messages', label: 'Mensagens', icon: MessageCircle, badge: unreadMsgs },
     { id: 'profile', label: 'Meu perfil', icon: null },
   ];
