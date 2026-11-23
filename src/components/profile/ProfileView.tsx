@@ -49,7 +49,7 @@ import { comConvite } from '../../lib/convite';
 import { meuCodigo } from '../../lib/crescimento';
 import { supabase } from '../../lib/supabase';
 import { compartilharComImagem } from '../../lib/compartilhar';
-import { VideoThumb } from '../../lib/videoPoster';
+import { isVideoUrl, MediaThumb } from '../../lib/videoPoster';
 
 // Compartilhar perfil: no celular abre o menu nativo; no computador copia o link (/perfil/<id>)
 const compartilharPerfil = async (id: string, usuario: string) => {
@@ -605,13 +605,11 @@ export const ProfileView: React.FC = () => {
                   className="relative aspect-[3/4] bg-zinc-950 overflow-hidden group cursor-pointer sm:rounded-md"
                   aria-label="Abrir publicação"
                 >
-                  {p.mediaUrls.length > 0 && p.mediaType === 'video' ? (
+                  {p.mediaUrls.length > 0 ? (
                     <>
-                      <VideoThumb url={p.mediaUrls[0]} className="w-full h-full object-cover" />
-                      <Play className="absolute top-2 right-2 w-4 h-4 text-white fill-white drop-shadow" aria-label="Vídeo" />
+                      <MediaThumb url={p.mediaUrls[0]} isVideo={p.mediaType === 'video'} className="w-full h-full object-cover" />
+                      {(p.mediaType === 'video' || isVideoUrl(p.mediaUrls[0])) && <Play className="absolute top-2 right-2 w-4 h-4 text-white fill-white drop-shadow" aria-label="Vídeo" />}
                     </>
-                  ) : p.mediaUrls.length > 0 ? (
-                    <img src={p.mediaUrls[0]} alt="" loading="lazy" className="w-full h-full object-cover" />
                   ) : (
                     <span className="absolute inset-0 p-3 flex items-center justify-center text-center text-[13px] sm:text-[15px] font-semibold leading-snug text-white bg-[radial-gradient(120%_90%_at_20%_0%,#86198f,#1a1229_70%)] line-clamp-6">
                       {p.content}

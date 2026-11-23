@@ -23,7 +23,7 @@ import { Post } from '../../types';
 import { notify, askConfirm } from '../common/Feedback';
 import { FEED_WIDTH, feedVersionUrl } from '../../lib/media';
 import { TextoComMencoes } from '../common/TextoComMencoes';
-import { posterOf, withFirstFrame } from '../../lib/videoPoster';
+import { isVideoUrl, posterOf, withFirstFrame } from '../../lib/videoPoster';
 
 interface PostCardProps {
   post: Post;
@@ -73,7 +73,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
   const principais = post.comments.filter(c => !c.parentId || !post.comments.some(p => p.id === c.parentId));
   const respostasDe = (id: string) => post.comments.filter(c => c.parentId === id);
   const visibleComments = showAllComments ? principais : principais.slice(-2);
-  const isVideo = post.mediaType === 'video';
+  // publicações antigas podem ter vídeo gravado como 'image': a extensão do arquivo confirma
+  const [fotoFalhou, setFotoFalhou] = useState(false); // 'foto' que não abre: tenta como vídeo
+  const isVideo = post.mediaType === 'video' || isVideoUrl(post.mediaUrls[0]) || (fotoFalhou && post.mediaUrls.length === 1);
 
   // Destaque do comentário vindo de notificação: rola até ele
   useEffect(() => {
@@ -245,7 +247,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, priority = false, posi
                 // versão leve (810px) nas telas comuns; a original (1080px) nas telas grandes ou de alta densidade
                 srcSet={feedVersionUrl(url) ? `${feedVersionUrl(url)} ${FEED_WIDTH}w, ${url} 1080w` : undefined}
                 sizes={feedVersionUrl(url) ? '(max-width: 672px) 100vw, 640px' : undefined}
-                onError={e => { const img = e.currentTarget; if (img.src !== url) { img.srcset = ''; img.src = url; } }}
+                onError={e => { const img = e.currentTarget; if (img.src !== url) { img.srcset = ''; img.src = url; } else setFotoFalhou(true); }}
                 alt={`Foto ${mediaCount > 1 ? `${i + 1} de ${mediaCount} ` : ''}publicada por @${post.user.username}`}
                 width={1080}
                 height={1920}

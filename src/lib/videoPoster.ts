@@ -15,6 +15,11 @@ export function posterOf(videoUrl: string | undefined | null): string | undefine
   return videoUrl.replace(/[?#].*$/, '').replace(VIDEO_EXT, '.poster.jpg');
 }
 
+/** O arquivo é vídeo? (publicações antigas podem ter sido gravadas como "imagem" mesmo sendo vídeo) */
+export function isVideoUrl(url: string | undefined | null): boolean {
+  return Boolean(url && VIDEO_EXT.test(url));
+}
+
 /** Endereço do vídeo que já mostra o primeiro quadro antes do play. */
 export function withFirstFrame(videoUrl: string): string {
   return videoUrl.includes('#') ? videoUrl : `${videoUrl}#t=0.1`;
@@ -111,9 +116,29 @@ export async function uploadPosterFor(file: File, videoPath: string): Promise<vo
 /** Miniatura de vídeo para grades (perfil, álbuns, painel): capa se houver, senão o primeiro quadro. */
 export const VideoThumb: React.FC<{ url: string; className?: string }> = ({ url, className }) => {
   const [posterFailed, setPosterFailed] = React.useState(false);
+  const [videoFailed, setVideoFailed] = React.useState(false);
   const poster = posterOf(url);
   if (poster && !posterFailed) {
     return React.createElement('img', { src: poster, alt: '', loading: 'lazy', className, onError: () => setPosterFailed(true) });
   }
-  return React.createElement('video', { src: withFirstFrame(url), muted: true, playsInline: true, preload: 'metadata', className, 'aria-hidden': true });
+  if (videoFailed) return React.createElement(MediaFallback, { className, video: true });
+  return React.createElement('video', { src: withFirstFrame(url), muted: true, playsInline: true, preload: 'metadata', className, 'aria-hidden': true, onError: () => setVideoFailed(true) });
+};
+
+/** Quadro neutro quando a mídia não carrega (no lugar do ícone de imagem quebrada). */
+const MediaFallback: React.FC<{ className?: string; video?: boolean }> = ({ className, video }) =>
+  React.createElement(
+    'span',
+    { className: `${className ?? ''} flex items-center justify-center bg-[radial-gradient(120%_90%_at_20%_0%,#3b0764,#0a0612_70%)] text-white/60 text-[11px]`, role: 'img', 'aria-label': video ? 'Vídeo indisponível' : 'Mídia indisponível' },
+    video ? '▶' : '•'
+  );
+
+/**
+ * Miniatura de qualquer publicação na grade: foto, vídeo (pelo tipo gravado ou pela extensão)
+ * e, se a foto falhar, tenta como vídeo antes de mostrar o quadro neutro.
+ */
+export const MediaThumb: React.FC<{ url: string; isVideo?: boolean; className?: string }> = ({ url, isVideo, className }) => {
+  const [asVideo, setAsVideo] = React.useState(Boolean(isVideo) || isVideoUrl(url));
+  if (asVideo) return React.createElement(VideoThumb, { url, className });
+  return React.createElement('img', { src: url, alt: '', loading: 'lazy', className, onError: () => setAsVideo(true) });
 };
