@@ -7,6 +7,7 @@ import { askConfirm, notify } from '../common/Feedback';
 import { PictogramaPosicao, temPictograma } from './Pictogramas';
 import { BARALHOS, abrirJogo, desafiar, desafiarQuiz, recusar, responder, type Baralho, type JogoDesejos, type JogoQuiz, type Resposta } from '../../lib/desejos';
 import { QuizKamaSutra } from './QuizKamaSutra';
+import { CapaQuiz } from './QuizArte';
 
 const OPCOES: Array<{ valor: Resposta; rotulo: string; emoji: string; classe: string }> = [
   { valor: 0, rotulo: 'Não', emoji: '🙅', classe: 'bg-white/10 hover:bg-white/15 text-zinc-100' },
@@ -123,11 +124,14 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
         {escolhendo ? (
           <>
             <button type="button" disabled={ocupado} onClick={() => void comecarQuiz()}
-              className="mb-4 w-full rounded-2xl border border-fuchsia-400/40 bg-gradient-to-r from-fuchsia-600/40 via-purple-700/30 to-amber-500/25 p-3 text-left flex items-center gap-3 transition-transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer">
-              <PictogramaPosicao id="cavalgada" className="w-20 shrink-0" />
-              <span className="min-w-0">
-                <span className="block text-[15px] font-extrabold">🧠 Quiz do Kama Sutra</span>
-                <span className="block text-[12px] text-zinc-200">8 posições sorteadas entre 39 desenhadas. Difíceis valem mais pontos: quem vencer escolhe a próxima 😏</span>
+              className="group mb-5 w-full overflow-hidden rounded-3xl border border-amber-200/40 bg-[#1c0d26] text-left shadow-[0_14px_34px_-14px_rgba(233,185,73,.55)] transition-transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer">
+              <CapaQuiz className="block w-full" />
+              <span className="block px-4 pb-4 pt-3">
+                <span className="flex items-center gap-2">
+                  <span className="bg-gradient-to-r from-amber-100 via-amber-300 to-amber-100 bg-clip-text text-[17px] font-extrabold text-transparent">Quiz do Kama Sutra</span>
+                  <span className="ml-auto rounded-full fundo-neon px-3 py-1 text-[12px] font-bold text-white">Desafiar</span>
+                </span>
+                <span className="mt-1 block text-[12.5px] text-zinc-300">8 posições sorteadas entre 39 desenhadas. Difíceis valem mais pontos: quem vencer escolhe a próxima 😏</span>
               </span>
             </button>
             <p className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-zinc-400">Ou o Match de Desejos</p>
@@ -195,7 +199,7 @@ export const MatchDesejos: React.FC<{ outro: { id: string; nome: string }; jogoI
             </div>
             <div key={carta.id} className="carta-desejo rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-600/25 via-purple-800/20 to-rose-500/15 px-5 py-8 text-center">
               {temPictograma(carta.id)
-                ? <PictogramaPosicao id={carta.id} titulo={`Ilustração: ${carta.titulo}`} className="mx-auto -mt-3 mb-1 w-full rounded-2xl shadow-lg shadow-black/30" />
+                ? <PictogramaPosicao id={carta.id} cena="noite" titulo={`Ilustração: ${carta.titulo}`} className="mx-auto -mt-3 mb-1 w-full rounded-2xl shadow-lg shadow-black/30 ring-1 ring-amber-200/30" />
                 : <p className="text-7xl leading-none" aria-hidden>{carta.emoji}</p>}
               <h3 className={`${temPictograma(carta.id) ? 'mt-1' : 'mt-4'} text-xl font-extrabold`}>{carta.titulo} {temPictograma(carta.id) && <span aria-hidden>{carta.emoji}</span>}</h3>
               <p className="mt-1.5 text-sm text-zinc-200">{carta.descricao}</p>
@@ -247,7 +251,7 @@ const Resultado: React.FC<{ jogo: JogoDesejos; aoNovo: () => void; aoConversar: 
           {lista.map((c) => (
             <li key={c.id} className="flex items-center gap-3 rounded-2xl bg-white/[0.06] px-3 py-2.5">
               {temPictograma(c.id)
-                ? <PictogramaPosicao id={c.id} titulo={`Ilustração: ${c.titulo}`} className="w-16 shrink-0" />
+                ? <PictogramaPosicao id={c.id} cena="noite" titulo={`Ilustração: ${c.titulo}`} className="w-16 shrink-0 rounded-lg" />
                 : <span className="text-3xl" aria-hidden>{c.emoji}</span>}
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-bold">{c.titulo}</span>

@@ -321,35 +321,117 @@ function Personagem({ c, m, e, parceiro, id }: { c: Corpo; m: Medidas; e: Estilo
   );
 }
 
-function Cenario({ tipo }: { tipo?: Cenario }) {
-  const madeira = '#6e3f2a', lencol = '#ded4ec', lencolSombra = '#c9bcdc', chao = '#d8d0e4';
+interface Paleta { madeira: string; lencol: string; lencolSombra: string; chao: string; travesseiro: string; parede: string; degrau: string }
+const PALETA_CLARA: Paleta = { madeira: '#6e3f2a', lencol: '#ded4ec', lencolSombra: '#c9bcdc', chao: '#d8d0e4', travesseiro: '#f1eef7', parede: '#e7e1ef', degrau: '#b9b2c6' };
+// noite: móveis em madeira entalhada com friso dourado e lençol de seda rosada
+const PALETA_NOITE: Paleta = { madeira: '#a0673f', lencol: '#f3c9d8', lencolSombra: '#d996b0', chao: '#c9973f', travesseiro: '#ffe7ef', parede: '#4a2462', degrau: '#6b3a7e' };
+
+function Cenario({ tipo, paleta = PALETA_CLARA }: { tipo?: Cenario; paleta?: Paleta }) {
+  const { madeira, lencol, lencolSombra, chao, travesseiro, parede, degrau } = paleta;
   const pe = { stroke: madeira, strokeWidth: 2.2, strokeLinecap: 'round' as const };
   switch (tipo) {
-    case 'cama': return <g><rect x="6" y="70" width="108" height="7" rx="2" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><path d="M12 77 V83 M108 77 V83" {...pe} /><ellipse cx="16" cy="69" rx="10" ry="3.2" fill="#f1eef7" stroke={lencolSombra} strokeWidth={0.6} /></g>;
+    case 'cama': return <g><rect x="6" y="70" width="108" height="7" rx="2" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><path d="M12 77 V83 M108 77 V83" {...pe} /><ellipse cx="16" cy="69" rx="10" ry="3.2" fill={travesseiro} stroke={lencolSombra} strokeWidth={0.6} /></g>;
     case 'cama-curta': return <g><rect x="6" y="70" width="72" height="7" rx="2" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><path d="M12 77 V83 M72 77 V83" {...pe} /></g>;
     case 'cadeira': return <g><path d="M28 61 H72" stroke={madeira} strokeWidth={3} strokeLinecap="round" /><path d="M32 62 V83 M68 62 V83 M30 61 V24" {...pe} /></g>;
     case 'banqueta': return <g><path d="M16 58 H40" stroke={madeira} strokeWidth={3.2} strokeLinecap="round" /><path d="M20 59 V83 M36 59 V83" {...pe} /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
     case 'sofa': return <g><rect x="22" y="58" width="56" height="9" rx="3" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><rect x="20" y="30" width="8" height="37" rx="3" fill={lencol} stroke={lencolSombra} strokeWidth={0.8} /><path d="M26 67 V82 M74 67 V82" {...pe} /></g>;
-    case 'parede': return <g><rect x="4" y="4" width="16" height="79" fill="#e7e1ef" /><path d="M20 4 V83" stroke={lencolSombra} strokeWidth={1} /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
+    case 'parede': return <g><rect x="4" y="4" width="16" height="79" fill={parede} /><path d="M20 4 V83" stroke={lencolSombra} strokeWidth={1} /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
     case 'bancada': return <g><path d="M10 56 H56" stroke={madeira} strokeWidth={3.4} strokeLinecap="round" /><path d="M16 58 V83 M50 58 V83" {...pe} /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
     case 'chuveiro': return <g><path d="M22 83 V6 H38 M35 6 V10" stroke="#9aa3b5" strokeWidth={1.8} fill="none" strokeLinecap="round" /><path d="M30 14 l-3 9 M35 14 l-1 10 M40 14 l1 9 M45 14 l3 9" stroke="#7cc6f0" strokeWidth={1.2} strokeDasharray="2 3" strokeLinecap="round" /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
-    case 'escada': return <g><path d="M8 83 V58 H24 V66 H40 V74 H56 V83 Z" fill="#b9b2c6" /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
+    case 'escada': return <g><path d="M8 83 V58 H24 V66 H40 V74 H56 V83 Z" fill={degrau} /><path d="M6 83 H114" stroke={chao} strokeWidth={1.4} /></g>;
     case 'chao': return <path d="M6 83 H114" stroke={chao} strokeWidth={1.4} />;
     default: return null;
   }
 }
 
-export const PictogramaPosicao: React.FC<{ id: string; className?: string; titulo?: string }> = ({ id, className = '', titulo }) => {
+/** Fundo "noite": parede ameixa com treliça dourada, janela em arco com lua e estrelas,
+ *  lanterna pendurada com luz quente e um halo dourado atrás do casal. */
+/** quantas juntas dos dois corpos caem na área de um canto de cima (para a janela não ficar atrás de ninguém) */
+function ocupacao(pose: Pose, xc: number): number {
+  const pts: P[] = [];
+  for (const c of [pose.a, pose.b]) {
+    pts.push(c.cabeca, c.pescoco, c.quadril);
+    for (const [x, y] of [...c.bracos, ...c.pernas]) pts.push(x, y);
+  }
+  return pts.filter(([x, y]) => Math.abs(x - xc) < 17 && y < 40).length;
+}
+
+function FundoNoite({ uid, pose }: { uid: string; pose: Pose }) {
+  // a janela vai para o canto de cima mais livre; a lanterna fica do lado oposto.
+  // Com parede ou chuveiro à esquerda, a janela fica sempre à direita.
+  const fixaDireita = pose.cenario === 'parede' || pose.cenario === 'chuveiro';
+  const direita = fixaDireita || ocupacao(pose, 94) <= ocupacao(pose, 26);
+  const janelaX = direita ? 94 : 26;
+  const lanternaX = direita ? 12 : 108;
+  return (
+    <g>
+      <defs>
+        <linearGradient id={`parede-${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#2a1240" /><stop offset="100%" stopColor="#4b1f55" />
+        </linearGradient>
+        <linearGradient id={`ceu-${uid}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#120a2e" /><stop offset="100%" stopColor="#3b2170" />
+        </linearGradient>
+        <radialGradient id={`halo-${uid}`} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#ffcf7a" stopOpacity="0.42" /><stop offset="60%" stopColor="#f472b6" stopOpacity="0.12" /><stop offset="100%" stopColor="#f472b6" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id={`luz-${uid}`} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0%" stopColor="#ffb35c" stopOpacity="0.55" /><stop offset="100%" stopColor="#ffb35c" stopOpacity="0" />
+        </radialGradient>
+        <pattern id={`trelica-${uid}`} width="8" height="8" patternUnits="userSpaceOnUse">
+          <path d="M4 0 L8 4 L4 8 L0 4Z" fill="none" stroke="#e9b949" strokeWidth="0.25" opacity="0.22" />
+          <circle cx="4" cy="4" r="0.45" fill="#e9b949" opacity="0.3" />
+        </pattern>
+      </defs>
+      <rect x="0" y="0" width="120" height="88" rx="9" fill={`url(#parede-${uid})`} />
+      <rect x="0" y="0" width="120" height="83" rx="9" fill={`url(#trelica-${uid})`} />
+      {/* janela em arco recortado (jharokha) */}
+      <g transform={`translate(${janelaX} 8)`}>
+        <path d="M-11 26 V8 Q-11 -2 0 -6 Q11 -2 11 8 V26Z" fill={`url(#ceu-${uid})`} stroke="#e9b949" strokeWidth="1.1" />
+        <path d="M-13.5 27.5 H13.5" stroke="#e9b949" strokeWidth="1.4" strokeLinecap="round" />
+        <circle cx="3.5" cy="4" r="3.6" fill="#fff3c4" />
+        <circle cx="5.3" cy="2.9" r="3.1" fill="#24124a" />
+        <circle cx="-5" cy="10" r="0.55" fill="#fff" /><circle cx="-2" cy="17" r="0.45" fill="#fff" /><circle cx="6" cy="14" r="0.5" fill="#fde68a" />
+        <path d="M0 -6 V26" stroke="#e9b949" strokeWidth="0.35" opacity="0.6" />
+      </g>
+      {/* lanterna com luz quente */}
+      <g transform={`translate(${lanternaX - 12} 0)`}>
+      <circle cx="12" cy="20" r="16" fill={`url(#luz-${uid})`} />
+      <path d="M12 0 V11" stroke="#e9b949" strokeWidth="0.5" />
+      <path d="M9 12 H15 L14 20 H10Z" fill="#ffb35c" stroke="#e9b949" strokeWidth="0.6" />
+      <path d="M8.5 12 H15.5 M9.5 20.5 H14.5" stroke="#e9b949" strokeWidth="0.9" strokeLinecap="round" />
+      </g>
+      {/* halo atrás do casal */}
+      <circle cx="60" cy="48" r="38" fill={`url(#halo-${uid})`} />
+      {/* chão com tapete */}
+      <rect x="0" y="82" width="120" height="6" fill="#1f0d29" />
+      <path d="M6 84.5 H114" stroke="#c9973f" strokeWidth="0.6" strokeDasharray="1.5 1.5" opacity="0.7" />
+    </g>
+  );
+}
+
+export type Cena = 'clara' | 'noite';
+
+export const PictogramaPosicao: React.FC<{ id: string; className?: string; titulo?: string; cena?: Cena }> = ({ id, className = '', titulo, cena = 'clara' }) => {
   const pose = POSES[id];
   const uid = React.useId().replace(/:/g, '');
   if (!pose) return null;
   return (
     <svg viewBox="0 0 120 88" className={className} role="img" aria-label={titulo ?? 'Ilustração da posição'}>
-      <rect x="0" y="0" width="120" height="88" rx="9" fill="#fbf8fd" />
-      <circle cx="62" cy="44" r="36" fill="#e6def1" />
-      <Cenario tipo={pose.cenario} />
-      <Personagem c={pose.a} m={CORPO_A} e={ESTILO_A} parceiro={pose.b.cabeca} id={`a-${uid}`} />
-      <Personagem c={pose.b} m={CORPO_B} e={ESTILO_B} parceiro={pose.a.cabeca} id={`b-${uid}`} />
+      <clipPath id={`moldura-${uid}`}><rect x="0" y="0" width="120" height="88" rx="9" /></clipPath>
+      <g clipPath={`url(#moldura-${uid})`}>
+        {cena === 'noite' ? (
+          <FundoNoite uid={uid} pose={pose} />
+        ) : (
+          <>
+            <rect x="0" y="0" width="120" height="88" rx="9" fill="#fbf8fd" />
+            <circle cx="62" cy="44" r="36" fill="#e6def1" />
+          </>
+        )}
+        <Cenario tipo={pose.cenario} paleta={cena === 'noite' ? PALETA_NOITE : PALETA_CLARA} />
+        <Personagem c={pose.a} m={CORPO_A} e={ESTILO_A} parceiro={pose.b.cabeca} id={`a-${uid}`} />
+        <Personagem c={pose.b} m={CORPO_B} e={ESTILO_B} parceiro={pose.a.cabeca} id={`b-${uid}`} />
+      </g>
     </svg>
   );
 };
